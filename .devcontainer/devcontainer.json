@@ -9,7 +9,7 @@
   "portsAttributes": {
     "8080": {
       "label": "Ember",
-      "onAutoForward": "openPreview"
+      "onAutoForward": "openBrowser"
     }
   }
 }
