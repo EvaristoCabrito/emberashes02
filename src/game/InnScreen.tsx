@@ -1,0 +1,212 @@
+import { useMemo, useState } from "react";
+import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BAG_MAX, HERO_NAMES, POTION_PRICE, potionLabel } from "./data";
+import type { Bag, PotionId } from "./types";
+
+const NPCS = [
+  {
+    id: "brue",
+    name: "Brue",
+    role: "Estalajadeiro",
+    portrait: "/game/portraits/brue.png",
+    talk: "O fogo ainda pega. As camas, não. Ember compra o que sobrou da adega. Salazar pode levar frasco — não precisa, mas o copo não recusa.",
+    shop: true,
+  },
+  {
+    id: "mudo",
+    name: "O Mudo",
+    role: "Viajante",
+    portrait: "/game/portraits/mudo.png",
+    talk: "Ele não fala. Nunca. Carrega uma pequena tábua de madeira e um pedaço de giz, e usa-a para responder quando não pode simplesmente apontar ou ir embora. Na tábua, uma frase aparece repetidamente: “Não fique parado por muito tempo.” Ninguém sabe de onde ele veio. Conhece estradas que não aparecem em mapa algum e parece sempre estar a caminho de algum lugar. Quando perguntam quanto custa uma bebida na velha adega, ele escreve apenas: “Ainda tem preço.”",
+    shop: false,
+  },
+  {
+    id: "porao",
+    name: "A Hóspede",
+    role: "Porão",
+    portrait: "/game/portraits/porao.png",
+    talk: "Não subo. O chão me conhece. Tragam histórias, não luz. Se Brue ainda mede Ember, o mundo não acabou.",
+    shop: false,
+  },
+] as const;
+
+const POTION_ORDER: PotionId[] = ["weak", "mid", "potent", "disease"];
+
+const ICONS: Record<PotionId, string> = {
+  weak: "/game/icons/potion-weak.png",
+  mid: "/game/icons/potion-mid.png",
+  potent: "/game/icons/potion-potent.png",
+  disease: "/game/icons/potion-disease.png",
+};
+
+const EMPTY_CART: Record<PotionId, number> = { weak: 0, mid: 0, potent: 0, disease: 0 };
+
+export function InnScreen({
+  bags,
+  ember,
+  muted,
+  onMute,
+  onLeave,
+  onPay,
+}: {
+  bags: Record<string, Bag>;
+  ember: number;
+  muted: boolean;
+  onMute: () => void;
+  onLeave: () => void;
+  onPay: (hero: string, cart: Record<PotionId, number>) => boolean;
+}) {
+  const [npc, setNpc] = useState<(typeof NPCS)[number]>(NPCS[0]);
+  const [hero, setHero] = useState<string>("Kael");
+  const [cart, setCart] = useState<Record<PotionId, number>>({ ...EMPTY_CART });
+  const [note, setNote] = useState<string | null>(null);
+  const bag = bags[hero] ?? { mid: 0, weak: 0, potent: 0, disease: 0 };
+
+  const total = useMemo(
+    () => POTION_ORDER.reduce((n, kind) => n + cart[kind] * POTION_PRICE[kind], 0),
+    [cart],
+  );
+  const items = POTION_ORDER.reduce((n, kind) => n + cart[kind], 0);
+  const remain = ember - total;
+
+  const add = (kind: PotionId, delta: number) => {
+    setNote(null);
+    setCart((prev) => {
+      const next = Math.max(0, (prev[kind] ?? 0) + delta);
+      const have = bag[kind] ?? 0;
+      const cap = Math.max(0, BAG_MAX - have);
+      return { ...prev, [kind]: Math.min(next, cap) };
+    });
+  };
+
+  const pay = () => {
+    if (items <= 0) {
+      setNote("Nada no copo.");
+      return;
+    }
+    if (remain < 0) {
+      setNote(`Faltam ${-remain} Ember.`);
+      return;
+    }
+    const ok = onPay(hero, cart);
+    if (!ok) {
+      setNote("Brue recusou. Ember ou espaço.");
+      return;
+    }
+    setCart({ ...EMPTY_CART });
+    setNote("Pago. Os frascos foram para o saco.");
+  };
+
+  return (
+    <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
+      <img src="/game/brief-estalagem.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/80 to-bg/40" />
+      <header className="relative z-10 flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
+        <button type="button" onClick={onLeave} className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]">
+          Sair
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Pousada à margem da cinza</p>
+          <h1 className="font-display text-2xl leading-none">A Estalagem do Osso Seco</h1>
+        </div>
+        <p className="text-sm tabular-nums border border-border bg-bg/70 rounded-md px-2 py-1">Ember {ember}</p>
+        <button type="button" onClick={onMute} className="size-10 grid place-items-center rounded-md border border-border bg-bg/70" aria-label="Som">
+          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+        </button>
+      </header>
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 max-w-lg mx-auto w-full">
+        <div className="grid grid-cols-3 gap-2">
+          {NPCS.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => setNpc(n)}
+              className={`rounded-xl border overflow-hidden text-left ${npc.id === n.id ? "border-accent" : "border-border"}`}
+            >
+              <img src={n.portrait} alt="" className="w-full aspect-[2/3] object-cover" />
+              <p className="px-2 py-1 text-xs font-medium truncate bg-surface/90">{n.name}</p>
+            </button>
+          ))}
+        </div>
+        <div className="rounded-xl border border-border bg-surface/90 p-3 flex gap-3">
+          <img src={npc.portrait} alt="" className="h-24 w-16 object-cover rounded-md shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">
+              {npc.name} · {npc.role}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-fg/90">{npc.talk}</p>
+          </div>
+        </div>
+        {npc.shop && (
+          <div className="rounded-xl border border-border bg-surface/90 p-3 flex flex-col gap-2">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">Adega · quem leva</p>
+            <div className="flex flex-wrap gap-1">
+              {HERO_NAMES.map((name) => (
+                <Button
+                  key={name}
+                  size="sm"
+                  variant={hero === name ? undefined : "quiet"}
+                  onClick={() => {
+                    setHero(name);
+                    setCart({ ...EMPTY_CART });
+                    setNote(null);
+                  }}
+                >
+                  {name}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-col gap-1">
+              {POTION_ORDER.map((kind) => {
+                const price = POTION_PRICE[kind];
+                const have = bag[kind] ?? 0;
+                const qty = cart[kind] ?? 0;
+                return (
+                  <div key={kind} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                    <img src={ICONS[kind]} alt="" className="size-6 rounded-sm object-cover" />
+                    <span className="flex-1 text-sm min-w-0">
+                      {potionLabel(kind)}
+                      <span className="block text-[11px] text-muted tabular-nums">
+                        saco ×{have} · {price} Ember
+                      </span>
+                    </span>
+                    <button type="button" className="size-8 grid place-items-center rounded-md border border-border" onClick={() => add(kind, -1)} disabled={qty <= 0}>
+                      −
+                    </button>
+                    <span className="w-6 text-center text-sm tabular-nums">{qty}</span>
+                    <button
+                      type="button"
+                      className="size-8 grid place-items-center rounded-md border border-border"
+                      onClick={() => add(kind, 1)}
+                      disabled={have + qty >= BAG_MAX}
+                    >
+                      +
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <p className={`text-sm tabular-nums ${remain < 0 ? "text-danger" : "text-muted"}`}>
+              Conta {total} Ember · restam {remain}
+            </p>
+            {note && <p className="text-sm text-accent">{note}</p>}
+            <div className="flex gap-2">
+              <Button className="flex-1" disabled={items <= 0} onClick={pay}>
+                Pagar
+              </Button>
+              <Button variant="quiet" onClick={() => { setCart({ ...EMPTY_CART }); setNote(null); }}>
+                Limpar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="relative z-10 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))] max-w-lg mx-auto w-full">
+        <Button variant="ghost" className="w-full" onClick={onLeave}>
+          <ChevronLeft className="size-4" /> Sair da estalagem
+        </Button>
+      </div>
+    </section>
+  );
+}

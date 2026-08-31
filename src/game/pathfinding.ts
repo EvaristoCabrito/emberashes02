@@ -1,0 +1,416 @@
+import { effectiveMaxRange, isProjectile, isRangedWeapon, TERRAIN } from "./data";
+import type { Point, TerrainId, Unit } from "./types";
+
+export function key(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+export function inBounds(x: number, y: number, cols: number, rows: number): boolean {
+  return x >= 0 && y >= 0 && x < cols && y < rows;
+}
+
+export function tileAt(tiles: TerrainId[], cols: number, x: number, y: number): TerrainId {
+  return tiles[y * cols + x] ?? "plains";
+}
+
+export interface Cube {
+  q: number;
+  r: number;
+  s: number;
+}
+
+export function oddrToCube(col: number, row: number): Cube {
+  const q = col - (row - (row & 1)) / 2;
+  const r = row;
+  return { q, r, s: -q - r };
+}
+
+export function cubeToOddr(q: number, r: number): Point {
+  const col = q + (r - (r & 1)) / 2;
+  return { x: col, y: r };
+}
+
+export function cubeRound(q: number, r: number, s: number): Cube {
+  let rq = Math.round(q);
+  let rr = Math.round(r);
+  let rs = Math.round(s);
+  const dq = Math.abs(rq - q);
+  const dr = Math.abs(rr - r);
+  const ds = Math.abs(rs - s);
+  if (dq > dr && dq > ds) rq = -rr - rs;
+  else if (dr > ds) rr = -rq - rs;
+  else rs = -rq - rr;
+  return { q: rq, r: rr, s: rs };
+}
+
+export function hexLine(a: Point, b: Point): Point[] {
+  const n = hexDist(a, b);
+  if (n === 0) return [{ x: a.x, y: a.y }];
+  const A = oddrToCube(a.x, a.y);
+  const B = oddrToCube(b.x, b.y);
+  const out: Point[] = [];
+  let prev = "";
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const c = cubeRound(A.q + (B.q - A.q) * t, A.r + (B.r - A.r) * t, A.s + (B.s - A.s) * t);
+    const p = cubeToOddr(c.q, c.r);
+    const k = key(p.x, p.y);
+    if (k === prev) continue;
+    prev = k;
+    out.push(p);
+  }
+  return out;
+}
+
+export function clearShot(
+  from: Point,
+  to: Point,
+  tiles: TerrainId[],
+  cols: number,
+  kind: "arrow" | "bolt",
+): boolean {
+  const fromHigh = !!TERRAIN[tileAt(tiles, cols, from.x, from.y)].height;
+  const line = hexLine(from, to);
+  for (let i = 1; i < line.length; i++) {
+    const p = line[i]!;
+    const end = i === line.length - 1;
+    const t = TERRAIN[tileAt(tiles, cols, p.x, p.y)];
+    if (t.id === "barricade") {
+      if (end) return false;
+      const shooterBehind = hexDist(from, p) <= 1;
+      const targetBehind = hexDist(to, p) <= 1;
+      if (targetBehind) return false;
+      if (!shooterBehind) return false;
+      continue;
+    }
+    if (t.blocksShot && !end) return false;
+    if (!end && kind === "arrow" && t.height && !fromHigh) return false;
+  }
+  return true;
+}
+
+export function shotKind(unit: { maxRange: number; mag: number }): "arrow" | "bolt" | null {
+  if (isRangedWeapon(unit)) return "arrow";
+  if (isProjectile(unit)) return "bolt";
+  return null;
+}
+
+export function hexDist(a: Point, b: Point): number {
+  const A = oddrToCube(a.x, a.y);
+  const B = oddrToCube(b.x, b.y);
+  return (Math.abs(A.q - B.q) + Math.abs(A.r - B.r) + Math.abs(A.s - B.s)) / 2;
+}
+
+export function manhattan(a: Point, b: Point): number {
+  return hexDist(a, b);
+}
+
+export const CUBE_DIRS: Cube[] = [
+  { q: 1, r: 0, s: -1 },
+  { q: 1, r: -1, s: 0 },
+  { q: 0, r: -1, s: 1 },
+  { q: -1, r: 0, s: 1 },
+  { q: -1, r: 1, s: 0 },
+  { q: 0, r: 1, s: -1 },
+];
+
+export function cubeAdd(a: Cube, b: Cube): Cube {
+  return { q: a.q + b.q, r: a.r + b.r, s: a.s + b.s };
+}
+
+export function axisDir(from: Point, to: Point): Cube | null {
+  const A = oddrToCube(from.x, from.y);
+  const B = oddrToCube(to.x, to.y);
+  const dq = B.q - A.q;
+  const dr = B.r - A.r;
+  const ds = B.s - A.s;
+  if (dq === 0 && dr === 0 && ds === 0) return null;
+  if (dq !== 0 && dr !== 0 && ds !== 0) return null;
+  const n = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds));
+  if (n <= 0) return null;
+  if (dq % n !== 0 || dr % n !== 0 || ds % n !== 0) return null;
+  return { q: dq / n, r: dr / n, s: ds / n };
+}
+
+export function hexRay(from: Point, dir: Cube, cols: number, rows: number): Point[] {
+  const out: Point[] = [];
+  let c = cubeAdd(oddrToCube(from.x, from.y), dir);
+  for (let i = 0; i < cols + rows + 4; i++) {
+    const p = cubeToOddr(c.q, c.r);
+    if (!inBounds(p.x, p.y, cols, rows)) break;
+    out.push(p);
+    c = cubeAdd(c, dir);
+  }
+  return out;
+}
+
+export function allAxisRays(from: Point, cols: number, rows: number): Point[] {
+  const out: Point[] = [];
+  for (const d of CUBE_DIRS) out.push(...hexRay(from, d, cols, rows));
+  return out;
+}
+
+export function piercingLine(from: Point, through: Point, cols: number, rows: number): Point[] | null {
+  const dir = axisDir(from, through);
+  if (!dir) return null;
+  return hexRay(from, dir, cols, rows);
+}
+
+export function hexNeighbors(col: number, row: number): Point[] {
+  const even = [
+    [1, 0],
+    [0, -1],
+    [-1, -1],
+    [-1, 0],
+    [-1, 1],
+    [0, 1],
+  ];
+  const odd = [
+    [1, 0],
+    [1, -1],
+    [0, -1],
+    [-1, 0],
+    [0, 1],
+    [1, 1],
+  ];
+  const d = row & 1 ? odd : even;
+  return d.map(([dx, dy]) => ({ x: col + dx!, y: row + dy! }));
+}
+
+export function cleaveHexes(from: Point, start: Point, count: number, cols: number, rows: number): Point[] {
+  const ring = hexNeighbors(from.x, from.y);
+  const i = ring.findIndex((p) => p.x === start.x && p.y === start.y);
+  if (i < 0) return [];
+  const n = Math.max(1, Math.min(6, count));
+  const out: Point[] = [];
+  for (let k = 0; k < n; k++) {
+    const p = ring[(i + k) % ring.length];
+    if (p && inBounds(p.x, p.y, cols, rows)) out.push(p);
+  }
+  return out;
+}
+
+export interface ReachCell {
+  x: number;
+  y: number;
+  cost: number;
+  parent: string | null;
+}
+
+export function unitSize(unit: Pick<Unit, "size">): number {
+  return Math.max(1, unit.size || 1);
+}
+
+export function footprint(unit: Pick<Unit, "x" | "y" | "size">): Point[] {
+  const s = unitSize(unit);
+  if (s <= 1) return [{ x: unit.x, y: unit.y }];
+  const out: Point[] = [{ x: unit.x, y: unit.y }];
+  const want = s <= 2 ? 2 : Math.min(4, s);
+  for (const n of hexNeighbors(unit.x, unit.y)) {
+    out.push(n);
+    if (out.length >= want) break;
+  }
+  return out;
+}
+
+export function occupies(unit: Unit, x: number, y: number): boolean {
+  if (!unit.alive) return false;
+  return footprint(unit).some((p) => p.x === x && p.y === y);
+}
+
+export function occupancy(units: Unit[]): Map<string, Unit> {
+  const map = new Map<string, Unit>();
+  for (const u of units) {
+    if (!u.alive) continue;
+    for (const p of footprint(u)) map.set(key(p.x, p.y), u);
+  }
+  return map;
+}
+
+export function unitAt(units: Unit[], x: number, y: number): Unit | undefined {
+  return units.find((u) => occupies(u, x, y));
+}
+
+export function minRangeTo(ax: number, ay: number, unit: Unit): number {
+  let best = 999;
+  for (const p of footprint(unit)) {
+    const d = hexDist({ x: ax, y: ay }, p);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+export function inRangeOf(ax: number, ay: number, unit: Unit, min: number, max: number): boolean {
+  const m = minRangeTo(ax, ay, unit);
+  return m >= min && m <= max;
+}
+
+function footprintCost(
+  x: number,
+  y: number,
+  size: number,
+  tiles: TerrainId[],
+  cols: number,
+  rows: number,
+  occ: Map<string, Unit>,
+  self: Unit,
+  stop: boolean,
+): number | null {
+  const cells = footprint({ x, y, size });
+  let cost = 1;
+  for (const p of cells) {
+    if (!inBounds(p.x, p.y, cols, rows)) return null;
+    const terr = TERRAIN[tileAt(tiles, cols, p.x, p.y)];
+    if (!terr.passable) {
+      if (!(terr.id === "barricade" && self.classId === "troll")) return null;
+    }
+    const costHere = terr.id === "barricade" && self.classId === "troll" ? 2 : terr.moveCost;
+    if (costHere > cost) cost = costHere;
+    const who = occ.get(key(p.x, p.y));
+    if (!who || who.id === self.id) continue;
+    if (who.side !== self.side) return null;
+    if (stop) return null;
+  }
+  return cost;
+}
+
+export function computeReachable(
+  unit: Unit,
+  tiles: TerrainId[],
+  cols: number,
+  rows: number,
+  units: Unit[],
+): Map<string, ReachCell> {
+  const occ = occupancy(units);
+  const size = unitSize(unit);
+  const result = new Map<string, ReachCell>();
+  const start: ReachCell = { x: unit.x, y: unit.y, cost: 0, parent: null };
+  result.set(key(unit.x, unit.y), start);
+
+  const queue: ReachCell[] = [start];
+  while (queue.length) {
+    queue.sort((a, b) => a.cost - b.cost);
+    const cur = queue.shift()!;
+    if (cur.cost >= unit.mov) continue;
+    for (const n of hexNeighbors(cur.x, cur.y)) {
+      const step = footprintCost(n.x, n.y, size, tiles, cols, rows, occ, unit, false);
+      if (step == null) continue;
+      const nextCost = cur.cost + step;
+      if (nextCost > unit.mov) continue;
+      const nk = key(n.x, n.y);
+      const prev = result.get(nk);
+      if (prev && prev.cost <= nextCost) continue;
+      const cell: ReachCell = { x: n.x, y: n.y, cost: nextCost, parent: key(cur.x, cur.y) };
+      result.set(nk, cell);
+      queue.push(cell);
+    }
+  }
+
+  for (const [k, cell] of result) {
+    if (k === key(unit.x, unit.y)) continue;
+    if (footprintCost(cell.x, cell.y, size, tiles, cols, rows, occ, unit, true) == null) {
+      result.delete(k);
+    }
+  }
+  return result;
+}
+
+export function reconstructPath(reach: Map<string, ReachCell>, to: Point): Point[] {
+  const path: Point[] = [];
+  let cur: ReachCell | undefined = reach.get(key(to.x, to.y));
+  while (cur) {
+    path.push({ x: cur.x, y: cur.y });
+    cur = cur.parent ? reach.get(cur.parent) : undefined;
+  }
+  path.reverse();
+  return path;
+}
+
+export function attackCellsFrom(
+  x: number,
+  y: number,
+  minRange: number,
+  maxRange: number,
+  cols: number,
+  rows: number,
+): Point[] {
+  const out: Point[] = [];
+  for (let gy = 0; gy < rows; gy++) {
+    for (let gx = 0; gx < cols; gx++) {
+      const m = hexDist({ x, y }, { x: gx, y: gy });
+      if (m >= minRange && m <= maxRange) out.push({ x: gx, y: gy });
+    }
+  }
+  return out;
+}
+
+export function inWeaponRange(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  min: number,
+  max: number,
+): boolean {
+  const m = hexDist({ x: ax, y: ay }, { x: bx, y: by });
+  return m >= min && m <= max;
+}
+
+export function canHitFrom(unit: Unit, from: Point, foe: Unit, tiles: TerrainId[], cols: number): boolean {
+  const placed = { ...unit, x: from.x, y: from.y };
+  const tile = tileAt(tiles, cols, from.x, from.y);
+  const max = effectiveMaxRange(unit, tile);
+  let ok = false;
+  for (const p of footprint(placed)) {
+    if (inRangeOf(p.x, p.y, foe, unit.minRange, max)) {
+      ok = true;
+      break;
+    }
+  }
+  if (!ok) return false;
+  const kind = shotKind(unit);
+  if (!kind) return true;
+  return clearShot(from, { x: foe.x, y: foe.y }, tiles, cols, kind);
+}
+
+export function attackableEnemies(
+  unit: Unit,
+  reach: Map<string, ReachCell>,
+  units: Unit[],
+  tiles: TerrainId[],
+  cols: number,
+): Map<string, Point> {
+  const best = new Map<string, Point>();
+  for (const cell of reach.values()) {
+    for (const foe of units) {
+      if (!foe.alive || foe.side === unit.side) continue;
+      if (!canHitFrom(unit, cell, foe, tiles, cols)) continue;
+      if (!best.has(foe.id)) best.set(foe.id, { x: cell.x, y: cell.y });
+    }
+  }
+  return best;
+}
+
+export function computeThreat(
+  unit: Unit,
+  tiles: TerrainId[],
+  cols: number,
+  rows: number,
+  units: Unit[],
+): Point[] {
+  const reach = computeReachable(unit, tiles, cols, rows, units);
+  const seen = new Set<string>();
+  const out: Point[] = [];
+  for (const cell of reach.values()) {
+    const max = effectiveMaxRange(unit, tileAt(tiles, cols, cell.x, cell.y));
+    const kind = shotKind(unit);
+    for (const p of attackCellsFrom(cell.x, cell.y, unit.minRange, max, cols, rows)) {
+      if (kind && !clearShot(cell, p, tiles, cols, kind)) continue;
+      const k = key(p.x, p.y);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(p);
+    }
+  }
+  return out;
+}

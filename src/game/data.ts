@@ -1,0 +1,1224 @@
+import type { Bag, ClassDef, ClassId, HealId, Mission, PotionId, TerrainDef, TerrainId, Unit } from "./types";
+
+export const TERRAIN: Record<TerrainId, TerrainDef> = {
+  plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
+  woods: { id: "woods", name: "Bosque", moveCost: 2, def: 1, atk: 0, passable: true },
+  ruins: { id: "ruins", name: "Ruínas", moveCost: 1, def: 2, atk: 0, passable: true },
+  water: { id: "water", name: "Água", moveCost: 99, def: 0, atk: 0, passable: false },
+  ember: { id: "ember", name: "Brasa", moveCost: 99, def: 0, atk: 0, passable: false },
+  hill: { id: "hill", name: "Barranco", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
+  flame: { id: "flame", name: "Chama", moveCost: 3, def: 0, atk: 0, passable: true, hazardDice: 1, hazardFaces: 8 },
+  column: { id: "column", name: "Coluna", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
+  nave: { id: "nave", name: "Laje negra", moveCost: 1, def: 0, atk: 0, passable: true },
+  barricade: { id: "barricade", name: "Barricada", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
+  highwood: { id: "highwood", name: "Tronco morto", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
+  highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
+};
+
+export const CLASSES: Record<ClassId, ClassDef> = {
+  swordsman: {
+    id: "swordsman",
+    name: "Espadachim",
+    role: "Linha de frente",
+    hp: 34,
+    atk: 9,
+    mag: 0,
+    def: 6,
+    res: 3,
+    mov: 4,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "kael",
+    size: 1,
+  },
+  archer: {
+    id: "archer",
+    name: "Arqueira",
+    role: "Alcance",
+    hp: 24,
+    atk: 8,
+    mag: 0,
+    def: 3,
+    res: 4,
+    mov: 4,
+    minRange: 2,
+    maxRange: 3,
+    sprite: "nira",
+    size: 1,
+  },
+  mage: {
+    id: "mage",
+    name: "Mago",
+    role: "Magia",
+    hp: 22,
+    atk: 3,
+    mag: 10,
+    def: 2,
+    res: 6,
+    mov: 3,
+    minRange: 1,
+    maxRange: 2,
+    sprite: "voss",
+    size: 1,
+  },
+  healer: {
+    id: "healer",
+    name: "Clérigo",
+    role: "Cura",
+    hp: 26,
+    atk: 4,
+    mag: 8,
+    def: 3,
+    res: 6,
+    mov: 3,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "salazar",
+    size: 1,
+  },
+  soldier: {
+    id: "soldier",
+    name: "Soldado",
+    role: "Milícia",
+    hp: 31,
+    atk: 8,
+    mag: 0,
+    def: 4,
+    res: 2,
+    mov: 3,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "soldier",
+    size: 1,
+  },
+  pikeman: {
+    id: "pikeman",
+    name: "Piqueiro",
+    role: "Pique",
+    hp: 33,
+    atk: 8,
+    mag: 0,
+    def: 5,
+    res: 2,
+    mov: 3,
+    minRange: 1,
+    maxRange: 2,
+    sprite: "pikeman",
+    size: 1,
+  },
+  brigand: {
+    id: "brigand",
+    name: "Besteiro",
+    role: "Emboscada",
+    hp: 25,
+    atk: 7,
+    mag: 0,
+    def: 2,
+    res: 3,
+    mov: 3,
+    minRange: 2,
+    maxRange: 3,
+    sprite: "brigand",
+    size: 1,
+  },
+  captain: {
+    id: "captain",
+    name: "Capitão",
+    role: "Comando",
+    hp: 60,
+    atk: 11,
+    mag: 0,
+    def: 7,
+    res: 4,
+    mov: 4,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "captain",
+    size: 1,
+  },
+  wardog: {
+    id: "wardog",
+    name: "Cão de guerra",
+    role: "Profano",
+    hp: 40,
+    atk: 9,
+    mag: 0,
+    def: 3,
+    res: 1,
+    mov: 5,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "wardog",
+    size: 2,
+  },
+  sorcerer: {
+    id: "sorcerer",
+    name: "Feiticeiro",
+    role: "Rito",
+    hp: 23,
+    atk: 2,
+    mag: 9,
+    def: 2,
+    res: 5,
+    mov: 3,
+    minRange: 1,
+    maxRange: 2,
+    sprite: "sorcerer",
+    size: 1,
+  },
+  horror: {
+    id: "horror",
+    name: "Asherah",
+    role: "Pesadelo",
+    hp: 120,
+    atk: 13,
+    mag: 0,
+    def: 6,
+    res: 4,
+    mov: 2,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "horror",
+    size: 4,
+  },
+  troll: {
+    id: "troll",
+    name: "Troll da caverna",
+    role: "Bruto",
+    hp: 88,
+    atk: 12,
+    mag: 0,
+    def: 9,
+    res: 3,
+    mov: 2,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "troll",
+    size: 4,
+  },
+};
+
+export const HERO_NAMES = ["Kael", "Neera", "Voss", "Salazar"] as const;
+
+export const GROWTH: Record<ClassId, { hp: number; atk: number; mag: number; def: number; res: number }> = {
+  swordsman: { hp: 4, atk: 2, mag: 0, def: 2, res: 1 },
+  archer: { hp: 3, atk: 2, mag: 0, def: 1, res: 1 },
+  mage: { hp: 3, atk: 0, mag: 2, def: 1, res: 2 },
+  healer: { hp: 3, atk: 0, mag: 2, def: 1, res: 2 },
+  soldier: { hp: 4, atk: 2, mag: 0, def: 2, res: 1 },
+  pikeman: { hp: 4, atk: 2, mag: 0, def: 2, res: 1 },
+  brigand: { hp: 3, atk: 2, mag: 0, def: 1, res: 1 },
+  captain: { hp: 4, atk: 2, mag: 0, def: 2, res: 1 },
+  wardog: { hp: 4, atk: 2, mag: 0, def: 2, res: 1 },
+  sorcerer: { hp: 3, atk: 0, mag: 2, def: 1, res: 2 },
+  horror: { hp: 4, atk: 2, mag: 0, def: 2, res: 2 },
+  troll: { hp: 5, atk: 2, mag: 0, def: 2, res: 1 },
+};
+
+export const MAX_LEVEL = 10;
+export const STAR_LEVEL = 5;
+export const STARS_TO_LEVEL = 2;
+
+export function usesStarXp(level: number): boolean {
+  return level >= STAR_LEVEL && level < MAX_LEVEL;
+}
+
+export function statsFor(classId: ClassId, level: number) {
+  const cls = CLASSES[classId];
+  const g = GROWTH[classId];
+  const n = Math.max(0, Math.min(MAX_LEVEL, level) - 1);
+  return {
+    hp: cls.hp + g.hp * n,
+    atk: cls.atk + g.atk * n,
+    mag: cls.mag + g.mag * n,
+    def: cls.def + g.def * n,
+    res: cls.res + g.res * n,
+    mov: cls.mov,
+    minRange: cls.minRange,
+    maxRange: cls.maxRange,
+    level: Math.max(1, Math.min(MAX_LEVEL, level)),
+  };
+}
+
+export function rangeLabel(min: number, max: number): string {
+  return min === max ? `${min}` : `${min}–${max}`;
+}
+
+export function powerLabel(atk: number, mag: number): string {
+  return mag > 0 ? `MAG ${mag}` : `AT ${atk}`;
+}
+
+export function sheetLine(u: { atk: number; mag: number; def: number; res: number; mov: number; minRange: number; maxRange: number }): string {
+  return `AT ${u.atk} · MAG ${u.mag} · DF ${u.def} · RES ${u.res} · Mov ${u.mov} · Alc ${rangeLabel(u.minRange, u.maxRange)}`;
+}
+
+export interface PotionDef {
+  id: PotionId;
+  name: string;
+  dice: number;
+  faces: number;
+  bonus: number;
+  effect: "heal" | "disease";
+}
+
+export const POTIONS: Record<PotionId, PotionDef> = {
+  mid: { id: "mid", name: "Poção média", dice: 2, faces: 8, bonus: 4, effect: "heal" },
+  weak: { id: "weak", name: "Poção fraca", dice: 1, faces: 8, bonus: 2, effect: "heal" },
+  potent: { id: "potent", name: "Poção de cura potente", dice: 2, faces: 12, bonus: 6, effect: "heal" },
+  disease: { id: "disease", name: "Poção de curar doenças", dice: 0, faces: 0, bonus: 0, effect: "disease" },
+};
+
+export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1 };
+export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0 };
+export const BAG_MAX = 9;
+
+export const POTION_PRICE: Record<PotionId, number> = {
+  weak: 4,
+  mid: 8,
+  potent: 14,
+  disease: 10,
+};
+
+export const EMBER_DROP: Partial<Record<ClassId, number>> = {
+  soldier: 2,
+  brigand: 2,
+  pikeman: 3,
+  wardog: 2,
+  sorcerer: 4,
+  captain: 6,
+  horror: 10,
+  troll: 8,
+};
+
+export function emberForKill(classId: ClassId): number {
+  return EMBER_DROP[classId] ?? 2;
+}
+
+export function emberFromCompleted(completed: string[]): number {
+  let n = 0;
+  for (const id of completed) {
+    const m = missionById(id);
+    if (!m || m.hub) continue;
+    for (const e of m.enemySpawns) n += emberForKill(e.classId);
+  }
+  return n;
+}
+
+export const CURES: Record<HealId, { name: string; dice: number; faces: number; bonus: number; uses: number; range: number }> = {
+  cureMinor: { name: "Cura menor", dice: 1, faces: 8, bonus: 3, uses: 2, range: 1 },
+  cureWounds: { name: "Cura simples", dice: 3, faces: 8, bonus: 3, uses: 1, range: 1 },
+};
+
+export function rollDice(dice: number, faces: number, bonus: number, rng: () => number): number {
+  let total = bonus;
+  for (let i = 0; i < dice; i++) total += 1 + Math.floor(rng() * faces);
+  return total;
+}
+
+export function rollCure(kind: HealId, rng: () => number): number {
+  const p = CURES[kind];
+  return rollDice(p.dice, p.faces, p.bonus, rng);
+}
+
+export function diceFormula(dice: number, faces: number, bonus: number): string {
+  if (dice <= 0) return "";
+  const core = `${dice}D${faces}`;
+  return bonus ? `${core}+${bonus}` : core;
+}
+
+export function cureLabel(kind: HealId): string {
+  const p = CURES[kind];
+  return `${p.name} ${diceFormula(p.dice, p.faces, p.bonus)}`;
+}
+
+export function rollPotion(kind: PotionId, rng: () => number): number {
+  const p = POTIONS[kind];
+  return rollDice(p.dice, p.faces, p.bonus, rng);
+}
+
+export function potionLabel(kind: PotionId): string {
+  const p = POTIONS[kind];
+  const formula = diceFormula(p.dice, p.faces, p.bonus);
+  return formula ? `${p.name} ${formula}` : p.name;
+}
+
+export function diceSpan(dice: number, faces: number, bonus: number): string {
+  return `${dice + bonus}–${dice * faces + bonus}`;
+}
+
+export function cureSpan(kind: HealId): string {
+  const p = CURES[kind];
+  return diceFormula(p.dice, p.faces, p.bonus);
+}
+
+export function potionSpan(kind: PotionId): string {
+  const p = POTIONS[kind];
+  return diceFormula(p.dice, p.faces, p.bonus);
+}
+
+export const FIREBALL = {
+  name: "Bola de fogo",
+  size: 2,
+  range: 4,
+  uses: 2,
+  dice: 2,
+  faces: 8,
+  bonus: 4,
+};
+
+export const LONG_SHOT = {
+  name: "Tiro longo",
+  uses: 1,
+  usesAt: 3,
+  usesHigh: 2,
+  rangeMul: 2,
+  bonusDice: 1,
+  bonusFaces: 8,
+  bonus: 1,
+};
+
+export const PIERCING = {
+  name: "Tiro perfurante",
+  uses: 1,
+  usesAt: 3,
+  usesHigh: 2,
+  dmgMul: 2,
+};
+
+export const CLEAVE = {
+  name: "Corte Duplo",
+  usesPerTurn: 2,
+  hexes: 2,
+  hexesAt4: 3,
+  hexesAt6: 4,
+};
+
+export function cleaveHexCount(level: number): number {
+  if (level >= 6) return CLEAVE.hexesAt6;
+  if (level >= 4) return CLEAVE.hexesAt4;
+  return CLEAVE.hexes;
+}
+
+export const LIGHTNING = {
+  name: "Relâmpago",
+  range: 4,
+  uses: 1,
+  unlockLevel: 4,
+  dice: 4,
+  faces: 12,
+  bonus: 6,
+  echoDice: 1,
+  echoFaces: 12,
+  echoBonus: 2,
+};
+
+export function archerSkillUses(level: number): number {
+  return level >= LONG_SHOT.usesAt ? LONG_SHOT.usesHigh : LONG_SHOT.uses;
+}
+
+export function lightningUses(level: number): number {
+  if (level < LIGHTNING.unlockLevel) return 0;
+  return LIGHTNING.uses + (level >= 7 ? 1 : 0);
+}
+
+export function lightningDice(level: number): number {
+  return LIGHTNING.dice + (level >= 8 ? 2 : 0);
+}
+
+export function lightningFormula(level: number): string {
+  return diceFormula(lightningDice(level), LIGHTNING.faces, LIGHTNING.bonus);
+}
+
+export function fireballUses(level: number): number {
+  return FIREBALL.uses + (level >= 7 ? 1 : 0);
+}
+
+export function fireballPower(level: number): { dice: number; faces: number; bonus: number } {
+  if (level >= 9) return { dice: 6, faces: 6, bonus: 10 };
+  if (level >= 5) return { dice: 4, faces: 6, bonus: 6 };
+  return { dice: FIREBALL.dice, faces: FIREBALL.faces, bonus: FIREBALL.bonus };
+}
+
+export function fireballFormula(level: number): string {
+  const p = fireballPower(level);
+  return diceFormula(p.dice, p.faces, p.bonus);
+}
+
+export function cureUses(kind: HealId, level: number): number {
+  if (kind === "cureMinor") {
+    if (level >= 8) return 4;
+    if (level >= 4) return 3;
+    return CURES.cureMinor.uses;
+  }
+  if (level >= 8) return 3;
+  if (level >= 6) return 2;
+  return CURES.cureWounds.uses;
+}
+
+export function enemyLevelFor(missionIndex: number): number {
+  if (missionIndex >= 9) return 4;
+  if (missionIndex >= 5) return 3;
+  if (missionIndex >= 2) return 2;
+  return 1;
+}
+
+export function fireballOrigin(click: { x: number; y: number }, _cols: number, _rows: number): { x: number; y: number } {
+  return { x: click.x, y: click.y };
+}
+
+export function fireballTiles(origin: { x: number; y: number }, cols: number, rows: number): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  const radius = FIREBALL.size;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const Aq = x - (y - (y & 1)) / 2;
+      const Ar = y;
+      const As = -Aq - Ar;
+      const Bq = origin.x - (origin.y - (origin.y & 1)) / 2;
+      const Br = origin.y;
+      const Bs = -Bq - Br;
+      const d = (Math.abs(Aq - Bq) + Math.abs(Ar - Br) + Math.abs(As - Bs)) / 2;
+      if (d <= radius) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+export function fireballRangeTiles(from: { x: number; y: number }, cols: number, rows: number): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const Aq = x - (y - (y & 1)) / 2;
+      const Ar = y;
+      const As = -Aq - Ar;
+      const Bq = from.x - (from.y - (from.y & 1)) / 2;
+      const Br = from.y;
+      const Bs = -Bq - Br;
+      const d = (Math.abs(Aq - Bq) + Math.abs(Ar - Br) + Math.abs(As - Bs)) / 2;
+      if (d <= FIREBALL.range) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+export function startingBags(): Record<string, Bag> {
+  return {
+    Kael: { ...STARTING_BAG },
+    Neera: { ...STARTING_BAG },
+    Voss: { ...STARTING_BAG },
+    Salazar: { ...EMPTY_BAG },
+  };
+}
+
+const CHAR: Record<string, TerrainId> = {
+  ".": "plains",
+  w: "woods",
+  r: "ruins",
+  a: "water",
+  e: "ember",
+  h: "hill",
+  f: "flame",
+  c: "column",
+  n: "nave",
+  b: "barricade",
+  d: "highwood",
+  s: "highruin",
+};
+
+export function parseLayout(layout: string[]): TerrainId[] {
+  const tiles: TerrainId[] = [];
+  for (const row of layout) {
+    for (const ch of row) {
+      tiles.push(CHAR[ch] ?? "plains");
+    }
+  }
+  return tiles;
+}
+
+const TILE_CHAR: Record<TerrainId, string> = {
+  plains: ".",
+  woods: "w",
+  ruins: "r",
+  water: "a",
+  ember: "e",
+  hill: "h",
+  flame: "f",
+  column: "c",
+  nave: "n",
+  barricade: "b",
+  highwood: "d",
+  highruin: "s",
+};
+
+export function isRangedWeapon(unit: { maxRange: number; mag: number }): boolean {
+  return unit.maxRange > 1 && unit.mag === 0;
+}
+
+export function isProjectile(unit: { maxRange: number }): boolean {
+  return unit.maxRange > 1;
+}
+
+export function effectiveMaxRange(unit: Pick<Unit, "maxRange" | "classId">, tile: TerrainId): number {
+  const high = TERRAIN[tile].height ? 1 : 0;
+  return unit.maxRange + (unit.classId === "archer" ? high : 0);
+}
+
+export function terrainNote(id: TerrainId): string | undefined {
+  const t = TERRAIN[id];
+  if (t.height) return `${t.name} · +2 dano · arqueira +1 alcance`;
+  if (t.id === "barricade") return "não se atravessa · 3 hexes · de trás você atira · quem está atrás não é acertado";
+  return undefined;
+}
+
+const RAW_MISSIONS: Mission[] = [
+  {
+    id: "vau",
+    index: 0,
+    title: "O Vau",
+    place: "Rio de cinza",
+    briefing:
+      "O rio ainda corta a planície queimada. Três sobreviventes. Do outro lado, a milícia que os persegue. Atravessem o vau e abram caminho.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 8,
+    rows: 7,
+    layout: [
+      "..ww..h.",
+      "...ww.h.",
+      "aaa.aaaa",
+      "aaa.aaah",
+      ".h......",
+      "w......w",
+      "ww....ww",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 2, y: 6 },
+      { name: "Neera", classId: "archer", x: 3, y: 6 },
+      { name: "Voss", classId: "mage", x: 4, y: 6 },
+    ],
+    enemySpawns: [
+      { name: "Soldado", classId: "soldier", x: 1, y: 0 },
+      { name: "Soldado", classId: "soldier", x: 6, y: 0 },
+      { name: "Besteiro", classId: "brigand", x: 4, y: 1 },
+    ],
+  },
+  {
+    id: "bosque",
+    index: 1,
+    title: "Bosque Morto",
+    place: "Troncos secos",
+    briefing:
+      "As árvores não têm folhas há duas estações. O bosque aperta o passo e esconde besteiros. Não deixem Kael sozinho na frente.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 9,
+    rows: 8,
+    layout: [
+      "w.w...w.w",
+      ".www.www.",
+      "w..w.w..w",
+      "ww.....ww",
+      "w..hhh..w",
+      ".w.....w.",
+      "w.......w",
+      "ww.....ww",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 7 },
+      { name: "Neera", classId: "archer", x: 3, y: 7 },
+      { name: "Voss", classId: "mage", x: 5, y: 7 },
+    ],
+    enemySpawns: [
+      { name: "Soldado", classId: "soldier", x: 1, y: 0 },
+      { name: "Soldado", classId: "soldier", x: 7, y: 0 },
+      { name: "Besteiro", classId: "brigand", x: 4, y: 1 },
+      { name: "Besteiro", classId: "brigand", x: 2, y: 2 },
+    ],
+  },
+  {
+    id: "aldeia",
+    index: 2,
+    title: "Aldeia Queimada",
+    place: "Casario em ruína",
+    briefing:
+      "A aldeia ainda fumega. Casas em chama custam o passo e queimam quem atravessa — 1d8. Piqueiros alcançam duas casas. Não corram pelo fogo.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 10,
+    rows: 8,
+    layout: [
+      "eewrr.wree",
+      "ew.fff...e",
+      "w.rrr.rr.w",
+      ".fff..fff.",
+      "ww.rr.rr.w",
+      ".f.h..h.f.",
+      "w...ff...w",
+      "www....www",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 7 },
+      { name: "Neera", classId: "archer", x: 3, y: 7 },
+      { name: "Voss", classId: "mage", x: 5, y: 7 },
+    ],
+    enemySpawns: [
+      { name: "Piqueiro", classId: "pikeman", x: 3, y: 2 },
+      { name: "Piqueiro", classId: "pikeman", x: 7, y: 2 },
+      { name: "Soldado", classId: "soldier", x: 5, y: 2 },
+      { name: "Besteiro", classId: "brigand", x: 2, y: 5 },
+      { name: "Besteiro", classId: "brigand", x: 6, y: 5 },
+    ],
+  },
+  {
+    id: "muralha",
+    index: 3,
+    title: "Muralha Rasa",
+    place: "Porta da fortaleza",
+    briefing:
+      "A muralha baixa ainda segura o caminho. Besteiros no adarve, soldados no vão do portão. Três cães de guerra — carne de rito, ferro uruk no focinho — tomam duas casas cada. Não deixem cercar Kael.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 11,
+    rows: 8,
+    layout: [
+      "rrrr.e.rrrr",
+      "r.........r",
+      "rrr.....rrr",
+      "r.........r",
+      "....hhh....",
+      "h.........h",
+      "...........",
+      "www.....www",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 5, y: 7 },
+      { name: "Neera", classId: "archer", x: 4, y: 7 },
+      { name: "Voss", classId: "mage", x: 6, y: 7 },
+    ],
+    enemySpawns: [
+      { name: "Soldado", classId: "soldier", x: 4, y: 1 },
+      { name: "Soldado", classId: "soldier", x: 6, y: 1 },
+      { name: "Soldado", classId: "soldier", x: 5, y: 2 },
+      { name: "Besteiro", classId: "brigand", x: 1, y: 3 },
+      { name: "Besteiro", classId: "brigand", x: 9, y: 3 },
+      { name: "Cão de guerra", classId: "wardog", x: 3, y: 5 },
+      { name: "Cão de guerra", classId: "wardog", x: 7, y: 5 },
+      { name: "Cão de guerra", classId: "wardog", x: 5, y: 4 },
+    ],
+  },
+  {
+    id: "fortaleza",
+    index: 4,
+    title: "Fortaleza de Cinzas",
+    place: "Pátio interior",
+    briefing:
+      "O capitão espera no pátio. Derrubem ele — a guarda se dispersa. Voss e Neera acertam de longe, sem contra-ataque. Não encostem no chefe. Usem bosque e ruína.",
+    objective: "Derrube o capitão",
+    win: "boss",
+    cols: 10,
+    rows: 8,
+    layout: [
+      "rrr.ee.rrr",
+      "r........r",
+      "r........r",
+      "r........r",
+      "r..rrrr..r",
+      "r.ww..ww.r",
+      "e........e",
+      "ee......ee",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 7 },
+      { name: "Neera", classId: "archer", x: 3, y: 7 },
+      { name: "Voss", classId: "mage", x: 5, y: 7 },
+    ],
+    enemySpawns: [
+      { name: "Capitão", classId: "captain", x: 4, y: 1 },
+      { name: "Soldado", classId: "soldier", x: 2, y: 2 },
+      { name: "Soldado", classId: "soldier", x: 7, y: 2 },
+      { name: "Besteiro", classId: "brigand", x: 8, y: 3 },
+    ],
+  },
+  {
+    id: "templo",
+    index: 5,
+    title: "As Jaulas da Lua Carmim",
+    place: "Nave enforcada",
+    briefing:
+      "A lua de sangue pende sobre a nave. Gaiolas de ferro e carne. O rito já acabou — Asherah ocupa o altar. Matem todos. Se ela alcançar Voss, ele cai.",
+    objective: "Derrote Asherah e os feiticeiros",
+    win: "rout",
+    cols: 13,
+    rows: 12,
+    layout: [
+      "rrrrreeerrrrr",
+      "rcnhhhnnnncrr",
+      "rnnhhhhnnnncr",
+      "rcnnfnnnnfncr",
+      "rnncnnrnncnnr",
+      "rcnnnnnnnnncr",
+      "rnncnnnrrcnnr",
+      "rcnnnnnnnncnr",
+      "rnnrnnnnnrnnr",
+      "rcnncnnncncnr",
+      "rnnnnnnnnnnnr",
+      "rrrnnnnnnnrrr",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 5, y: 11 },
+      { name: "Neera", classId: "archer", x: 6, y: 11 },
+      { name: "Voss", classId: "mage", x: 7, y: 11 },
+    ],
+    enemySpawns: [
+      { name: "Asherah", classId: "horror", x: 6, y: 2 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 2, y: 4 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 10, y: 4 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 2, y: 8 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 10, y: 8 },
+    ],
+  },
+  {
+    id: "cripta",
+    index: 6,
+    title: "Cripta de Cinzas",
+    place: "Sob o templo",
+    briefing:
+      "Asherah caiu. O prisioneiro do rito anda — Salazar, clérigo sem poções. Duas curas menores e uma cura simples por combate. A cripta ainda tem culto. Não deixem cercá-lo.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 11,
+    rows: 10,
+    layout: [
+      "rrrrrrrrrrr",
+      "rc.c...c.cr",
+      "r.........r",
+      "rc.c...c.cr",
+      "r.........r",
+      "rc.c...c.cr",
+      "r.........r",
+      "rc.c...c.cr",
+      "r.........r",
+      "rrr.....rrr",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 9 },
+      { name: "Neera", classId: "archer", x: 5, y: 9 },
+      { name: "Voss", classId: "mage", x: 6, y: 9 },
+      { name: "Salazar", classId: "healer", x: 7, y: 9 },
+    ],
+    enemySpawns: [
+      { name: "Feiticeiro", classId: "sorcerer", x: 2, y: 1 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 8, y: 1 },
+      { name: "Piqueiro", classId: "pikeman", x: 5, y: 2 },
+      { name: "Soldado", classId: "soldier", x: 1, y: 4 },
+      { name: "Soldado", classId: "soldier", x: 9, y: 4 },
+      { name: "Besteiro", classId: "brigand", x: 5, y: 5 },
+    ],
+  },
+  {
+    id: "estalagem",
+    index: 7,
+    title: "A Estalagem do Osso Seco",
+    place: "Pousada à margem da cinza",
+    briefing:
+      "A estrada acaba num copo. O Osso Seco ainda serve, se Ember pagar. Brue vende o que restou da adega. O mudo escreve. A hóspede do porão só fala. Ninguém ataca aqui.",
+    objective: "Descanso, conversa e troca",
+    win: "rout",
+    hub: true,
+    cols: 8,
+    rows: 6,
+    layout: [
+      "rrrrrrrr",
+      "r......r",
+      "r......r",
+      "r......r",
+      "r......r",
+      "rrrrrrrr",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 2, y: 4 },
+      { name: "Neera", classId: "archer", x: 3, y: 4 },
+      { name: "Voss", classId: "mage", x: 4, y: 4 },
+      { name: "Salazar", classId: "healer", x: 5, y: 4 },
+    ],
+    enemySpawns: [],
+  },
+  {
+    id: "colina",
+    index: 8,
+    title: "A Colina Morta",
+    place: "Encosta seca",
+    briefing:
+      "Uma colina ampla, coberta de vegetação morta. Árvores retorcidas, capim amarelado, pedras antigas. O caminho sobe. Quanto mais alto, mais a encosta vira paredão. No cume, a silhueta de uma construção fortificada. A superfície acaba.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 11,
+    rows: 9,
+    layout: [
+      "ccc...ccccc",
+      "chhhhhhhhcc",
+      "h.w.h.w.h.h",
+      ".w...h...w.",
+      "wh.......hw",
+      ".h..hhh..h.",
+      "w.w.....w.w",
+      "...........",
+      "www.....www",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 8 },
+      { name: "Neera", classId: "archer", x: 3, y: 8 },
+      { name: "Voss", classId: "mage", x: 6, y: 8 },
+      { name: "Salazar", classId: "healer", x: 7, y: 8 },
+    ],
+    enemySpawns: [
+      { name: "Besteiro", classId: "brigand", x: 2, y: 2 },
+      { name: "Besteiro", classId: "brigand", x: 8, y: 2 },
+      { name: "Soldado", classId: "soldier", x: 5, y: 3 },
+      { name: "Piqueiro", classId: "pikeman", x: 4, y: 5 },
+      { name: "Piqueiro", classId: "pikeman", x: 6, y: 5 },
+      { name: "Soldado", classId: "soldier", x: 1, y: 6 },
+      { name: "Besteiro", classId: "brigand", x: 9, y: 6 },
+    ],
+  },
+  {
+    id: "passagem",
+    index: 9,
+    title: "A Passagem Antiga",
+    place: "Caverna talhada",
+    briefing:
+      "A única passagem pelo paredão é uma caverna escavada há muito tempo. Paredes talhadas, blocos de pedra, nichos e plataformas sem função. Raízes no teto. No escuro vive um troll da caverna, em armadura grosseira. Ele parte barricadas. Desce e sobe através da montanha.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 11,
+    rows: 10,
+    layout: [
+      "ccccccccccc",
+      "cnnn...nnnc",
+      "c.n.c.n.c.n",
+      "cnnn...nnnc",
+      "c..ccccc..c",
+      "cnnn...nnnc",
+      "c.n.c.n.c.n",
+      "cnnn...nnnc",
+      "c.........c",
+      "ccc.....ccc",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 9 },
+      { name: "Neera", classId: "archer", x: 3, y: 9 },
+      { name: "Voss", classId: "mage", x: 6, y: 9 },
+      { name: "Salazar", classId: "healer", x: 7, y: 9 },
+    ],
+    enemySpawns: [
+      { name: "Feiticeiro", classId: "sorcerer", x: 2, y: 1 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 8, y: 1 },
+      { name: "Piqueiro", classId: "pikeman", x: 5, y: 2 },
+      { name: "Soldado", classId: "soldier", x: 1, y: 5 },
+      { name: "Soldado", classId: "soldier", x: 9, y: 5 },
+      { name: "Besteiro", classId: "brigand", x: 5, y: 6 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 5, y: 3 },
+      { name: "Troll da caverna", classId: "troll", x: 6, y: 6 },
+    ],
+  },
+  {
+    id: "vertente",
+    index: 10,
+    title: "O Outro Lado",
+    place: "Face norte da colina",
+    briefing:
+      "A passagem desemboca na outra face. Pouco muda no chão. Muda a vista: a elevação inteira acima, e no topo o Templo Fortificado, nítido pela primeira vez. Não parece abandonado. A encosta é pior deste lado.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 11,
+    rows: 9,
+    layout: [
+      "rrrr.e.rrrr",
+      "r.........r",
+      "hhh.....hhh",
+      ".w.h...h.w.",
+      "h.........h",
+      ".w..hhh..w.",
+      "w.........w",
+      "...........",
+      "www.....www",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 8 },
+      { name: "Neera", classId: "archer", x: 3, y: 8 },
+      { name: "Voss", classId: "mage", x: 6, y: 8 },
+      { name: "Salazar", classId: "healer", x: 7, y: 8 },
+    ],
+    enemySpawns: [
+      { name: "Besteiro", classId: "brigand", x: 2, y: 1 },
+      { name: "Besteiro", classId: "brigand", x: 8, y: 1 },
+      { name: "Soldado", classId: "soldier", x: 5, y: 2 },
+      { name: "Piqueiro", classId: "pikeman", x: 3, y: 4 },
+      { name: "Piqueiro", classId: "pikeman", x: 7, y: 4 },
+      { name: "Cão de guerra", classId: "wardog", x: 1, y: 6 },
+      { name: "Cão de guerra", classId: "wardog", x: 9, y: 6 },
+    ],
+  },
+  {
+    id: "portao",
+    index: 11,
+    title: "A Entrada do Templo",
+    place: "Portões do cume",
+    briefing:
+      "O caminho acaba diante da entrada. Muralhas espessas, torres no corpo da igreja, portão monumental. Antigo e preservado. A escadaria sobe até as portas. O interior fica para depois.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 11,
+    rows: 8,
+    layout: [
+      "rrr.....rrr",
+      "r.........r",
+      "rrr.....rrr",
+      "....hhh....",
+      "...........",
+      "h.........h",
+      "...........",
+      "www.....www",
+    ],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 4, y: 7 },
+      { name: "Neera", classId: "archer", x: 3, y: 7 },
+      { name: "Voss", classId: "mage", x: 6, y: 7 },
+      { name: "Salazar", classId: "healer", x: 7, y: 7 },
+    ],
+    enemySpawns: [
+      { name: "Capitão", classId: "captain", x: 5, y: 1 },
+      { name: "Soldado", classId: "soldier", x: 2, y: 1 },
+      { name: "Soldado", classId: "soldier", x: 8, y: 1 },
+      { name: "Besteiro", classId: "brigand", x: 1, y: 2 },
+      { name: "Besteiro", classId: "brigand", x: 9, y: 2 },
+      { name: "Piqueiro", classId: "pikeman", x: 4, y: 3 },
+      { name: "Piqueiro", classId: "pikeman", x: 6, y: 3 },
+      { name: "Feiticeiro", classId: "sorcerer", x: 5, y: 0 },
+      { name: "Cão de guerra", classId: "wardog", x: 2, y: 5 },
+      { name: "Cão de guerra", classId: "wardog", x: 8, y: 5 },
+    ],
+  },
+];
+
+function expandMaps(missions: Mission[]): Mission[] {
+  return missions.map((m) => {
+    if (m.hub) return m;
+    const layout: string[] = [];
+    for (const row of m.layout) {
+      const wide = Array.from(row, (ch) => ch + ch).join("");
+      layout.push(wide, wide);
+    }
+    const place = <T extends { x: number; y: number }>(s: T): T => ({ ...s, x: s.x * 2, y: s.y * 2 });
+    return stampTactics({
+      ...m,
+      cols: m.cols * 2,
+      rows: m.rows * 2,
+      layout,
+      playerSpawns: m.playerSpawns.map(place),
+      enemySpawns: m.enemySpawns.map(place),
+    });
+  });
+}
+
+function oddrDist(ax: number, ay: number, bx: number, by: number): number {
+  const aq = ax - (ay - (ay & 1)) / 2;
+  const bq = bx - (by - (by & 1)) / 2;
+  const ar = ay;
+  const br = by;
+  return (Math.abs(aq - bq) + Math.abs(ar - br) + Math.abs(-aq - ar - (-bq - br))) / 2;
+}
+
+function stampTactics(m: Mission): Mission {
+  const tiles = parseLayout(m.layout);
+  const blocked = new Set<string>();
+  const mark = (x: number, y: number) => blocked.add(`${x},${y}`);
+  for (const s of [...m.playerSpawns, ...m.enemySpawns]) {
+    mark(s.x, s.y);
+    const even = [
+      [1, 0],
+      [0, -1],
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, 1],
+    ];
+    const odd = [
+      [1, 0],
+      [1, -1],
+      [0, -1],
+      [-1, 0],
+      [0, 1],
+      [1, 1],
+    ];
+    for (const [dx, dy] of s.y & 1 ? odd : even) mark(s.x + dx!, s.y + dy!);
+  }
+  const cand: { x: number; y: number }[] = [];
+  for (let y = 1; y < m.rows - 1; y++) {
+    for (let x = 1; x < m.cols - 1; x++) {
+      const t = tiles[y * m.cols + x];
+      if ((t === "plains" || t === "nave" || t === "woods") && !blocked.has(`${x},${y}`)) cand.push({ x, y });
+    }
+  }
+  let seed = (m.index + 1) * 9973;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+    return (seed >>> 0) / 4294967296;
+  };
+  for (let i = cand.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    const tmp = cand[i]!;
+    cand[i] = cand[j]!;
+    cand[j] = tmp;
+  }
+  const taken: { x: number; y: number }[] = [];
+  const dirsEven = [
+    [1, 0],
+    [0, -1],
+    [-1, -1],
+    [-1, 0],
+    [-1, 1],
+    [0, 1],
+  ];
+  const dirsOdd = [
+    [1, 0],
+    [1, -1],
+    [0, -1],
+    [-1, 0],
+    [0, 1],
+    [1, 1],
+  ];
+  const neigh = (x: number, y: number) => (y & 1 ? dirsOdd : dirsEven).map(([dx, dy]) => ({ x: x + dx!, y: y + dy! }));
+  const walkable = (t: TerrainId | undefined) => !!t && TERRAIN[t].passable;
+  const canWalk = (tilesNow: TerrainId[]) => {
+    const from = m.playerSpawns[0];
+    const to = m.enemySpawns[0];
+    if (!from || !to) return true;
+    const seen = new Set<string>([`${from.x},${from.y}`]);
+    const q = [{ x: from.x, y: from.y }];
+    while (q.length) {
+      const p = q.pop()!;
+      if (oddrDist(p.x, p.y, to.x, to.y) <= 1) return true;
+      for (const n of neigh(p.x, p.y)) {
+        if (n.x < 0 || n.y < 0 || n.x >= m.cols || n.y >= m.rows) continue;
+        const k = `${n.x},${n.y}`;
+        if (seen.has(k)) continue;
+        if (!walkable(tilesNow[n.y * m.cols + n.x])) continue;
+        seen.add(k);
+        q.push(n);
+      }
+    }
+    return false;
+  };
+  const okBase = (x: number, y: number) => {
+    if (x < 1 || y < 1 || x >= m.cols - 1 || y >= m.rows - 1) return false;
+    if (blocked.has(`${x},${y}`)) return false;
+    const t = tiles[y * m.cols + x];
+    return t === "plains" || t === "nave" || t === "woods";
+  };
+  const cubeOf = (col: number, row: number) => {
+    const q = col - (row - (row & 1)) / 2;
+    return { q, r: row };
+  };
+  const oddrOf = (q: number, r: number) => ({ x: q + (r - (r & 1)) / 2, y: r });
+  const cubeDirs = [
+    [1, 0],
+    [1, -1],
+    [0, -1],
+    [-1, 0],
+    [-1, 1],
+    [0, 1],
+  ];
+  const avg = (list: { x: number; y: number }[]) => ({
+    x: list.reduce((s, p) => s + p.x, 0) / Math.max(1, list.length),
+    y: list.reduce((s, p) => s + p.y, 0) / Math.max(1, list.length),
+  });
+  const P = avg(m.playerSpawns);
+  const E = avg(m.enemySpawns);
+  const frontX = (P.x + E.x) / 2;
+  const frontY = (P.y + E.y) / 2;
+  const minY = Math.min(P.y, E.y);
+  const maxY = Math.max(P.y, E.y);
+  const walls: { cells: { x: number; y: number }[]; score: number }[] = [];
+  for (const p of cand) {
+    if (!okBase(p.x, p.y)) continue;
+    const A = cubeOf(p.x, p.y);
+    for (const [dq, dr] of cubeDirs) {
+      const cells = [p];
+      let q = A.q;
+      let r = A.r;
+      let good = true;
+      for (let k = 0; k < 2; k++) {
+        q += dq!;
+        r += dr!;
+        const n = oddrOf(q, r);
+        n.x = Math.round(n.x);
+        n.y = Math.round(n.y);
+        if (!okBase(n.x, n.y)) {
+          good = false;
+          break;
+        }
+        cells.push(n);
+      }
+      if (!good) continue;
+      const mx = cells.reduce((s, c) => s + c.x, 0) / 3;
+      const my = cells.reduce((s, c) => s + c.y, 0) / 3;
+      const between = my > minY + 1.2 && my < maxY - 1.2;
+      const sameRow = cells.every((c) => c.y === cells[0]!.y) ? 3 : 0;
+      const dFront = Math.abs(mx - frontX) * 0.3 + Math.abs(my - frontY);
+      const central = 1 - Math.abs(mx - (m.cols - 1) / 2) / (m.cols / 2);
+      walls.push({ cells, score: (between ? 12 : 0) + sameRow + central * 4 - dFront });
+    }
+  }
+  walls.sort((a, b) => b.score - a.score);
+  let placed = 0;
+  for (const wall of walls) {
+    if (placed >= 2) break;
+    if (wall.cells.some((c) => taken.some((q) => oddrDist(c.x, c.y, q.x, q.y) < 3))) continue;
+    const prev = wall.cells.map((c) => tiles[c.y * m.cols + c.x]!);
+    for (const c of wall.cells) tiles[c.y * m.cols + c.x] = "barricade";
+    if (!canWalk(tiles)) {
+      wall.cells.forEach((c, i) => {
+        tiles[c.y * m.cols + c.x] = prev[i]!;
+      });
+      continue;
+    }
+    taken.push(...wall.cells);
+    placed += 1;
+  }
+  const pick = (n: number, kind: TerrainId) => {
+    let got = 0;
+    for (const p of cand) {
+      if (got >= n) break;
+      const i = p.y * m.cols + p.x;
+      if (tiles[i] === "hill" || tiles[i] === "highwood" || tiles[i] === "highruin" || tiles[i] === "barricade") continue;
+      if (taken.some((q) => oddrDist(p.x, p.y, q.x, q.y) < 3)) continue;
+      tiles[i] = kind;
+      taken.push(p);
+      got += 1;
+    }
+  };
+  pick(3, "hill");
+  const highKinds: TerrainId[] = ["hill", "highwood", "highruin"];
+  for (let y = 0; y < m.rows; y++) {
+    for (let x = 0; x < m.cols; x++) {
+      const i = y * m.cols + x;
+      if (tiles[i] !== "hill") continue;
+      const v = (x * 17 + y * 31 + m.index * 9) % 3;
+      tiles[i] = highKinds[v] ?? "hill";
+    }
+  }
+  const layout: string[] = [];
+  for (let y = 0; y < m.rows; y++) {
+    let row = "";
+    for (let x = 0; x < m.cols; x++) row += TILE_CHAR[tiles[y * m.cols + x] ?? "plains"] ?? ".";
+    layout.push(row);
+  }
+  return { ...m, layout };
+}
+
+export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS);
+
+export function missionById(id: string): Mission | undefined {
+  return MISSIONS.find((m) => m.id === id);
+}
