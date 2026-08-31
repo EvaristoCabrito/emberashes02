@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, RotateCcw, Star, Swords, Volume2, VolumeX, X } from "lucide-react";
+import { ChevronLeft, Pencil, RotateCcw, Star, Swords, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURES, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, potionSpan, rangeLabel, sheetLine, startingBags, statsFor, usesStarXp } from "./data";
+import { CLASSES, CURES, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, startingBags, statsFor, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -20,7 +20,7 @@ import {
   writeSlot,
   selectSlot,
 } from "./save";
-import type { GameArt, GrowthLine, HudSnapshot, PotionId, SaveBank, SaveData, ScreenId, UnitPublic } from "./types";
+import type { ClassId, GameArt, GrowthLine, HudSnapshot, PotionId, SaveBank, SaveData, ScreenId, SpellKind, UnitPublic } from "./types";
 
 function hudBlank(): HudSnapshot {
   return {
@@ -88,6 +88,97 @@ const HERO_PORTRAIT: Partial<Record<string, string>> = {
   voss: "/game/portraits/voss.png",
   salazar: "/game/portraits/salazar.png",
 };
+
+type SlotAction = { kind: "spell"; spell: SpellKind } | { kind: "potion"; potion: PotionId };
+const HOTBAR_SLOTS = 6;
+const ALL_POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
+const HOTBAR_KEY = "ember-hotbar-v1";
+
+function classSpells(classId: ClassId): SpellKind[] {
+  switch (classId) {
+    case "swordsman":
+      return ["cleave"];
+    case "mage":
+      return ["fireball", "lightning"];
+    case "archer":
+      return ["longShot", "piercing"];
+    case "healer":
+      return ["cureMinor", "cureWounds"];
+    default:
+      return [];
+  }
+}
+
+function defaultSlots(classId: ClassId): (SlotAction | null)[] {
+  const combined: SlotAction[] = [
+    ...classSpells(classId).map((spell): SlotAction => ({ kind: "spell", spell })),
+    ...ALL_POTIONS.map((potion): SlotAction => ({ kind: "potion", potion })),
+  ];
+  const slots: (SlotAction | null)[] = combined.slice(0, HOTBAR_SLOTS);
+  while (slots.length < HOTBAR_SLOTS) slots.push(null);
+  return slots;
+}
+
+function loadHotbars(): Record<string, (SlotAction | null)[]> {
+  try {
+    const raw = window.localStorage.getItem(HOTBAR_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveHotbars(bars: Record<string, (SlotAction | null)[]>) {
+  try {
+    window.localStorage.setItem(HOTBAR_KEY, JSON.stringify(bars));
+  } catch {
+    // localStorage unavailable — hotbar just won't persist across reloads
+  }
+}
+
+function slotIcon(action: SlotAction): string {
+  if (action.kind === "potion") return `/game/icons/potion-${action.potion}.png`;
+  switch (action.spell) {
+    case "cleave":
+      return "/game/icons/cleave.png";
+    case "fireball":
+      return "/game/icons/fireball.png";
+    case "lightning":
+      return "/game/icons/lightning.png?v=3";
+    case "longShot":
+      return "/game/icons/long-shot.png?v=3";
+    case "piercing":
+      return "/game/icons/piercing.png?v=3";
+    case "cureMinor":
+      return "/game/icons/cure-minor.png?v=5";
+    case "cureWounds":
+      return "/game/icons/cure-wounds.png?v=5";
+  }
+}
+
+function slotLabel(action: SlotAction): string {
+  if (action.kind === "potion") return potionLabel(action.potion);
+  switch (action.spell) {
+    case "cleave":
+      return "Corte Duplo";
+    case "fireball":
+      return FIREBALL.name;
+    case "lightning":
+      return LIGHTNING.name;
+    case "longShot":
+      return "Tiro longo";
+    case "piercing":
+      return "Tiro perfurante";
+    case "cureMinor":
+      return CURES.cureMinor.name;
+    case "cureWounds":
+      return CURES.cureWounds.name;
+  }
+}
+
+function slotCount(action: SlotAction, unit: UnitPublic): number {
+  return action.kind === "potion" ? unit.bag[action.potion] : unit.spells[action.spell];
+}
 
 export function GameApp() {
   const [screen, setScreen] = useState<ScreenId>("title");
@@ -921,13 +1012,67 @@ function BattleScreen({
   onLoad: () => void;
   onQuit: () => void;
 }) {
+  const [showStatus, setShowStatus] = useState(false);
+  const [hotbars, setHotbars] = useState<Record<string, (SlotAction | null)[]>>({});
+  const [editingSlots, setEditingSlots] = useState(false);
+  const [pickerSlot, setPickerSlot] = useState<number | null>(null);
+  useEffect(() => {
+    setHotbars(loadHotbars());
+  }, []);
   const unit: UnitPublic | null = hud.selected ?? hud.pendingFoe ?? hud.inspected;
   const foe = hud.pendingFoe ?? (hud.inspected && hud.inspected.side === "enemy" && hud.selected ? hud.inspected : null);
   const showAct = hud.mode === "awaitAction" || hud.mode === "awaitAttack" || hud.mode === "selected" || hud.mode === "awaitSpell";
-  const mage = hud.selected?.side === "player" && hud.selected.classId === "mage";
-  const healer = hud.selected?.side === "player" && hud.selected.classId === "healer";
-  const archer = hud.selected?.side === "player" && hud.selected.classId === "archer";
-  const swordsman = hud.selected?.side === "player" && hud.selected.classId === "swordsman";
+  const actor = hud.selected?.side === "player" ? hud.selected : null;
+  const slots = actor ? (hotbars[actor.name] ?? defaultSlots(actor.classId)) : [];
+
+  function setSlot(index: number, action: SlotAction | null) {
+    if (!actor) return;
+    const next = { ...hotbars, [actor.name]: slots.map((s, i) => (i === index ? action : s)) };
+    setHotbars(next);
+    saveHotbars(next);
+  }
+
+  function runSlot(action: SlotAction) {
+    if (action.kind === "potion") {
+      engine.usePotion(action.potion);
+      return;
+    }
+    switch (action.spell) {
+      case "cleave":
+        engine.startCleave();
+        break;
+      case "fireball":
+        engine.startFireball();
+        break;
+      case "lightning":
+        engine.startLightning();
+        break;
+      case "longShot":
+        engine.startLongShot();
+        break;
+      case "piercing":
+        engine.startPiercing();
+        break;
+      case "cureMinor":
+        engine.startCure("cureMinor");
+        break;
+      case "cureWounds":
+        engine.startCure("cureWounds");
+        break;
+    }
+  }
+
+  function slotDisabled(action: SlotAction): boolean {
+    if (!actor || !showAct || hud.busy) return true;
+    const count = slotCount(action, actor);
+    if (count <= 0) return true;
+    if (action.kind === "potion" && action.potion !== "disease" && actor.hp >= actor.maxHp) return true;
+    return false;
+  }
+
+  function slotActive(action: SlotAction): boolean {
+    return hud.mode === "awaitSpell" && action.kind === "spell" && hud.spellKind === action.spell;
+  }
   return (
     <section className="relative h-dvh min-h-0 flex flex-col bg-bg">
       <div className="relative flex-1 min-h-0">
@@ -977,15 +1122,22 @@ function BattleScreen({
         <div className="min-h-16 sm:min-h-[4.5rem] flex items-center gap-2">
           {unit ? (
             <>
-              <img
-                src={HERO_PORTRAIT[unit.sprite] ?? `/game/sprites/${unit.sprite}/1.png`}
-                alt=""
-                className={
-                  HERO_PORTRAIT[unit.sprite]
-                    ? "h-16 w-12 sm:h-20 sm:w-14 object-cover rounded-md shrink-0"
-                    : "h-14 w-14 object-contain shrink-0"
-                }
-              />
+              <button
+                type="button"
+                onClick={() => setShowStatus(true)}
+                className="shrink-0 rounded-md ring-offset-2 ring-offset-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:opacity-80"
+                title="Ver status"
+              >
+                <img
+                  src={HERO_PORTRAIT[unit.sprite] ?? `/game/sprites/${unit.sprite}/1.png`}
+                  alt=""
+                  className={
+                    HERO_PORTRAIT[unit.sprite]
+                      ? "h-16 w-12 sm:h-20 sm:w-14 object-cover rounded-md"
+                      : "h-14 w-14 object-contain"
+                  }
+                />
+              </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-sm font-medium truncate">
@@ -1029,98 +1181,8 @@ function BattleScreen({
           <Button size="sm" disabled={!showAct || !hud.canAttack || hud.busy || hud.mode === "awaitSpell"} onClick={() => engine.startAttack()}>
             Atacar
           </Button>
-          {swordsman && (
-            <Button
-              size="sm"
-              variant={hud.mode === "awaitSpell" && hud.spellKind === "cleave" ? undefined : "quiet"}
-              disabled={!showAct || hud.busy || (hud.selected?.spells.cleave ?? 0) <= 0}
-              onClick={() => engine.startCleave()}
-              title={`Corte Duplo: ${cleaveHexCount(hud.selected?.level ?? 1)} hexes adjacentes, AT − DF. ${CLEAVE.usesPerTurn} por turno. +1 hex no Nv 4 e no Nv 6.`}
-            >
-              <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover" />
-              Corte {cleaveHexCount(hud.selected?.level ?? 1)} hex ×{hud.selected?.spells.cleave ?? 0}
-            </Button>
-          )}
-          {mage && (
-            <>
-            <Button
-              size="sm"
-              variant={hud.mode === "awaitSpell" && hud.spellKind === "fireball" ? undefined : "quiet"}
-              disabled={!showAct || hud.busy || (hud.selected?.spells.fireball ?? 0) <= 0}
-              onClick={() => engine.startFireball()}
-              title={`Bola de fogo: alcance ${FIREBALL.range}, ${fireballFormula(hud.selected?.level ?? 1)} − RES em área`}
-            >
-              <img src="/game/icons/fireball.png" alt="" className="size-5 rounded-sm object-cover" />
-              Fogo {fireballFormula(hud.selected?.level ?? 1)}−RES ×{hud.selected?.spells.fireball ?? 0}
-            </Button>
-            {(hud.selected?.spells.lightning ?? 0) > 0 && (
-              <Button
-                size="sm"
-                variant={hud.mode === "awaitSpell" && hud.spellKind === "lightning" ? undefined : "quiet"}
-                disabled={!showAct || hud.busy || (hud.selected?.spells.lightning ?? 0) <= 0}
-                onClick={() => engine.startLightning()}
-                title={`Relâmpago: alcance ${LIGHTNING.range}, ${lightningFormula(hud.selected?.level ?? 1)} − RES. Turno seguinte ${diceFormula(LIGHTNING.echoDice, LIGHTNING.echoFaces, LIGHTNING.echoBonus)} − RES`}
-              >
-                <img src="/game/icons/lightning.png?v=3" alt="" className="size-5 rounded-sm object-cover" />
-                Raio {lightningFormula(hud.selected?.level ?? 1)}−RES · depois {diceFormula(LIGHTNING.echoDice, LIGHTNING.echoFaces, LIGHTNING.echoBonus)} ×{hud.selected?.spells.lightning ?? 0}
-              </Button>
-            )}
-            </>
-          )}
-          {archer && (
-            <>
-              <Button
-                size="sm"
-                variant={hud.mode === "awaitSpell" && hud.spellKind === "longShot" ? undefined : "quiet"}
-                disabled={!showAct || hud.busy || (hud.selected?.spells.longShot ?? 0) <= 0}
-                onClick={() => engine.startLongShot()}
-                title={`Tiro longo: alcance ${hud.selected ? `${hud.selected.minRange}–${hud.selected.maxRange * LONG_SHOT.rangeMul}` : "2–6"}, AT − DF + ${diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)}`}
-              >
-                <img src="/game/icons/long-shot.png?v=3" alt="" className="size-5 rounded-sm object-cover" />
-                Longo {hud.selected?.minRange ?? 2}–{(hud.selected?.maxRange ?? 3) * LONG_SHOT.rangeMul} +{diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)} ×{hud.selected?.spells.longShot ?? 0}
-              </Button>
-              <Button
-                size="sm"
-                variant={hud.mode === "awaitSpell" && hud.spellKind === "piercing" ? undefined : "quiet"}
-                disabled={!showAct || hud.busy || (hud.selected?.spells.piercing ?? 0) <= 0}
-                onClick={() => engine.startPiercing()}
-                title="Tiro perfurante: linha reta na colmeia até a borda. Dobro do AT − DF. Acerta aliados e inimigos."
-              >
-                <img src="/game/icons/piercing.png?v=3" alt="" className="size-5 rounded-sm object-cover" />
-                Perfura ×2 AT ×{hud.selected?.spells.piercing ?? 0}
-              </Button>
-            </>
-          )}
-          {healer && (
-            <>
-              <Button
-                size="sm"
-                variant={hud.mode === "awaitSpell" && hud.spellKind === "cureMinor" ? undefined : "quiet"}
-                disabled={!showAct || hud.busy || (hud.selected?.spells.cureMinor ?? 0) <= 0}
-                onClick={() => engine.startCure("cureMinor")}
-                title={`${CURES.cureMinor.name}: ${diceFormula(CURES.cureMinor.dice, CURES.cureMinor.faces, CURES.cureMinor.bonus)}, alcance ${CURES.cureMinor.range}`}
-              >
-                <img src="/game/icons/cure-minor.png?v=5" alt="" className="size-5 rounded-sm object-cover" />
-                Menor {diceFormula(CURES.cureMinor.dice, CURES.cureMinor.faces, CURES.cureMinor.bonus)} ×{hud.selected?.spells.cureMinor ?? 0}
-              </Button>
-              <Button
-                size="sm"
-                variant={hud.mode === "awaitSpell" && hud.spellKind === "cureWounds" ? undefined : "quiet"}
-                disabled={!showAct || hud.busy || (hud.selected?.spells.cureWounds ?? 0) <= 0}
-                onClick={() => engine.startCure("cureWounds")}
-                title={`${CURES.cureWounds.name}: ${diceFormula(CURES.cureWounds.dice, CURES.cureWounds.faces, CURES.cureWounds.bonus)}, alcance ${CURES.cureWounds.range}`}
-              >
-                <img src="/game/icons/cure-wounds.png?v=5" alt="" className="size-5 rounded-sm object-cover" />
-                Simples {diceFormula(CURES.cureWounds.dice, CURES.cureWounds.faces, CURES.cureWounds.bonus)} ×{hud.selected?.spells.cureWounds ?? 0}
-              </Button>
-            </>
-          )}
           {hud.mode === "awaitSpell" && (
-            <Button
-              size="sm"
-              disabled={!hud.spellReady || hud.busy}
-              onClick={() => engine.confirmSpell()}
-            >
+            <Button size="sm" disabled={!hud.spellReady || hud.busy} onClick={() => engine.confirmSpell()}>
               Lançar
             </Button>
           )}
@@ -1130,46 +1192,48 @@ function BattleScreen({
           <Button size="sm" variant="ghost" disabled={!showAct || hud.busy} onClick={() => engine.cancel()}>
             Cancelar
           </Button>
-          <Button
-            size="sm"
-            variant="quiet"
-            disabled={!showAct || hud.busy || !hud.selected || hud.selected.side !== "player" || hud.selected.bag.mid <= 0 || hud.selected.hp >= hud.selected.maxHp}
-            onClick={() => engine.usePotion("mid")}
-            title={potionLabel("mid")}
-          >
-            <img src="/game/icons/potion-mid.png" alt="" className="size-5 rounded-sm object-cover" />
-            Média {potionSpan("mid")} ×{hud.selected?.side === "player" ? hud.selected.bag.mid : 0}
-          </Button>
-          <Button
-            size="sm"
-            variant="quiet"
-            disabled={!showAct || hud.busy || !hud.selected || hud.selected.side !== "player" || hud.selected.bag.weak <= 0 || hud.selected.hp >= hud.selected.maxHp}
-            onClick={() => engine.usePotion("weak")}
-            title={potionLabel("weak")}
-          >
-            <img src="/game/icons/potion-weak.png" alt="" className="size-5 rounded-sm object-cover" />
-            Fraca {potionSpan("weak")} ×{hud.selected?.side === "player" ? hud.selected.bag.weak : 0}
-          </Button>
-          <Button
-            size="sm"
-            variant="quiet"
-            disabled={!showAct || hud.busy || !hud.selected || hud.selected.side !== "player" || hud.selected.bag.potent <= 0 || hud.selected.hp >= hud.selected.maxHp}
-            onClick={() => engine.usePotion("potent")}
-            title={potionLabel("potent")}
-          >
-            <img src="/game/icons/potion-potent.png" alt="" className="size-5 rounded-sm object-cover" />
-            Potente {potionSpan("potent")} ×{hud.selected?.side === "player" ? hud.selected.bag.potent : 0}
-          </Button>
-          <Button
-            size="sm"
-            variant="quiet"
-            disabled={!showAct || hud.busy || !hud.selected || hud.selected.side !== "player" || hud.selected.bag.disease <= 0}
-            onClick={() => engine.usePotion("disease")}
-            title={potionLabel("disease")}
-          >
-            <img src="/game/icons/potion-disease.png" alt="" className="size-5 rounded-sm object-cover" />
-            Doenças ×{hud.selected?.side === "player" ? hud.selected.bag.disease : 0}
-          </Button>
+          {actor && (
+            <div className="flex items-center gap-1">
+              {slots.map((action, i) => {
+                const empty = !action;
+                const disabled = action ? slotDisabled(action) : !editingSlots;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={!editingSlots && disabled}
+                    onClick={() => {
+                      if (editingSlots) setPickerSlot(i);
+                      else if (action) runSlot(action);
+                    }}
+                    title={action ? slotLabel(action) : "Slot vazio"}
+                    className={`relative size-9 grid place-items-center rounded-md border ${
+                      action && slotActive(action) ? "border-accent bg-accent/20" : "border-border bg-bg"
+                    } ${editingSlots ? "outline outline-1 outline-dashed outline-muted" : ""} disabled:opacity-40`}
+                  >
+                    {empty ? (
+                      <span className="text-muted text-xs">+</span>
+                    ) : (
+                      <>
+                        <img src={slotIcon(action)} alt="" className="size-6 rounded-sm object-cover" />
+                        <span className="absolute -bottom-1 -right-1 bg-surface border border-border rounded px-0.5 text-[9px] tabular-nums leading-tight">
+                          {slotCount(action, actor)}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setEditingSlots((v) => !v)}
+                title="Configurar slots"
+                className={`size-9 grid place-items-center rounded-md border ${editingSlots ? "border-accent bg-accent/20" : "border-border bg-bg"}`}
+              >
+                <Pencil className="size-4" />
+              </button>
+            </div>
+          )}
           <Button size="sm" variant="ghost" className="ml-auto" disabled={hud.phase !== "player" || !!hud.result} onClick={() => engine.endTurn()}>
             Fim do turno
           </Button>
@@ -1203,7 +1267,238 @@ function BattleScreen({
           </div>
         </div>
       )}
+
+      {showStatus && unit && (
+        <StatusPanel unit={unit} xp={xp} onClose={() => setShowStatus(false)} />
+      )}
+
+      {pickerSlot != null && actor && (
+        <SlotPicker
+          classId={actor.classId}
+          onPick={(action) => {
+            setSlot(pickerSlot, action);
+            setPickerSlot(null);
+          }}
+          onClose={() => setPickerSlot(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function SlotPicker({
+  classId,
+  onPick,
+  onClose,
+}: {
+  classId: ClassId;
+  onPick: (action: SlotAction | null) => void;
+  onClose: () => void;
+}) {
+  const options: SlotAction[] = [
+    ...classSpells(classId).map((spell): SlotAction => ({ kind: "spell", spell })),
+    ...ALL_POTIONS.map((potion): SlotAction => ({ kind: "potion", potion })),
+  ];
+  return (
+    <div
+      className="absolute inset-0 z-50 bg-bg/85 flex items-end sm:items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-sm bg-surface border border-border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-display text-lg">Escolher pra esse slot</p>
+          <button type="button" onClick={onClose} className="size-8 grid place-items-center rounded-md border border-border" aria-label="Fechar">
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-1.5 max-h-[60dvh] overflow-y-auto">
+          {options.map((action) => (
+            <button
+              key={action.kind === "potion" ? `p-${action.potion}` : `s-${action.spell}`}
+              type="button"
+              onClick={() => onPick(action)}
+              className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-2 text-left"
+            >
+              <img src={slotIcon(action)} alt="" className="size-6 rounded-sm object-cover shrink-0" />
+              <span className="text-sm">{slotLabel(action)}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => onPick(null)}
+            className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-2 text-left text-muted"
+          >
+            <span className="size-6 grid place-items-center shrink-0">—</span>
+            <span className="text-sm">Deixar vazio</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<string, number>; onClose: () => void }) {
+  const stats: Array<[string, string | number]> = [
+    ["ATK", unit.atk],
+    ["MAG", unit.mag],
+    ["DEF", unit.def],
+    ["RES", unit.res],
+    ["MOV", unit.mov],
+    ["Alcance", rangeLabel(unit.minRange, unit.maxRange)],
+  ];
+  const mage = unit.classId === "mage";
+  const healer = unit.classId === "healer";
+  const archer = unit.classId === "archer";
+  const swordsman = unit.classId === "swordsman";
+  const potions: PotionId[] = ["weak", "mid", "potent", "disease"];
+
+  return (
+    <div
+      className="absolute inset-0 z-40 bg-bg/85 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-md max-h-[88dvh] overflow-y-auto bg-surface border border-border rounded-xl p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src={HERO_PORTRAIT[unit.sprite] ?? `/game/sprites/${unit.sprite}/1.png`}
+              alt=""
+              className={
+                HERO_PORTRAIT[unit.sprite]
+                  ? "h-24 w-20 object-cover rounded-lg border border-border shrink-0"
+                  : "h-20 w-20 object-contain shrink-0"
+              }
+            />
+            <div className="min-w-0">
+              <p className="font-display text-xl leading-tight truncate">{unit.name}</p>
+              <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>
+                {unit.className} · Nv {unit.level}
+              </p>
+              {unit.side === "player" && usesStarXp(unit.level) && (
+                <span className="inline-flex gap-0.5 mt-1">
+                  {Array.from({ length: STARS_TO_LEVEL }, (_, i) => (
+                    <Star key={i} className={`size-3.5 ${i < (xp[unit.name] ?? 0) ? "fill-accent text-accent" : "text-muted"}`} />
+                  ))}
+                </span>
+              )}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="shrink-0 size-8 grid place-items-center rounded-md border border-border" aria-label="Fechar">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <div className="h-2 flex-1 rounded-full bg-border overflow-hidden">
+              <div
+                className={`h-full ${unit.side === "enemy" ? "bg-danger" : "bg-accent"}`}
+                style={{ width: `${Math.max(0, (unit.hp / unit.maxHp) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs tabular-nums text-fg shrink-0">
+              {unit.hp}/{unit.maxHp}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Ficha</p>
+        <div className="grid grid-cols-3 gap-2 mb-5">
+          {stats.map(([label, value]) => (
+            <div key={label} className="bg-bg border border-border rounded-md px-2 py-1.5 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-muted">{label}</p>
+              <p className="text-sm font-medium tabular-nums">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {unit.side === "player" && (
+          <>
+            <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Inventário</p>
+            <div className="grid grid-cols-1 gap-1.5 mb-5">
+              {potions.map((kind) => (
+                <div key={kind} className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                  <img src={`/game/icons/potion-${kind}.png`} alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                  <p className="text-xs truncate">
+                    {potionLabel(kind)} <span className="tabular-nums text-muted">×{unit.bag[kind]}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {(swordsman || mage || archer || healer) && (
+              <>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Magias e habilidades</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {swordsman && (
+                    <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                      <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                      <p className="text-xs truncate">
+                        Corte {cleaveHexCount(unit.level)} hex <span className="tabular-nums text-muted">×{unit.spells.cleave}</span>
+                      </p>
+                    </div>
+                  )}
+                  {mage && (
+                    <>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/fireball.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          Fogo {fireballFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells.fireball}</span>
+                        </p>
+                      </div>
+                      {unit.spells.lightning > 0 && (
+                        <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                          <img src="/game/icons/lightning.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <p className="text-xs truncate">
+                            Raio {lightningFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells.lightning}</span>
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {archer && (
+                    <>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/long-shot.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          Longo <span className="tabular-nums text-muted">×{unit.spells.longShot}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/piercing.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          Perfura <span className="tabular-nums text-muted">×{unit.spells.piercing}</span>
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {healer && (
+                    <>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/cure-minor.png?v=5" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          Menor <span className="tabular-nums text-muted">×{unit.spells.cureMinor}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/cure-wounds.png?v=5" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          Simples <span className="tabular-nums text-muted">×{unit.spells.cureWounds}</span>
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
