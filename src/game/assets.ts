@@ -40,7 +40,8 @@ export async function loadGameArt(): Promise<GameArt> {
   );
   await Promise.all(
     (["kael", "nira", "voss", "salazar"] as SpriteId[]).map(async (id) => {
-      attacks[id] = await Promise.all([1, 2, 3, 4].map((n) => loadImage(`/game/sprites/${id}/atk-${n}.png`)));
+      const n = id === "kael" ? 12 : 4;
+      attacks[id] = await Promise.all(Array.from({ length: n }, (_, i) => loadImage(`/game/sprites/${id}/atk-${i + 1}.png${id === "kael" ? "?v=2" : ""}`)));
     }),
   );
   const impact = await Promise.all([1, 2, 3, 4].map((n) => loadImage(`/game/fx/impact-${n}.png`)));
