@@ -2113,9 +2113,11 @@ export class BattleEngine {
     footprintW?: number,
     footprintOffsets?: { dx: number; dy: number }[],
   ): { cx: number; cy: number } {
-    // Big creatures anchor on their front row only — averaging in the row behind them would
-    // drag the sprite's feet upward, off the tiles the player actually sees them standing on.
-    const cells = size >= 4 ? footprintFrontRow({ x, y, footprintOffsets }, footprintW ?? 2) : footprint({ x, y, size });
+    // Units with an extended footprint anchor on their front tile(s) only — averaging in the
+    // cells behind them would drag the sprite's feet upward, off the tile the player actually
+    // sees them standing on.
+    const cells =
+      size >= 4 || footprintOffsets ? footprintFrontRow({ x, y, footprintOffsets }, footprintW ?? 2) : footprint({ x, y, size });
     let cx = 0;
     let cy = 0;
     for (const p of cells) {

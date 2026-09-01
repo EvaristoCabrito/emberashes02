@@ -244,13 +244,13 @@ export function footprint(
 ): Point[] {
   const s = unitSize(unit);
   if (s <= 1) return [{ x: unit.x, y: unit.y }];
+  // Explicit shape (any size tier): unit.x/unit.y is the front-most tile (closest to the
+  // player, where the feet render); the rest of the shape trails behind it, never past
+  // unit.y, so nothing sits hidden behind the sprite from the player's view.
+  if (unit.footprintOffsets) {
+    return unit.footprintOffsets.map((o) => ({ x: unit.x + o.dx, y: unit.y + o.dy }));
+  }
   if (s >= 4) {
-    // Big creatures (Troll, Asherah, ...): unit.x/unit.y is the front-most row (closest to the
-    // player, where the feet render); the rest of the shape trails behind it, never past
-    // unit.y, so nothing sits hidden behind the sprite from the player's view.
-    if (unit.footprintOffsets) {
-      return unit.footprintOffsets.map((o) => ({ x: unit.x + o.dx, y: unit.y + o.dy }));
-    }
     // Fallback: a plain footprintW x footprintH rectangle (default 2x4). Hex rows alternate
     // their horizontal offset every other line (odd-r layout), so every other row here is
     // shifted one column left to keep the column stacking straight instead of zig-zagging.

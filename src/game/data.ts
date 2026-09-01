@@ -16,8 +16,8 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
 };
 
 /**
- * Shared footprint shape for big (size>=4) creatures: the 2-wide/3-tall block confirmed
- * against the Troll/Asherah sprites, plus one extra hex above the head and one extra hex on
+ * Standard "tamanho tipo 8" footprint (8 hexes) shared by every size:4 creature (Troll,
+ * Asherah): a 2-wide/3-tall block, plus one extra hex above the head and one extra hex on
  * the left at the arms row.
  */
 const BIG_CREATURE_FOOTPRINT = [
@@ -29,6 +29,13 @@ const BIG_CREATURE_FOOTPRINT = [
   { dx: 0, dy: -2 },
   { dx: 1, dy: -2 },
   { dx: -1, dy: -3 },
+];
+
+/** Standard "tamanho tipo 3" footprint (3 hexes) for size:2 creatures like o Cão de guerra: the usual side-by-side pair plus one hex behind, on their back. */
+const MEDIUM_CREATURE_FOOTPRINT = [
+  { dx: 0, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: 0, dy: -1 },
 ];
 
 export const CLASSES: Record<ClassId, ClassDef> = {
@@ -174,6 +181,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "wardog",
     size: 2,
+    footprintOffsets: MEDIUM_CREATURE_FOOTPRINT,
     init: 6,
   },
   sorcerer: {
