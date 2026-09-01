@@ -9,6 +9,7 @@ import {
   cleaveHexes,
   cubeRound,
   footprint,
+  footprintFrontRow,
   hexNeighbors,
   hexDist,
   inBounds,
@@ -2103,7 +2104,9 @@ export class BattleEngine {
   }
 
   private footprintCentroid(x: number, y: number, size: number): { cx: number; cy: number } {
-    const cells = footprint({ x, y, size });
+    // Big creatures anchor on their front row only — averaging in the row behind them would
+    // drag the sprite's feet upward, off the tiles the player actually sees them standing on.
+    const cells = size >= 4 ? footprintFrontRow({ x, y }) : footprint({ x, y, size });
     let cx = 0;
     let cy = 0;
     for (const p of cells) {
@@ -2418,7 +2421,11 @@ export class BattleEngine {
       const img = (walkDirs ? walkDirs[u.walkPose] : undefined) ?? frames?.[fi] ?? frames?.[0];
       const h = cell * (s >= 4 ? 3.35 : s === 2 ? 1.72 : boss ? 1.44 : 1.42) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
       const w = cell * (s >= 4 ? 2.85 : s === 2 ? 1.85 : boss ? 1.12 : 1.11) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
-      ctx.translate(px + sway, py + cell * 0.42 + bob);
+      // Big creatures plant their feet at the bottom corner of their front hex (tile * 0.9,
+      // matching the hex outline radius used elsewhere) instead of the smaller offset tuned
+      // for normal-size sprites, so the feet don't float above the tile they stand on.
+      const footY = s >= 4 ? tile * 0.9 : cell * 0.42;
+      ctx.translate(px + sway, py + footY + bob);
       if (u.sprite === "kael") ctx.scale(u.facing, 1);
       else ctx.scale(u.facing * (1 - breath * 0.22), 1 + breath);
       if (u.flash > 0) ctx.filter = `brightness(${1.8 + u.flash})`;
