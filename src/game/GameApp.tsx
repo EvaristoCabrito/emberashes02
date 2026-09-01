@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -838,32 +838,104 @@ function TitleScreen({
         </div>
         {error && <p className="mt-4 text-sm text-danger">{error}</p>}
       </div>
-      {help && (
-        <div className="absolute inset-0 z-20 bg-bg/80 flex items-end sm:items-center justify-center p-4">
-          <div className="w-full max-w-md bg-surface border border-border rounded-xl p-6">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <h2 className="font-display text-2xl">Como jogar</h2>
-              <button type="button" onClick={onHelp} className="size-11 grid place-items-center" aria-label="Fechar">
-                <X className="size-5" />
-              </button>
-            </div>
-            <ul className="space-y-3 text-sm text-muted leading-relaxed">
-              <li>Toque numa aliada para ver movimento (azul) e ataque (vermelho).</li>
-              <li>Toque num inimigo para ver HP, alcance e a área vermelha de perigo.</li>
-              <li>Golpe de arma: AT − DF, dentro do alcance da ficha.</li>
-              <li>Magia ofensiva: o dado − RES, no alcance da magia.</li>
-              <li>Todo mundo tem AT, MAG, DF, RES, Mov e Alc. Nada fica de fora da ficha.</li>
-              <li>Terreno alto (barranco, tronco morto, casa abandonada): +2 de dano. A arqueira também ganha +1 de alcance. No alto, outro hex alto na frente não corta a flecha.</li>
-              <li>Barricada (estacas, 3 hexes): ninguém passa. De trás você atira. Projéteis não acertam quem está atrás.</li>
-              <li>Depois de mover, dois cliques no personagem = Esperar e passa ao próximo.</li>
-            </ul>
-            <Button className="mt-5 w-full" onClick={onHelp}>
-              Entendi
-            </Button>
-          </div>
-        </div>
-      )}
+      {help && <HelpModal onClose={onHelp} />}
     </section>
+  );
+}
+
+/** One entry per casting-speed tier: how fast a class's spell tiers unlock/grow with level. */
+const SKILL_SPEED_GROUPS: { label: string; heroes: string; classId: ClassId; step: number }[] = [
+  { label: "Conjuração Rápida", heroes: "Voss, Salazar", classId: "mage", step: 3 },
+  { label: "Conjuração Média", heroes: "nenhuma heroína atual — reservado p/ Paladino e afins", classId: "paladin", step: 4 },
+  { label: "Conjuração Lenta", heroes: "Kael, Neera", classId: "swordsman", step: 5 },
+];
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<"basicos" | "tabelas">("basicos");
+  return (
+    <div className="absolute inset-0 z-20 bg-bg/80 flex items-end sm:items-center justify-center p-4">
+      <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto bg-surface border border-border rounded-xl p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="font-display text-2xl">Como jogar</h2>
+          <button type="button" onClick={onClose} className="size-11 grid place-items-center" aria-label="Fechar">
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="flex gap-1 mb-4 border-b border-border">
+          <button
+            type="button"
+            onClick={() => setTab("basicos")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "basicos" ? "border-accent text-fg" : "border-transparent text-muted"}`}
+          >
+            Básicos
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("tabelas")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "tabelas" ? "border-accent text-fg" : "border-transparent text-muted"}`}
+          >
+            Tabelas
+          </button>
+        </div>
+        {tab === "basicos" ? (
+          <ul className="space-y-3 text-sm text-muted leading-relaxed">
+            <li>Toque numa aliada para ver movimento (azul) e ataque (vermelho).</li>
+            <li>Toque num inimigo para ver HP, alcance e a área vermelha de perigo.</li>
+            <li>Golpe de arma: AT − DF, dentro do alcance da ficha.</li>
+            <li>Magia ofensiva: o dado − RES, no alcance da magia.</li>
+            <li>Todo mundo tem AT, MAG, DF, RES, Mov e Alc. Nada fica de fora da ficha.</li>
+            <li>Terreno alto (barranco, tronco morto, casa abandonada): +2 de dano. A arqueira também ganha +1 de alcance. No alto, outro hex alto na frente não corta a flecha.</li>
+            <li>Barricada (estacas, 3 hexes): ninguém passa. De trás você atira. Projéteis não acertam quem está atrás.</li>
+            <li>Depois de mover, dois cliques no personagem = Esperar e passa ao próximo.</li>
+          </ul>
+        ) : (
+          <div className="space-y-5">
+            <p className="text-sm text-muted leading-relaxed">
+              Cada tier de magia/habilidade ganha +1 uso a cada N níveis, dependendo da velocidade de conjuração
+              da classe — não é um uso a mais por nível. As tabelas abaixo mostram exatamente quantos usos cada
+              tier (1 a 5) dá em cada nível, pra cada velocidade.
+            </p>
+            {SKILL_SPEED_GROUPS.map((g) => (
+              <div key={g.label}>
+                <p className="text-sm font-medium">
+                  {g.label} <span className="text-muted font-normal">· {g.heroes}</span>
+                </p>
+                <p className="text-xs text-muted mb-1.5">+1 uso a cada {g.step} níveis por tier.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs tabular-nums border-collapse">
+                    <thead>
+                      <tr className="text-muted">
+                        <th className="text-left font-normal pr-2 py-1">Nv</th>
+                        {[1, 2, 3, 4, 5].map((t) => (
+                          <th key={t} className="text-right font-normal px-1.5 py-1">
+                            T{t}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map((level) => (
+                        <tr key={level} className="border-t border-border/60">
+                          <td className="text-left py-0.5 pr-2 text-muted">{level}</td>
+                          {[1, 2, 3, 4, 5].map((t) => (
+                            <td key={t} className="text-right px-1.5 py-0.5">
+                              {tierUses(g.classId, t as 1 | 2 | 3 | 4 | 5, level)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <Button className="mt-5 w-full" onClick={onClose}>
+          Entendi
+        </Button>
+      </div>
+    </div>
   );
 }
 
