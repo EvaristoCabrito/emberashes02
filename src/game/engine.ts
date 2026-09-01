@@ -2192,6 +2192,21 @@ export class BattleEngine {
       }
     }
 
+    const active = this.activeTurnUnit();
+    if (active) {
+      const { cx, cy } = this.hexCenter(active.x, active.y);
+      const pulse = 0.75 + Math.sin(this.time * 4) * 0.25;
+      const glowColor = active.side === "enemy" ? "230,120,90" : "255,215,140";
+      ctx.save();
+      ctx.shadowColor = `rgba(${glowColor},${0.9 * pulse})`;
+      ctx.shadowBlur = tile * 0.7 * pulse;
+      ctx.strokeStyle = `rgba(${glowColor},${0.95 * pulse})`;
+      ctx.lineWidth = Math.max(2, tile * 0.09);
+      this.hexPath(ctx, cx, cy, tile * 0.94);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const overlay = (cells: Iterable<Point>, fill: string) => {
       ctx.fillStyle = fill;
       for (const c of cells) {
