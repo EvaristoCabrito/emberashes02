@@ -89,7 +89,7 @@ function blankParticle(): Particle {
 
 type Seq =
   | { type: "move"; id: string; path: Point[] }
-  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number; noCounter?: boolean }
+  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number; noCounter?: boolean; spellKind?: SpellKind }
   | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number; spellKind?: SpellKind }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
@@ -115,6 +115,7 @@ interface CombatAnim {
   bonusDice: number;
   bonusFlat: number;
   noCounter: boolean;
+  spellKind: SpellKind | null;
 }
 
 interface SpellAnim {
@@ -539,7 +540,18 @@ export class BattleEngine {
     } else if (step.type === "combat") {
       const target = this.units.find((u) => u.id === step.def);
       if (!target || !target.alive) return;
-      this.active = { type: "combat", att: step.att, def: step.def, stage: "lunge", t: 0, swapped: false, bonusDice: step.bonusDice ?? 0, bonusFlat: step.bonusFlat ?? 0, noCounter: step.noCounter ?? false };
+      this.active = {
+        type: "combat",
+        att: step.att,
+        def: step.def,
+        stage: "lunge",
+        t: 0,
+        swapped: false,
+        bonusDice: step.bonusDice ?? 0,
+        bonusFlat: step.bonusFlat ?? 0,
+        noCounter: step.noCounter ?? false,
+        spellKind: step.spellKind ?? null,
+      };
     } else if (step.type === "spell") {
       this.active = {
         type: "spell",
@@ -679,7 +691,12 @@ export class BattleEngine {
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
-        if (target.side !== actor.side) this.gainExp(actor, target.level, hit.dmg);
+        if (target.side !== actor.side) {
+          // Long Shot finishing the target off also doubles the kill's XP, same as a
+          // non-AoE Mage/Conjurer spell kill (see stepSpell).
+          const killBonus = target.hp <= 0 && a.stage === "hit" && a.spellKind === "longShot" ? 2 : 1;
+          this.gainExp(actor, target.level, hit.dmg, killBonus);
+        }
         this.spawnHit(target, hit.dmg, hit.crit);
         if (target.hp <= 0) {
           target.alive = false;
@@ -1447,7 +1464,7 @@ export class BattleEngine {
 
   private longMax(u: Unit): number {
     const extra = u.classId === "archer" && TERRAIN[tileAt(this.tiles, this.cols, u.x, u.y)].height ? 1 : 0;
-    return u.maxRange * LONG_SHOT.rangeMul + extra;
+    return u.maxRange * LONG_SHOT.rangeMul + LONG_SHOT.rangeBonus + extra;
   }
 
   private spellAimValid(caster: Unit, cell: Point): boolean {
@@ -1579,6 +1596,7 @@ export class BattleEngine {
       def: foe.id,
       bonusDice: LONG_SHOT.bonusFaces,
       bonusFlat: LONG_SHOT.bonus,
+      spellKind: "longShot",
     });
   }
 

@@ -523,6 +523,7 @@ export const FIREBALL = {
 export const LONG_SHOT = {
   name: "Tiro Longo",
   rangeMul: 2,
+  rangeBonus: 1,
   bonusDice: 1,
   bonusFaces: 8,
   bonus: 1,
