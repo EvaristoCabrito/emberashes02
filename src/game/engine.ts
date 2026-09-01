@@ -1,4 +1,5 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
   attackableEnemies,
@@ -184,6 +185,7 @@ function pub(u: Unit): UnitPublic {
     x: u.x,
     y: u.y,
     level: u.level,
+    xp: u.xp,
     bag: { ...u.bag },
     spells: { ...u.spells },
     size: u.size,
@@ -194,6 +196,7 @@ function pub(u: Unit): UnitPublic {
 interface Roster {
   hp: Record<string, number>;
   levels: Record<string, number>;
+  xp?: Record<string, number>;
   bags?: Record<string, Bag>;
 }
 
@@ -233,6 +236,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     fade: 1,
     bob: 0,
     level,
+    xp: side === "player" ? (roster?.xp?.[spawn.name] ?? 0) : 0,
     bag: side === "player" ? { ...(roster?.bags?.[spawn.name] ?? (cls.id === "healer" ? EMPTY_BAG : STARTING_BAG)) } : { ...EMPTY_BAG },
     spells: {
       tier1: side === "player" ? tierUses(cls.id, 1, level) : 0,
@@ -673,6 +677,7 @@ export class BattleEngine {
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
+        this.gainExp(actor, target, hit.dmg);
         this.spawnHit(target, hit.dmg, hit.crit);
         if (target.hp <= 0) {
           target.alive = false;
@@ -768,6 +773,7 @@ export class BattleEngine {
         if (a.dmgMul > 1) dmg = Math.max(1, dmg * a.dmgMul);
         foe.hp = Math.max(0, foe.hp - dmg);
         foe.flash = 1;
+        this.gainExp(att, foe, dmg);
         this.spawnHit(foe, dmg, crit);
         if (foe.hp <= 0) {
           foe.alive = false;
@@ -869,6 +875,42 @@ export class BattleEngine {
     target.res = pen(target.res);
     target.mov = Math.max(1, pen(target.mov));
     this.tip = `${target.name} não se sente muito bem.`;
+  }
+
+  /** Grants XP for a damaging hit and applies any level-ups on the spot, mid-battle. */
+  private gainExp(attacker: Unit, defender: Unit, dmg: number): void {
+    if (dmg <= 0 || attacker.side !== "player" || defender.side === attacker.side || !attacker.alive) return;
+    if (attacker.level >= MAX_LEVEL) return;
+    const gained = expForHit(attacker.level, defender.level);
+    if (gained <= 0) return;
+    attacker.xp += gained;
+    while (attacker.xp >= EXP_TO_LEVEL && attacker.level < MAX_LEVEL) {
+      attacker.xp -= EXP_TO_LEVEL;
+      this.levelUpUnit(attacker);
+    }
+    if (attacker.level >= MAX_LEVEL) attacker.xp = 0;
+  }
+
+  /** Bumps a unit by one level: stat growth, the level's HP gain added to current HP (not a full heal), and any newly-unlocked tier uses granted right away. */
+  private levelUpUnit(u: Unit): void {
+    const from = u.level;
+    const to = from + 1;
+    const before = statsFor(u.classId, from);
+    const after = statsFor(u.classId, to);
+    u.level = to;
+    u.maxHp = after.hp;
+    u.atk = after.atk;
+    u.mag = after.mag;
+    u.def = after.def;
+    u.res = after.res;
+    u.hp = Math.min(u.maxHp, u.hp + (after.hp - before.hp));
+    for (let t = 1; t <= 10; t++) {
+      const tier = t as SpellTier;
+      const key = tierKey(tier);
+      const gain = tierUses(u.classId, tier, to) - tierUses(u.classId, tier, from);
+      if (gain > 0) u.spells[key] += gain;
+    }
+    this.tip = `${u.name} subiu para o nível ${to}!`;
   }
 
   private curePlayerDisease(u: Unit): void {

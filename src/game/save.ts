@@ -1,4 +1,4 @@
-import { MAX_LEVEL, MISSIONS, STARS_TO_LEVEL, emberFromCompleted, startingBags } from "./data";
+import { EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, emberFromCompleted, startingBags } from "./data";
 import type { Bag, SaveBank, SaveData } from "./types";
 
 export const SLOT_COUNT = 5;
@@ -70,7 +70,7 @@ function cleanXp(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object") return xp;
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!HEROES.includes(k as (typeof HEROES)[number])) continue;
-    xp[k] = clampInt(v, 0, STARS_TO_LEVEL - 1);
+    xp[k] = clampInt(v, 0, EXP_TO_LEVEL - 1);
   }
   return xp;
 }

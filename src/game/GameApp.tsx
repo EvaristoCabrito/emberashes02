@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, Pencil, RotateCcw, Star, Swords, Volume2, VolumeX, X } from "lucide-react";
+import { ChevronLeft, Pencil, RotateCcw, Swords, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -341,50 +341,20 @@ export function GameApp() {
     const levels = { ...save.levels };
     const xp = { ...(save.xp ?? {}) };
     const hp: Record<string, number> = {};
-    const startHpMap = combatStartRef.current?.unitHp ?? save.unitHp;
     for (const u of engine.units.filter((x) => x.side === "player")) {
-      const from = u.level;
-      let to = from;
-      let starsFrom = xp[u.name] ?? 0;
-      let starsTo = starsFrom;
-      const starReasons: string[] = [];
-      if (!testMode && u.alive && from < MAX_LEVEL) {
-        if (usesStarXp(from)) {
-          let gained = 1;
-          starReasons.push("sobreviveu");
-          const battleNow = engine.battlePlayerHp()[u.name] ?? u.hp;
-          const entered = startHpMap[u.name];
-          const startHp = entered != null && entered > 0 ? entered : statsFor(u.classId, from).hp;
-          if (battleNow >= u.maxHp) {
-            gained += 1;
-            starReasons.push("HP cheio");
-          } else if (battleNow >= startHp) {
-            gained += 1;
-            starReasons.push("sem dano");
-          }
-          gained = Math.min(STARS_TO_LEVEL, gained);
-          starsTo = starsFrom + gained;
-          to = from;
-          while (starsTo >= STARS_TO_LEVEL && to < MAX_LEVEL) {
-            starsTo -= STARS_TO_LEVEL;
-            to += 1;
-          }
-          if (to >= MAX_LEVEL) starsTo = 0;
-        } else {
-          to = Math.min(MAX_LEVEL, from + 1);
-        }
-      }
+      // Levels (and any level-ups from XP earned mid-battle) already happened live in the
+      // engine — `from` is just whatever was on file before this mission started.
+      const from = levels[u.name] ?? u.level;
+      const to = u.level;
       const stFrom = statsFor(u.classId, from);
       const stTo = statsFor(u.classId, to);
       const mag = CLASSES[u.classId].mag > 0;
       const battle = battleHp[u.name] ?? u.hp;
       const healed = u.alive
-        ? Math.min(stFrom.hp, battle + Math.ceil((stFrom.hp - battle) * 0.5))
-        : Math.max(1, Math.ceil(stFrom.hp * 0.5));
+        ? Math.min(stTo.hp, battle + Math.ceil((stTo.hp - battle) * 0.5))
+        : Math.max(1, Math.ceil(stTo.hp * 0.5));
       const restHp = u.alive ? healed - battle : healed;
-      const extra = stTo.hp - stFrom.hp;
-      const camp = Math.min(stTo.hp, healed + extra);
-      hp[u.name] = camp;
+      hp[u.name] = healed;
       growth.push({
         name: u.name,
         from,
@@ -392,8 +362,8 @@ export function GameApp() {
         hpBattle: battle,
         maxFrom: stFrom.hp,
         restHp,
-        levelHp: extra,
-        hpCamp: camp,
+        levelHp: stTo.hp - stFrom.hp,
+        hpCamp: healed,
         maxTo: stTo.hp,
         powerFrom: mag ? stFrom.mag : stFrom.atk,
         powerTo: mag ? stTo.mag : stTo.atk,
@@ -407,14 +377,11 @@ export function GameApp() {
         resFrom: stFrom.res,
         resTo: stTo.res,
         fallen: !u.alive,
-        starsFrom,
-        starsTo,
-        starsNeed: STARS_TO_LEVEL,
-        starReasons,
+        xp: u.xp,
       });
       if (!testMode && u.alive) {
         levels[u.name] = to;
-        xp[u.name] = starsTo;
+        xp[u.name] = u.xp;
       }
     }
     setLastGrowth(growth);
@@ -626,7 +593,6 @@ export function GameApp() {
           hud={hud}
           paused={paused}
           muted={muted}
-          xp={save.xp}
           onHud={onHud}
           onPause={() => setPaused(true)}
           onResume={() => {
@@ -1001,7 +967,6 @@ function BattleScreen({
   hud,
   paused,
   muted,
-  xp,
   onHud,
   onPause,
   onResume,
@@ -1014,7 +979,6 @@ function BattleScreen({
   hud: HudSnapshot;
   paused: boolean;
   muted: boolean;
-  xp: Record<string, number>;
   onHud: (h: HudSnapshot) => void;
   onPause: () => void;
   onResume: () => void;
@@ -1183,14 +1147,9 @@ function BattleScreen({
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-sm font-medium truncate">
                     {unit.name} · Nv {unit.level}
-                    {unit.side === "player" && usesStarXp(unit.level) && (
-                      <span className="inline-flex gap-0.5 ml-1 align-middle">
-                        {Array.from({ length: STARS_TO_LEVEL }, (_, i) => (
-                          <Star
-                            key={i}
-                            className={`size-3 ${i < (xp[unit.name] ?? 0) ? "fill-accent text-accent" : "text-muted"}`}
-                          />
-                        ))}
+                    {unit.side === "player" && (
+                      <span className="text-xs text-muted font-normal ml-1 align-middle tabular-nums">
+                        {unit.level >= MAX_LEVEL ? "· NÍVEL MÁX." : `· ${unit.xp}/${EXP_TO_LEVEL} XP`}
                       </span>
                     )}
                   </p>
@@ -1313,7 +1272,7 @@ function BattleScreen({
       )}
 
       {showStatus && unit && (
-        <StatusPanel unit={unit} xp={xp} onClose={() => setShowStatus(false)} />
+        <StatusPanel unit={unit} onClose={() => setShowStatus(false)} />
       )}
 
       {pickerSlot != null && actor && (
@@ -1383,7 +1342,7 @@ function SlotPicker({
   );
 }
 
-function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<string, number>; onClose: () => void }) {
+function StatusPanel({ unit, onClose }: { unit: UnitPublic; onClose: () => void }) {
   const stats: Array<[string, string | number]> = [
     ["ATK", unit.atk],
     ["MAG", unit.mag],
@@ -1423,12 +1382,21 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
                 {unit.className} · Nv {unit.level}
               </p>
               {unit.diseased && <p className="text-xs text-danger mt-0.5">Doente · −10% em todos os stats</p>}
-              {unit.side === "player" && usesStarXp(unit.level) && (
-                <span className="inline-flex gap-0.5 mt-1">
-                  {Array.from({ length: STARS_TO_LEVEL }, (_, i) => (
-                    <Star key={i} className={`size-3.5 ${i < (xp[unit.name] ?? 0) ? "fill-accent text-accent" : "text-muted"}`} />
-                  ))}
-                </span>
+              {unit.side === "player" && (
+                <div className="mt-1.5 max-w-[9rem]">
+                  {unit.level >= MAX_LEVEL ? (
+                    <p className="text-[11px] text-muted tabular-nums">Nível máximo</p>
+                  ) : (
+                    <>
+                      <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                        <div className="h-full bg-accent" style={{ width: `${(unit.xp / EXP_TO_LEVEL) * 100}%` }} />
+                      </div>
+                      <p className="text-[11px] text-muted tabular-nums mt-0.5">
+                        {unit.xp}/{EXP_TO_LEVEL} XP
+                      </p>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1616,22 +1584,17 @@ function ResultScreen({
                   {g.to !== g.from ? ` · Nv ${g.from} → ${g.to}` : ` · Nv ${g.from}`}
                   {g.fallen ? " · caiu" : ""}
                 </p>
-                {(g.from >= STAR_LEVEL || g.to >= STAR_LEVEL) && (
-                  <p className="flex items-center gap-1 mt-1 text-sm">
-                    {Array.from({ length: g.starsNeed }, (_, i) => (
-                      <Star
-                        key={i}
-                        className={`size-4 ${i < g.starsTo ? "fill-accent text-accent" : "text-muted"}`}
-                      />
-                    ))}
-                    <span className="text-muted tabular-nums">
-                      {g.starsTo}/{g.starsNeed}
-                      {g.to !== g.from ? " · subiu" : ""}
+                {g.to < MAX_LEVEL ? (
+                  <p className="flex items-center gap-2 mt-1 text-sm">
+                    <span className="h-1.5 w-24 rounded-full bg-border overflow-hidden">
+                      <span className="block h-full bg-accent" style={{ width: `${(g.xp / EXP_TO_LEVEL) * 100}%` }} />
                     </span>
-                    {g.starReasons.length > 0 && (
-                      <span className="text-muted"> · {g.starReasons.join(" · ")}</span>
-                    )}
+                    <span className="text-muted tabular-nums">
+                      {g.xp}/{EXP_TO_LEVEL} XP{g.to !== g.from ? " · subiu" : ""}
+                    </span>
                   </p>
+                ) : (
+                  g.to !== g.from && <p className="mt-1 text-sm text-accent">Nível máximo · subiu</p>
                 )}
                 <p className="text-sm text-muted tabular-nums mt-1">Combate: {g.hpBattle}/{g.maxFrom}</p>
                 {g.fallen ? (

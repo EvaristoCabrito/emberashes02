@@ -150,6 +150,8 @@ export interface Unit {
   fade: number;
   bob: number;
   level: number;
+  /** XP toward the next level (0..EXP_TO_LEVEL-1). Player-only; always 0 for enemies. */
+  xp: number;
   bag: Bag;
   spells: Spells;
   size: number;
@@ -183,6 +185,7 @@ export interface UnitPublic {
   x: number;
   y: number;
   level: number;
+  xp: number;
   bag: Bag;
   spells: Spells;
   size: number;
@@ -316,8 +319,6 @@ export interface GrowthLine {
   resFrom: number;
   resTo: number;
   fallen: boolean;
-  starsFrom: number;
-  starsTo: number;
-  starsNeed: number;
-  starReasons: string[];
+  /** XP toward the next level at the end of the mission (0..EXP_TO_LEVEL-1). */
+  xp: number;
 }

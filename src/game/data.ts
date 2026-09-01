@@ -359,11 +359,23 @@ export const GROWTH: Record<ClassId, { hp: number; atk: number; mag: number; def
 };
 
 export const MAX_LEVEL = 30;
-export const STAR_LEVEL = 5;
-export const STARS_TO_LEVEL = 2;
 
-export function usesStarXp(level: number): boolean {
-  return level >= STAR_LEVEL && level < MAX_LEVEL;
+/** XP needed to go up one level — flat at every level, Final Fantasy Tactics-style. */
+export const EXP_TO_LEVEL = 100;
+
+/** XP a hit lands when attacker and defender are the same level. */
+export const BASE_EXP_PER_HIT = 30;
+
+/**
+ * XP granted for a single damaging hit. Fighting your own level or below always pays the
+ * full BASE_EXP_PER_HIT; fighting below your weight class tapers that off linearly down to 0
+ * once the level gap reaches the full level range (MAX_LEVEL − 1) — e.g. a level 30 attacking
+ * a level 1 gains nothing, a level 1 attacking a level 1 gains the full 30.
+ */
+export function expForHit(attackerLevel: number, defenderLevel: number): number {
+  const gap = Math.max(0, attackerLevel - defenderLevel);
+  const falloff = Math.max(0, 1 - gap / (MAX_LEVEL - 1));
+  return Math.round(BASE_EXP_PER_HIT * falloff);
 }
 
 export function statsFor(classId: ClassId, level: number) {
