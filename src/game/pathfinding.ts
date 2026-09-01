@@ -150,10 +150,34 @@ export function allAxisRays(from: Point, cols: number, rows: number): Point[] {
   return out;
 }
 
+/**
+ * Ray from `from` through `through`, continuing straight to the map edge.
+ * Unlike `axisDir` this isn't limited to the 6 exact hex axes — it points at
+ * `through` from any angle (snapping each step to the nearest hex, same
+ * technique as `hexLine`), so any target hex gives a usable line, not just
+ * ones perfectly aligned with a hex direction.
+ */
 export function piercingLine(from: Point, through: Point, cols: number, rows: number): Point[] | null {
-  const dir = axisDir(from, through);
-  if (!dir) return null;
-  return hexRay(from, dir, cols, rows);
+  const n = hexDist(from, through);
+  if (n <= 0) return null;
+  const A = oddrToCube(from.x, from.y);
+  const B = oddrToCube(through.x, through.y);
+  const stepQ = (B.q - A.q) / n;
+  const stepR = (B.r - A.r) / n;
+  const stepS = (B.s - A.s) / n;
+  const out: Point[] = [];
+  let prevKey = "";
+  const maxSteps = cols + rows + 4;
+  for (let i = 1; i <= maxSteps; i++) {
+    const c = cubeRound(A.q + stepQ * i, A.r + stepR * i, A.s + stepS * i);
+    const p = cubeToOddr(c.q, c.r);
+    const k = key(p.x, p.y);
+    if (k === prevKey) continue;
+    prevKey = k;
+    if (!inBounds(p.x, p.y, cols, rows)) break;
+    out.push(p);
+  }
+  return out.length ? out : null;
 }
 
 export function hexNeighbors(col: number, row: number): Point[] {
