@@ -1078,13 +1078,23 @@ function BattleScreen({
     <section className="relative h-dvh min-h-0 flex flex-col bg-bg">
       <div className="relative flex-1 min-h-0">
         <BattleCanvas engine={engine} onHud={onHud} paused={paused} />
-        {hud.phase === "player" && hud.turnQueue.length > 1 && (
+        {hud.turnQueue.length > 1 && (
           <div className="pointer-events-none absolute inset-x-2 top-[max(0.5rem,env(safe-area-inset-top))] flex items-center gap-1 flex-wrap">
-            <p className="bg-surface/90 border border-border rounded-md px-1.5 py-0.5 text-[10px] flex items-center gap-1">
+            <p className="bg-surface/90 border border-border rounded-md px-1.5 py-0.5 text-[10px] flex items-center gap-1 flex-wrap">
               {hud.turnQueue.map((q, i) => (
                 <span key={q.id} className="flex items-center gap-1">
                   {i > 0 && <span className="text-muted">→</span>}
-                  <span className={q.active ? "text-accent font-medium" : q.acted ? "text-muted line-through" : "text-fg"}>
+                  <span
+                    className={
+                      q.active
+                        ? "text-accent font-medium"
+                        : q.acted
+                          ? "text-muted line-through"
+                          : q.side === "enemy"
+                            ? "text-danger"
+                            : "text-fg"
+                    }
+                  >
                     {q.name}
                   </span>
                 </span>

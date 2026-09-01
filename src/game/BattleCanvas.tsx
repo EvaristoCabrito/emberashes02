@@ -91,6 +91,8 @@ export function BattleCanvas({
         hud.tip,
         hud.zoom,
         hud.spellReady,
+        hud.turnQueue.find((q) => q.active)?.id,
+        hud.turnQueue.map((q) => (q.acted ? "1" : "0")).join(""),
       ].join("|");
       if (k !== hudKey.current) {
         hudKey.current = k;

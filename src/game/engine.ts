@@ -92,8 +92,6 @@ type Seq =
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "banner"; text: string; dur: number }
   | { type: "delay"; dur: number }
-  | { type: "aiTurn" }
-  | { type: "playerPhase" }
   | { type: "checkEnd" };
 
 interface MoveAnim {
@@ -254,8 +252,10 @@ export class BattleEngine {
   cursor: Point = { x: 0, y: 0 };
   reach: Map<string, ReachCell> = new Map();
   attackFrom: Map<string, Point> = new Map();
-  /** Player unit ids for this round, sorted by CLASSES[classId].init (lower first). */
+  /** All alive units for this round, sorted by CLASSES[classId].init (lower first, ties favor the player). */
   private turnOrder: string[] = [];
+  /** id of the unit whose turn we've already dispatched — lets the tick loop react only on change. */
+  private activeUnitId: string | null = null;
   orig: Point | null = null;
   hover: Point | null = null;
   private lastClickAt = 0;
@@ -300,10 +300,7 @@ export class BattleEngine {
       this.nudgeOffHazard(u);
       u.bob = this.rng() * 16;
     }
-    this.turnOrder = this.units
-      .filter((u) => u.side === "player" && u.alive)
-      .sort((a, b) => (CLASSES[a.classId].init ?? 999) - (CLASSES[b.classId].init ?? 999))
-      .map((u) => u.id);
+    this.turnOrder = this.sortByInitiative(this.units.filter((u) => u.alive));
     const first = this.units.find((u) => u.side === "player");
     if (first) this.cursor = { x: first.x, y: first.y };
     this.tip =
@@ -315,8 +312,19 @@ export class BattleEngine {
     if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       this.reducedMotion = true;
     }
-    this.queue.push({ type: "banner", text: "Fase do jogador", dur: 0.9 });
-    this.queue.push({ type: "delay", dur: 0.05 });
+  }
+
+  /** Sorts by CLASSES[classId].init ascending; equal init favors the player side. */
+  private sortByInitiative(units: Unit[]): string[] {
+    return [...units]
+      .sort((a, b) => {
+        const ia = CLASSES[a.classId].init ?? 999;
+        const ib = CLASSES[b.classId].init ?? 999;
+        if (ia !== ib) return ia - ib;
+        if (a.side !== b.side) return a.side === "player" ? -1 : 1;
+        return 0;
+      })
+      .map((u) => u.id);
   }
 
   subscribe(fn: () => void): () => void {
@@ -398,7 +406,7 @@ export class BattleEngine {
         return this.turnOrder
           .map((id) => this.units.find((u) => u.id === id))
           .filter((u): u is Unit => !!u && u.alive)
-          .map((u) => ({ id: u.id, name: u.name, acted: u.moved, active: u.id === active?.id }));
+          .map((u) => ({ id: u.id, name: u.name, side: u.side, acted: u.moved, active: u.id === active?.id }));
       })(),
     };
   }
@@ -472,9 +480,14 @@ export class BattleEngine {
     }
     if (!this.active && this.queue.length) this.startSeq(this.queue.shift()!);
     if (this.active) this.stepActive(cap);
-    if (this.mode !== "locked" && this.phase === "player" && !this.result) {
-      const waiting = this.units.filter((u) => u.side === "player" && u.alive && !u.moved);
-      if (waiting.length === 0 && !this.active && this.queue.length === 0) this.beginEnemy();
+    if (!this.result && !this.active && this.queue.length === 0) {
+      const active = this.activeTurnUnit();
+      const activeId = active?.id ?? null;
+      if (activeId !== this.activeUnitId) {
+        this.activeUnitId = activeId;
+        if (active) this.beginUnitTurn(active);
+        else this.startNewRound();
+      }
     }
     this.emit();
   }
@@ -514,25 +527,6 @@ export class BattleEngine {
       sfxPlay.turn();
     } else if (step.type === "delay") {
       this.active = { type: "delay", t: 0, dur: step.dur };
-    } else if (step.type === "aiTurn") {
-      this.runAi();
-    } else if (step.type === "playerPhase") {
-      this.phase = "player";
-      this.mode = "idle";
-      this.selectedId = null;
-      this.reach.clear();
-      this.attackFrom.clear();
-      for (const u of this.units) {
-        u.moved = false;
-        if (u.side === "player" && u.alive && u.classId === "swordsman") u.spells.cleave = CLEAVE.usesPerTurn;
-      }
-      this.turnOrder = this.units
-        .filter((u) => u.side === "player" && u.alive)
-        .sort((a, b) => (CLASSES[a.classId].init ?? 999) - (CLASSES[b.classId].init ?? 999))
-        .map((u) => u.id);
-      this.turn += 1;
-      this.tickShock("player");
-      this.burnStanding("player");
     } else if (step.type === "checkEnd") {
       this.evaluateEnd();
     }
@@ -897,9 +891,10 @@ export class BattleEngine {
     }
   }
 
-  private tickShock(side: Unit["side"]): void {
-    for (const u of this.units) {
-      if (!u.alive || u.side !== side || !u.shock) continue;
+  /** Lightning echo + standing-hazard damage, applied once when this unit's own turn begins. */
+  private startOfTurnEffects(u: Unit): void {
+    if (!u.alive) return;
+    if (u.shock) {
       const echo = u.shock;
       u.shock = null;
       const dmg = Math.max(1, rollDice(echo.dice, echo.faces, echo.bonus, this.rng) - u.res);
@@ -913,14 +908,7 @@ export class BattleEngine {
         sfxPlay.death();
       }
     }
-    this.evaluateEnd();
-  }
-
-  private burnStanding(side: Unit["side"]): void {
-    for (const u of this.units) {
-      if (!u.alive || u.side !== side) continue;
-      this.applyTileHazard(u, { x: u.x, y: u.y });
-    }
+    if (u.alive) this.applyTileHazard(u, { x: u.x, y: u.y });
     this.evaluateEnd();
   }
 
@@ -1477,39 +1465,59 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  /** "Fim do turno": passes whoever's turn it currently is (same as Esperar). */
   endTurn(): void {
-    if (this.phase !== "player" || this.result) return;
-    for (const u of this.units) if (u.side === "player") u.moved = true;
+    const active = this.activeTurnUnit();
+    if (!active || active.side !== "player" || this.result) return;
+    active.moved = true;
+    active.x = Math.round(active.drawX);
+    active.y = Math.round(active.drawY);
+    active.drawX = active.x;
+    active.drawY = active.y;
     this.deselect(true);
-    this.beginEnemy();
+    sfxPlay.ui();
   }
 
-  private beginEnemy(): void {
-    if (this.result) return;
-    this.phase = "enemy";
+  /** Dispatches control for whoever is next in this round's initiative order. */
+  private beginUnitTurn(u: Unit): void {
+    this.phase = u.side;
+    this.startOfTurnEffects(u);
+    if (!u.alive) {
+      this.activeUnitId = null; // force re-detection next tick, skipping the unit that just died
+      return;
+    }
+    if (u.side === "player") {
+      this.mode = "idle";
+      this.selectedId = null;
+      this.pendingFoeId = null;
+      this.inspectedId = null;
+      this.reach.clear();
+      this.attackFrom.clear();
+      this.threat = [];
+      this.tip = null;
+      if (u.classId === "swordsman") u.spells.cleave = CLEAVE.usesPerTurn;
+    } else {
+      this.mode = "locked";
+      this.runAiFor(u);
+    }
+  }
+
+  /** Everyone has had their turn this round — reset and re-roll the initiative order. */
+  private startNewRound(): void {
     this.mode = "locked";
     this.selectedId = null;
     this.pendingFoeId = null;
     this.inspectedId = null;
-    this.threat = [];
     this.reach.clear();
     this.attackFrom.clear();
-    for (const u of this.units) if (u.side === "enemy") u.moved = false;
-    this.queue.push({ type: "banner", text: "Fase inimiga", dur: 0.85 });
-    this.queue.push({ type: "aiTurn" });
-    this.tickShock("enemy");
-    this.burnStanding("enemy");
+    this.threat = [];
+    for (const u of this.units) u.moved = false;
+    this.turnOrder = this.sortByInitiative(this.units.filter((u) => u.alive));
+    this.turn += 1;
+    this.activeUnitId = null;
   }
 
-  private runAi(): void {
-    const enemies = this.units.filter((u) => u.side === "enemy" && u.alive && !u.moved);
-    const next = enemies[0];
-    if (!next) {
-      this.queue.push({ type: "banner", text: "Fase do jogador", dur: 0.85 });
-      this.queue.push({ type: "playerPhase" });
-      this.active = null;
-      return;
-    }
+  private runAiFor(next: Unit): void {
     this.smashBarricades(next);
     const reach = computeReachable(next, this.tiles, this.cols, this.rows, this.units);
     const players = this.units.filter((u) => u.side === "player" && u.alive);
@@ -1528,8 +1536,6 @@ export class BattleEngine {
       }
       this.queue.push({ type: "combat", att: next.id, def: best.foe.id });
       this.queue.push({ type: "delay", dur: 0.12 });
-      this.queue.push({ type: "aiTurn" });
-      this.active = null;
       return;
     }
     if (next.classId === "captain") {
@@ -1537,16 +1543,12 @@ export class BattleEngine {
       if (!near) {
         next.moved = true;
         this.queue.push({ type: "delay", dur: 0.08 });
-        this.queue.push({ type: "aiTurn" });
-        this.active = null;
         return;
       }
     }
     let nearest = players[0];
     if (!nearest) {
       next.moved = true;
-      this.queue.push({ type: "aiTurn" });
-      this.active = null;
       return;
     }
     for (const p of players) {
@@ -1566,8 +1568,6 @@ export class BattleEngine {
     }
     next.moved = true;
     this.queue.push({ type: "delay", dur: 0.08 });
-    this.queue.push({ type: "aiTurn" });
-    this.active = null;
   }
 
   pointerMove(cssX: number, cssY: number): void {

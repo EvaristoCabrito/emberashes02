@@ -210,8 +210,8 @@ export interface HudSnapshot {
   pendingFoe: UnitPublic | null;
   spellReady: boolean;
   spellKind: SpellKind | null;
-  /** This round's player turn order, lowest initiative first. */
-  turnQueue: { id: string; name: string; acted: boolean; active: boolean }[];
+  /** This round's turn order (both sides mixed), lowest initiative first. */
+  turnQueue: { id: string; name: string; side: Side; acted: boolean; active: boolean }[];
 }
 
 export interface WalkDirs {
