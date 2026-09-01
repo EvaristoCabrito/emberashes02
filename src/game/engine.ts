@@ -653,7 +653,7 @@ export class BattleEngine {
           sfxPlay.death();
         } else {
           sfxPlay.hit();
-          this.maybeInflictDisease(actor, target);
+          if (a.stage === "hit") this.maybeInflictDisease(actor, target);
         }
         if (!this.reducedMotion) this.trauma = Math.min(1, this.trauma + 0.28);
         this.hitstop = 0.06;
