@@ -130,6 +130,7 @@ export interface Unit {
   minRange: number;
   maxRange: number;
   moved: boolean;
+  acted: boolean;
   facing: 1 | -1;
   walkPose: "front" | "back" | "side";
   alive: boolean;
@@ -165,6 +166,7 @@ export interface UnitPublic {
   minRange: number;
   maxRange: number;
   moved: boolean;
+  acted: boolean;
   x: number;
   y: number;
   level: number;

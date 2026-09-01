@@ -1080,7 +1080,7 @@ function BattleScreen({
   }
 
   function slotDisabled(action: SlotAction): boolean {
-    if (!actor || !showAct || hud.busy) return true;
+    if (!actor || !showAct || hud.busy || actor.acted) return true;
     const count = slotCount(action, actor);
     if (count <= 0) return true;
     if (action.kind === "potion" && action.potion !== "disease" && actor.hp >= actor.maxHp) return true;
@@ -1096,7 +1096,7 @@ function BattleScreen({
         <BattleCanvas engine={engine} onHud={onHud} paused={paused} />
         {hud.turnQueue.length > 1 && (
           <div className="pointer-events-none absolute inset-x-2 top-[max(0.5rem,env(safe-area-inset-top))] flex items-center gap-1 flex-wrap">
-            <p className="bg-surface/90 border border-border rounded-md px-3 py-1 text-[30px] leading-tight flex items-center gap-2 flex-wrap">
+            <p className="bg-surface/90 border border-border rounded-md px-2 py-0.5 text-[15px] leading-tight flex items-center gap-1.5 flex-wrap">
               {hud.turnQueue.map((q, i) => (
                 <span key={q.id} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted">→</span>}

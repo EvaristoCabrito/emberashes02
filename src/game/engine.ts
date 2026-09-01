@@ -178,6 +178,7 @@ function pub(u: Unit): UnitPublic {
     minRange: u.minRange,
     maxRange: u.maxRange,
     moved: u.moved,
+    acted: u.acted,
     x: u.x,
     y: u.y,
     level: u.level,
@@ -220,6 +221,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     minRange: st.minRange,
     maxRange: st.maxRange,
     moved: false,
+    acted: false,
     facing: side === "player" ? 1 : -1,
     walkPose: "front",
     alive: true,
@@ -281,6 +283,8 @@ export class BattleEngine {
   result: "victory" | "defeat" | null = null;
   banner: string | null = null;
   tip: string | null;
+  private lastTipSeen: string | null = null;
+  private tipSetAt = 0;
   time = 0;
   trauma = 0;
   hitstop = 0;
@@ -381,6 +385,7 @@ export class BattleEngine {
     }
     const canAttack =
       !!selected &&
+      !selected.acted &&
       (this.attackFrom.size > 0 ||
         this.units.some((u) => u.alive && u.side !== selected.side && canHitFrom(selected, selected, u, this.tiles, this.cols)));
     return {
@@ -460,6 +465,13 @@ export class BattleEngine {
   tick(dt: number): void {
     const cap = Math.min(0.05, dt);
     this.time += cap;
+    if (this.tip !== this.lastTipSeen) {
+      this.lastTipSeen = this.tip;
+      this.tipSetAt = this.time;
+    } else if (this.tip !== null && this.time - this.tipSetAt >= 5) {
+      this.tip = null;
+      this.lastTipSeen = null;
+    }
     if (this.onNextIdle && !this.active && this.queue.length === 0) {
       const fn = this.onNextIdle;
       this.onNextIdle = null;
@@ -600,6 +612,7 @@ export class BattleEngine {
         unit.y = to.y;
         unit.drawX = to.x;
         unit.drawY = to.y;
+        this.ensureVisible(unit.x, unit.y);
         this.smashBarricades(unit);
         this.applyTileHazard(unit, to);
         if (!unit.alive) {
@@ -867,21 +880,45 @@ export class BattleEngine {
     u.diseased = false;
   }
 
-  private finishCombat(att: Unit): void {
-    att.moved = true;
-    att.drawX = att.x;
-    att.drawY = att.y;
-    this.active = null;
-    this.selectedId = null;
+  /** Marks a unit as having acted this turn; if it's still alive, keeps it selected so it can still reposition. */
+  private finishAction(u: Unit): void {
+    u.acted = true;
     this.pendingFoeId = null;
     this.inspectedId = null;
     this.threat = [];
-    this.reach.clear();
     this.attackFrom.clear();
-    this.orig = null;
+    if (!u.alive) {
+      u.moved = true;
+      this.selectedId = null;
+      this.reach.clear();
+      this.orig = null;
+      this.mode = "idle";
+      return;
+    }
+    this.selectedId = u.id;
+    this.orig = { x: u.x, y: u.y };
+    this.reach = computeReachable(u, this.tiles, this.cols, this.rows, this.units);
+    this.mode = "selected";
+  }
+
+  private finishCombat(att: Unit): void {
+    att.drawX = att.x;
+    att.drawY = att.y;
+    this.active = null;
     this.spellKind = null;
     this.evaluateEnd();
-    if (!this.result && this.phase === "player") this.mode = "idle";
+    if (this.result) {
+      this.selectedId = null;
+      this.pendingFoeId = null;
+      this.inspectedId = null;
+      this.threat = [];
+      this.reach.clear();
+      this.attackFrom.clear();
+      this.orig = null;
+      this.mode = "idle";
+      return;
+    }
+    this.finishAction(att);
   }
 
   private smashBarricades(unit: Unit): void {
@@ -1102,7 +1139,7 @@ export class BattleEngine {
     this.inspectedId = null;
     this.orig = { x: unit.x, y: unit.y };
     this.reach = computeReachable(unit, this.tiles, this.cols, this.rows, this.units);
-    this.attackFrom = attackableEnemies(unit, this.reach, this.units, this.tiles, this.cols);
+    this.attackFrom = unit.acted ? new Map() : attackableEnemies(unit, this.reach, this.units, this.tiles, this.cols);
     this.threat = [];
     this.mode = "selected";
     this.tip = null;
@@ -1177,7 +1214,7 @@ export class BattleEngine {
 
   startAttack(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u) return;
+    if (!u || u.acted) return;
     this.mode = "awaitAttack";
     this.tip = "Toque no alvo.";
     sfxPlay.ui();
@@ -1185,7 +1222,7 @@ export class BattleEngine {
 
   startFireball(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "fireball") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "fireball") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "fireball";
     this.spellArmed = false;
@@ -1197,7 +1234,7 @@ export class BattleEngine {
 
   startLongShot(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "longShot") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "longShot") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "longShot";
     this.spellArmed = false;
@@ -1209,7 +1246,7 @@ export class BattleEngine {
 
   startPiercing(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "piercing") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "piercing") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "piercing";
     this.spellArmed = false;
@@ -1221,7 +1258,7 @@ export class BattleEngine {
 
   startLightning(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "lightning") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "lightning") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "lightning";
     this.spellArmed = false;
@@ -1233,7 +1270,7 @@ export class BattleEngine {
 
   startDoubleStrike(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "doubleStrike") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "doubleStrike") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "doubleStrike";
     this.spellArmed = false;
@@ -1245,7 +1282,7 @@ export class BattleEngine {
 
   startCleave(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "cleave") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "cleave") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "cleave";
     this.spellArmed = false;
@@ -1292,7 +1329,7 @@ export class BattleEngine {
 
   startCure(kind: HealId): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, kind) <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, kind) <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = kind;
     this.spellArmed = false;
@@ -1304,7 +1341,7 @@ export class BattleEngine {
 
   startCureDisease(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || this.tierRemaining(u, "cureDisease") <= 0) return;
+    if (!u || u.acted || this.tierRemaining(u, "cureDisease") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "cureDisease";
     this.spellArmed = false;
@@ -1566,7 +1603,7 @@ export class BattleEngine {
 
   usePotion(kind: PotionId): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.side !== "player" || !u.alive) return;
+    if (!u || u.side !== "player" || !u.alive || u.acted) return;
     if (this.mode !== "awaitAction" && this.mode !== "selected" && this.mode !== "awaitAttack" && this.mode !== "awaitSpell")
       return;
     if (this.phase !== "player" || this.result) return;
@@ -1580,11 +1617,10 @@ export class BattleEngine {
       }
       u.bag[kind] -= 1;
       this.curePlayerDisease(u);
-      u.moved = true;
       u.x = Math.round(u.drawX);
       u.y = Math.round(u.drawY);
       this.tip = `${def.name} · doença curada.`;
-      this.deselect(true);
+      this.finishAction(u);
       sfxPlay.ui();
       return;
     }
@@ -1593,7 +1629,6 @@ export class BattleEngine {
     const gained = Math.min(heal, u.maxHp - u.hp);
     u.hp += gained;
     u.bag[kind] -= 1;
-    u.moved = true;
     u.x = Math.round(u.drawX);
     u.y = Math.round(u.drawY);
     this.emitParticle({
@@ -1610,7 +1645,7 @@ export class BattleEngine {
       frame: 0,
     });
     this.tip = `${potionLabel(kind)} · +${gained} HP`;
-    this.deselect(true);
+    this.finishAction(u);
     sfxPlay.ui();
   }
 
@@ -1636,14 +1671,17 @@ export class BattleEngine {
       return;
     }
     if (u.side === "player") {
-      this.mode = "idle";
-      this.selectedId = null;
+      u.acted = false;
+      this.selectedId = u.id;
       this.pendingFoeId = null;
       this.inspectedId = null;
-      this.reach.clear();
-      this.attackFrom.clear();
+      this.orig = { x: u.x, y: u.y };
+      this.reach = computeReachable(u, this.tiles, this.cols, this.rows, this.units);
+      this.attackFrom = attackableEnemies(u, this.reach, this.units, this.tiles, this.cols);
       this.threat = [];
+      this.mode = "selected";
       this.tip = null;
+      this.centerOn(u.x, u.y);
     } else {
       this.mode = "locked";
       this.runAiFor(u);
@@ -1659,7 +1697,10 @@ export class BattleEngine {
     this.reach.clear();
     this.attackFrom.clear();
     this.threat = [];
-    for (const u of this.units) u.moved = false;
+    for (const u of this.units) {
+      u.moved = false;
+      u.acted = false;
+    }
     this.turnOrder = this.sortByInitiative(this.units.filter((u) => u.alive));
     this.turn += 1;
     this.activeUnitId = null;
@@ -1801,7 +1842,7 @@ export class BattleEngine {
       return;
     }
     if (here && here.side === "enemy" && here.alive) {
-      if (selected && (this.mode === "awaitAttack" || this.mode === "awaitAction" || this.mode === "selected")) {
+      if (selected && !selected.acted && (this.mode === "awaitAttack" || this.mode === "awaitAction" || this.mode === "selected")) {
         if (this.mode === "selected") {
           const from = this.attackFrom.get(here.id);
           if (from && (from.x !== selected.x || from.y !== selected.y)) {
@@ -1859,6 +1900,18 @@ export class BattleEngine {
       unit.y = Math.round(to.y);
       unit.drawX = unit.x;
       unit.drawY = unit.y;
+      if (unit.acted) {
+        unit.moved = true;
+        this.selectedId = null;
+        this.pendingFoeId = null;
+        this.inspectedId = null;
+        this.threat = [];
+        this.reach.clear();
+        this.attackFrom.clear();
+        this.orig = null;
+        this.mode = "idle";
+        return;
+      }
       this.selectedId = unit.id;
       this.mode = "awaitAction";
       this.reach.clear();
@@ -1964,7 +2017,11 @@ export class BattleEngine {
   private focusPlayers(): void {
     const u = this.units.find((x) => x.side === "player" && x.alive) ?? this.units[0];
     if (!u) return;
-    const { cx, cy } = this.hexCenter(u.x, u.y);
+    this.centerOn(u.x, u.y);
+  }
+
+  private centerOn(col: number, row: number): void {
+    const { cx, cy } = this.hexCenter(col, row);
     this.camX += cx - this.viewW / 2;
     this.camY += cy - this.viewH / 2;
     this.clampCam();
