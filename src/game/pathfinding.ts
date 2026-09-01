@@ -225,21 +225,24 @@ export function unitSize(unit: Pick<Unit, "size">): number {
   return Math.max(1, unit.size || 1);
 }
 
-/** The row of a big creature's footprint closest to the player side (see footprint() below). */
+/** The front row of a big creature's footprint — closest to the player, where the feet render (see footprint() below). */
 export function footprintFrontRow(unit: Point): Point[] {
-  const out: Point[] = [];
-  for (let dx = -2; dx <= 3; dx++) out.push({ x: unit.x + dx, y: unit.y });
-  return out;
+  return [
+    { x: unit.x, y: unit.y },
+    { x: unit.x + 1, y: unit.y },
+  ];
 }
 
 export function footprint(unit: Pick<Unit, "x" | "y" | "size">): Point[] {
   const s = unitSize(unit);
   if (s <= 1) return [{ x: unit.x, y: unit.y }];
   if (s >= 4) {
-    // Big creatures (Troll, Asherah): a 6-wide, 2-row block. unit.x/unit.y is the front row
-    // (closest to the player, where the feet render) and the second row trails behind it —
+    // Big creatures (Troll, Asherah): a 2-wide, 3-row block. unit.x/unit.y is the front-most
+    // row (closest to the player, where the feet render); the other 2 rows trail behind it,
     // never past unit.y, so nothing sits hidden behind the sprite from the player's view.
-    return [...footprintFrontRow(unit), ...footprintFrontRow({ x: unit.x, y: unit.y - 1 })];
+    const out: Point[] = [];
+    for (let dy = 0; dy > -3; dy--) out.push(...footprintFrontRow({ x: unit.x, y: unit.y + dy }));
+    return out;
   }
   const out: Point[] = [{ x: unit.x, y: unit.y }];
   const want = s <= 2 ? 2 : Math.min(4, s);
