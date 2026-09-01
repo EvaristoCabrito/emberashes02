@@ -18,7 +18,6 @@ export interface Spells {
   tier8: number;
   tier9: number;
   tier10: number;
-  cleave: number;
 }
 
 export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin";
@@ -44,7 +43,7 @@ export type ClassId =
   | "heavyKnight";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
-export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "cleave" | "cureDisease";
+export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "doubleStrike" | "cleave" | "cureDisease";
 export type ScreenId = "boot" | "title" | "campaign" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitSpell" | "locked";

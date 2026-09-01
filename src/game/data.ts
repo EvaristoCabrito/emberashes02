@@ -494,19 +494,17 @@ export const PIERCING = {
   dmgMul: 2,
 };
 
-export const CLEAVE = {
+export const DOUBLE_STRIKE = {
   name: "Corte Duplo",
-  usesPerTurn: 2,
-  hexes: 2,
-  hexesAt4: 3,
-  hexesAt6: 4,
 };
 
-export function cleaveHexCount(level: number): number {
-  if (level >= 6) return CLEAVE.hexesAt6;
-  if (level >= 4) return CLEAVE.hexesAt4;
-  return CLEAVE.hexes;
-}
+export const CLEAVE = {
+  name: "Cleave",
+  hexes: 3,
+  bonusDice: 1,
+  bonusFaces: 8,
+  bonusBonus: 2,
+};
 
 export const LIGHTNING = {
   name: "Relâmpago",
@@ -579,9 +577,11 @@ export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
   lightning: 1,
   longShot: 1,
   cureMinor: 1,
+  doubleStrike: 1,
   fireball: 2,
   piercing: 2,
   cureWounds: 2,
+  cleave: 2,
   cureDisease: 3,
 };
 

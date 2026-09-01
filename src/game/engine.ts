@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, cleaveHexCount, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
   attackableEnemies,
@@ -88,7 +88,7 @@ function blankParticle(): Particle {
 type Seq =
   | { type: "move"; id: string; path: Point[] }
   | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number }
-  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; keepTurn?: boolean }
+  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
   | { type: "banner"; text: string; dur: number }
@@ -128,7 +128,9 @@ interface SpellAnim {
   moreFaces: number;
   echo: { dice: number; faces: number; bonus: number } | null;
   dmgMul: number;
-  keepTurn: boolean;
+  weaponBonusDice: number;
+  weaponBonusFaces: number;
+  weaponBonusBonus: number;
 }
 
 interface HealAnim {
@@ -239,7 +241,6 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
       tier8: side === "player" ? tierUses(cls.id, 8, level) : 0,
       tier9: side === "player" ? tierUses(cls.id, 9, level) : 0,
       tier10: side === "player" ? tierUses(cls.id, 10, level) : 0,
-      cleave: side === "player" && cls.id === "swordsman" ? CLEAVE.usesPerTurn : 0,
     },
     size: cls.size,
     shock: null,
@@ -514,6 +515,8 @@ export class BattleEngine {
       this.active = { type: "move", id: step.id, path: step.path, i: 0, t: 0 };
       sfxPlay.move();
     } else if (step.type === "combat") {
+      const target = this.units.find((u) => u.id === step.def);
+      if (!target || !target.alive) return;
       this.active = { type: "combat", att: step.att, def: step.def, stage: "lunge", t: 0, swapped: false, bonusDice: step.bonusDice ?? 0, bonusFlat: step.bonusFlat ?? 0 };
     } else if (step.type === "spell") {
       this.active = {
@@ -530,7 +533,9 @@ export class BattleEngine {
         moreFaces: step.moreFaces ?? 6,
         echo: step.echo ?? null,
         dmgMul: step.dmgMul ?? 1,
-        keepTurn: step.keepTurn === true,
+        weaponBonusDice: step.weaponBonusDice ?? 0,
+        weaponBonusFaces: step.weaponBonusFaces ?? 8,
+        weaponBonusBonus: step.weaponBonusBonus ?? 0,
       };
       this.banner = step.label ?? "";
       sfxPlay.crit();
@@ -740,6 +745,7 @@ export class BattleEngine {
           );
           dmg = hit.dmg;
           crit = hit.crit;
+          if (a.weaponBonusDice > 0) dmg += rollDice(a.weaponBonusDice, a.weaponBonusFaces, a.weaponBonusBonus, this.rng);
         }
         if (a.dmgMul > 1) dmg = Math.max(1, dmg * a.dmgMul);
         foe.hp = Math.max(0, foe.hp - dmg);
@@ -767,10 +773,7 @@ export class BattleEngine {
         frame: 0,
       });
     }
-    if (a.t >= 0.55) {
-      if (a.keepTurn) this.finishBonus(att);
-      else this.finishCombat(att);
-    }
+    if (a.t >= 0.55) this.finishCombat(att);
   }
 
   private stepHeal(a: HealAnim, dt: number): void {
@@ -879,37 +882,6 @@ export class BattleEngine {
     this.spellKind = null;
     this.evaluateEnd();
     if (!this.result && this.phase === "player") this.mode = "idle";
-  }
-
-  private finishBonus(att: Unit): void {
-    att.drawX = att.x;
-    att.drawY = att.y;
-    this.active = null;
-    this.pendingFoeId = null;
-    this.inspectedId = null;
-    this.threat = [];
-    this.spellKind = null;
-    this.spellAim = null;
-    this.spellArmed = false;
-    this.evaluateEnd();
-    if (this.result) {
-      this.mode = "idle";
-      this.selectedId = null;
-      return;
-    }
-    this.selectedId = att.id;
-    const stillHere = this.orig != null && att.x === this.orig.x && att.y === this.orig.y;
-    this.orig = { x: att.x, y: att.y };
-    if (stillHere) {
-      this.reach = computeReachable(att, this.tiles, this.cols, this.rows, this.units);
-      this.attackFrom = attackableEnemies(att, this.reach, this.units, this.tiles, this.cols);
-      this.mode = "selected";
-    } else {
-      this.reach.clear();
-      this.attackFrom = this.attacksFromHere(att);
-      this.mode = "awaitAction";
-    }
-    this.tip = att.spells.cleave > 0 ? `Corte Duplo restante: ${att.spells.cleave}` : null;
   }
 
   private smashBarricades(unit: Unit): void {
@@ -1259,16 +1231,27 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startDoubleStrike(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || this.tierRemaining(u, "doubleStrike") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "doubleStrike";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${DOUBLE_STRIKE.name}: ataca duas vezes com o dano normal da arma. Toque no inimigo.`;
+    sfxPlay.ui();
+  }
+
   startCleave(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells.cleave <= 0) return;
+    if (!u || this.tierRemaining(u, "cleave") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "cleave";
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    const n = cleaveHexCount(u.level);
-    this.tip = `Corte Duplo: ${n} hexes adjacentes, AT − DF. ${u.spells.cleave} neste turno. Toque num hex vizinho.`;
+    this.tip = `${CLEAVE.name}: ${CLEAVE.hexes} hexes adjacentes, dano da arma + ${diceFormula(CLEAVE.bonusDice, CLEAVE.bonusFaces, CLEAVE.bonusBonus)}. Toque num hex vizinho.`;
     sfxPlay.ui();
   }
 
@@ -1290,6 +1273,10 @@ export class BattleEngine {
     }
     if (this.spellKind === "lightning") {
       this.castLightning(u, cell);
+      return;
+    }
+    if (this.spellKind === "doubleStrike") {
+      this.castDoubleStrike(u, cell);
       return;
     }
     if (this.spellKind === "cleave") {
@@ -1371,6 +1358,10 @@ export class BattleEngine {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
       if (!here || !here.alive || here.side !== "enemy" || manhattan(caster, cell) > LIGHTNING.range) return false;
       return clearShot(caster, cell, this.tiles, this.cols, "bolt");
+    }
+    if (this.spellKind === "doubleStrike") {
+      const here = occupancy(this.units).get(key(cell.x, cell.y));
+      return !!here && here.alive && here.side !== caster.side && canHitFrom(caster, caster, here, this.tiles, this.cols);
     }
     if (this.spellKind === "cleave") {
       return hexNeighbors(caster.x, caster.y).some((p) => p.x === cell.x && p.y === cell.y);
@@ -1525,13 +1516,29 @@ export class BattleEngine {
     });
   }
 
+  private castDoubleStrike(unit: Unit, cell: Point): void {
+    if (!this.spellAimValid(unit, cell)) {
+      this.tip = "Toque no inimigo.";
+      sfxPlay.ui();
+      return;
+    }
+    const occ = occupancy(this.units);
+    const foe = occ.get(key(cell.x, cell.y));
+    if (!foe) return;
+    this.spendTier(unit, "doubleStrike");
+    this.spellKind = null;
+    this.mode = "locked";
+    this.queue.push({ type: "combat", att: unit.id, def: foe.id });
+    this.queue.push({ type: "combat", att: unit.id, def: foe.id });
+  }
+
   private castCleave(unit: Unit, cell: Point): void {
     if (!this.spellAimValid(unit, cell)) {
       this.tip = "Toque num hex vizinho.";
       sfxPlay.ui();
       return;
     }
-    const tiles = cleaveHexes(unit, cell, cleaveHexCount(unit.level), this.cols, this.rows);
+    const tiles = cleaveHexes(unit, cell, CLEAVE.hexes, this.cols, this.rows);
     if (tiles.length === 0) {
       this.tip = "Toque num hex vizinho.";
       sfxPlay.ui();
@@ -1542,7 +1549,7 @@ export class BattleEngine {
       const who = this.units.find((x) => x.alive && occupies(x, t.x, t.y));
       if (who && who.id !== unit.id && who.side !== unit.side && !ids.includes(who.id)) ids.push(who.id);
     }
-    unit.spells.cleave -= 1;
+    this.spendTier(unit, "cleave");
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({
@@ -1551,7 +1558,9 @@ export class BattleEngine {
       tiles,
       ids,
       label: CLEAVE.name,
-      keepTurn: true,
+      weaponBonusDice: CLEAVE.bonusDice,
+      weaponBonusFaces: CLEAVE.bonusFaces,
+      weaponBonusBonus: CLEAVE.bonusBonus,
     });
   }
 
@@ -1635,7 +1644,6 @@ export class BattleEngine {
       this.attackFrom.clear();
       this.threat = [];
       this.tip = null;
-      if (u.classId === "swordsman") u.spells.cleave = CLEAVE.usesPerTurn;
     } else {
       this.mode = "locked";
       this.runAiFor(u);
@@ -2220,10 +2228,14 @@ export class BattleEngine {
         const cell = this.hover ?? this.spellAim;
         const line = cell ? this.piercingRay(selected, cell) : null;
         if (line) overlay(line, "rgba(196,120,50,0.55)");
+      } else if (selected && this.spellKind === "doubleStrike") {
+        overlay(this.healRangeTiles(selected, selected.maxRange), "rgba(160,90,50,0.22)");
+        const cell = this.hover ?? this.spellAim;
+        if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(196,90,50,0.55)");
       } else if (selected && this.spellKind === "cleave") {
         overlay(hexNeighbors(selected.x, selected.y), "rgba(160,90,50,0.22)");
         const cell = this.hover ?? this.spellAim;
-        const arc = cell ? cleaveHexes(selected, cell, cleaveHexCount(selected.level), this.cols, this.rows) : [];
+        const arc = cell ? cleaveHexes(selected, cell, CLEAVE.hexes, this.cols, this.rows) : [];
         if (arc.length) overlay(arc, "rgba(196,90,50,0.55)");
       } else if (selected && this.spellKind === "lightning") {
         overlay(this.healRangeTiles(selected, LIGHTNING.range), "rgba(80,120,170,0.22)");

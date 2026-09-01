@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CURE_DISEASE, CURES, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -98,7 +98,7 @@ const HOTBAR_KEY = "ember-hotbar-v1";
 function classSpells(classId: ClassId): SpellKind[] {
   switch (classId) {
     case "swordsman":
-      return ["cleave"];
+      return ["doubleStrike", "cleave"];
     case "mage":
       return ["fireball", "lightning"];
     case "archer":
@@ -140,6 +140,8 @@ function saveHotbars(bars: Record<string, (SlotAction | null)[]>) {
 function slotIcon(action: SlotAction): string {
   if (action.kind === "potion") return `/game/icons/potion-${action.potion}.png`;
   switch (action.spell) {
+    case "doubleStrike":
+      return "/game/icons/cleave.png";
     case "cleave":
       return "/game/icons/cleave.png";
     case "fireball":
@@ -162,8 +164,10 @@ function slotIcon(action: SlotAction): string {
 function slotLabel(action: SlotAction): string {
   if (action.kind === "potion") return potionLabel(action.potion);
   switch (action.spell) {
+    case "doubleStrike":
+      return DOUBLE_STRIKE.name;
     case "cleave":
-      return "Corte Duplo";
+      return CLEAVE.name;
     case "fireball":
       return FIREBALL.name;
     case "lightning":
@@ -183,7 +187,6 @@ function slotLabel(action: SlotAction): string {
 
 function slotCount(action: SlotAction, unit: UnitPublic): number {
   if (action.kind === "potion") return unit.bag[action.potion];
-  if (action.spell === "cleave") return unit.spells.cleave;
   const tier = spellTier(action.spell);
   return tier ? unit.spells[tierKey(tier)] : 0;
 }
@@ -847,7 +850,7 @@ function TitleScreen({
       <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-xl mx-auto w-full">
         <p className="text-sm tracking-[0.28em] uppercase text-muted mb-3">Táticas em cinzas</p>
         <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight leading-none mb-4">Ember</h1>
-        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V0.21</p>
+        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.22</p>
         <p className="text-muted text-base leading-relaxed mb-8 max-w-md">
           Três sobreviventes. Um tabuleiro de guerra. Cada casa conta.
         </p>
@@ -1046,6 +1049,9 @@ function BattleScreen({
       return;
     }
     switch (action.spell) {
+      case "doubleStrike":
+        engine.startDoubleStrike();
+        break;
       case "cleave":
         engine.startCleave();
         break;
@@ -1474,12 +1480,21 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
                 <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Magias e habilidades</p>
                 <div className="grid grid-cols-1 gap-1.5">
                   {swordsman && (
-                    <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                      <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
-                      <p className="text-xs truncate">
-                        Corte {cleaveHexCount(unit.level)} hex <span className="tabular-nums text-muted">×{unit.spells.cleave}</span>
-                      </p>
-                    </div>
+                    <>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          {DOUBLE_STRIKE.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("doubleStrike")!)]}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          {CLEAVE.name} {CLEAVE.hexes} hex, arma + {diceFormula(CLEAVE.bonusDice, CLEAVE.bonusFaces, CLEAVE.bonusBonus)}{" "}
+                          <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("cleave")!)]}</span>
+                        </p>
+                      </div>
+                    </>
                   )}
                   {mage && (
                     <>
