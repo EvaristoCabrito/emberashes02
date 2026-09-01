@@ -210,6 +210,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     maxRange: st.maxRange,
     moved: false,
     facing: side === "player" ? 1 : -1,
+    walkPose: "front",
     alive: true,
     drawX: spawn.x,
     drawY: spawn.y,
@@ -549,6 +550,7 @@ export class BattleEngine {
         return;
       }
       if (to.x !== from.x) unit.facing = to.x > from.x ? 1 : -1;
+      unit.walkPose = to.y < from.y ? "back" : to.y > from.y ? "front" : "side";
       a.t += dt;
       const dur = 0.12;
       const k = easeOut(Math.min(1, a.t / dur));
@@ -2132,7 +2134,8 @@ export class BattleEngine {
       const frames = atk != null ? this.art.attacks[u.sprite] : idle ?? this.art.sprites[u.sprite];
       const n = frames?.length ?? 0;
       const fi = atk != null ? atk : this.idleFrame(u, n || 4);
-      const img = frames?.[fi] ?? frames?.[0];
+      const walkDirs = moving ? this.art.walkDirs[u.sprite] : undefined;
+      const img = (walkDirs ? walkDirs[u.walkPose] : undefined) ?? frames?.[fi] ?? frames?.[0];
       const h = cell * (s >= 4 ? 3.35 : s === 2 ? 1.72 : boss ? 1.44 : 1.42) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
       const w = cell * (s >= 4 ? 2.85 : s === 2 ? 1.85 : boss ? 1.12 : 1.11) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
       ctx.translate(px + sway, py + cell * 0.42 + bob);

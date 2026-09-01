@@ -48,5 +48,12 @@ export async function loadGameArt(): Promise<GameArt> {
   const idles: Partial<Record<SpriteId, HTMLImageElement[]>> = {
     kael: await Promise.all(Array.from({ length: 36 }, (_, i) => loadImage(`/game/sprites/kael/stand-${i + 1}.png?v=2`))),
   };
-  return { tiles, sprites, attacks, idles, impact };
+  const walkDirs: GameArt["walkDirs"] = {
+    kael: {
+      front: await loadImage("/game/sprites/kael/walk-front.png"),
+      back: await loadImage("/game/sprites/kael/walk-back.png"),
+      side: await loadImage("/game/sprites/kael/walk-side.png"),
+    },
+  };
+  return { tiles, sprites, attacks, idles, walkDirs, impact };
 }

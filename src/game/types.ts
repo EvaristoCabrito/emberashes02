@@ -108,6 +108,7 @@ export interface Unit {
   maxRange: number;
   moved: boolean;
   facing: 1 | -1;
+  walkPose: "front" | "back" | "side";
   alive: boolean;
   drawX: number;
   drawY: number;
@@ -191,11 +192,18 @@ export interface HudSnapshot {
   spellKind: SpellKind | null;
 }
 
+export interface WalkDirs {
+  front: HTMLImageElement;
+  back: HTMLImageElement;
+  side: HTMLImageElement;
+}
+
 export interface GameArt {
   tiles: Record<TerrainId, HTMLImageElement>;
   sprites: Record<SpriteId, HTMLImageElement[]>;
   attacks: Partial<Record<SpriteId, HTMLImageElement[]>>;
   idles: Partial<Record<SpriteId, HTMLImageElement[]>>;
+  walkDirs: Partial<Record<SpriteId, WalkDirs>>;
   impact: HTMLImageElement[];
 }
 
