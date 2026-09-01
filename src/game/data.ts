@@ -17,18 +17,18 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
 
 /**
  * Standard "tamanho tipo 8" footprint (8 hexes) shared by every size:4 creature (Troll,
- * Asherah): a 2-wide/3-tall block, plus one extra hex above the head and one extra hex on
- * the left at the arms row.
+ * Asherah): a 2-wide/3-tall block, plus one extra hex above the head and one extra hex at
+ * the arms row — centered on the unit's own front tile rather than spread out to one side.
  */
 const BIG_CREATURE_FOOTPRINT = [
   { dx: 0, dy: 0 },
   { dx: 1, dy: 0 },
-  { dx: -2, dy: -1 },
   { dx: -1, dy: -1 },
   { dx: 0, dy: -1 },
+  { dx: 1, dy: -1 },
   { dx: 0, dy: -2 },
   { dx: 1, dy: -2 },
-  { dx: -1, dy: -3 },
+  { dx: 0, dy: -3 },
 ];
 
 /** Standard "tamanho tipo 3" footprint (3 hexes) for size:2 creatures like o Cão de guerra: the usual side-by-side pair plus one hex behind, on their back. */
