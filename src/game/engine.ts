@@ -87,7 +87,7 @@ function blankParticle(): Particle {
 
 type Seq =
   | { type: "move"; id: string; path: Point[] }
-  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number }
+  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number; noCounter?: boolean }
   | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
@@ -112,6 +112,7 @@ interface CombatAnim {
   swapped: boolean;
   bonusDice: number;
   bonusFlat: number;
+  noCounter: boolean;
 }
 
 interface SpellAnim {
@@ -529,7 +530,7 @@ export class BattleEngine {
     } else if (step.type === "combat") {
       const target = this.units.find((u) => u.id === step.def);
       if (!target || !target.alive) return;
-      this.active = { type: "combat", att: step.att, def: step.def, stage: "lunge", t: 0, swapped: false, bonusDice: step.bonusDice ?? 0, bonusFlat: step.bonusFlat ?? 0 };
+      this.active = { type: "combat", att: step.att, def: step.def, stage: "lunge", t: 0, swapped: false, bonusDice: step.bonusDice ?? 0, bonusFlat: step.bonusFlat ?? 0, noCounter: step.noCounter ?? false };
     } else if (step.type === "spell") {
       this.active = {
         type: "spell",
@@ -695,7 +696,7 @@ export class BattleEngine {
         actor.drawY = actor.y;
         a.t = 0;
         if (a.stage === "recover") {
-          if (def.alive && canCounter(att, def, { x: att.x, y: att.y }, this.tiles, this.cols)) a.stage = "counterLunge";
+          if (!a.noCounter && def.alive && canCounter(att, def, { x: att.x, y: att.y }, this.tiles, this.cols)) a.stage = "counterLunge";
           else if (!def.alive) a.stage = "fade";
           else this.finishCombat(att);
         } else if (!att.alive) a.stage = "fade";
@@ -1234,7 +1235,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `Bola de fogo: alcance ${FIREBALL.range}, ${fireballFormula(u.level)} − RES em área. Toque para mirar, toque de novo para lançar.`;
+    this.tip = `${FIREBALL.name}: alcance ${FIREBALL.range}, ${fireballFormula(u.level)} − RES em área. Toque para mirar, toque de novo para lançar.`;
     sfxPlay.ui();
   }
 
@@ -1246,7 +1247,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `Tiro longo: alcance ${u.minRange}–${this.longMax(u)}, AT − DF + ${diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)}. Toque no inimigo.`;
+    this.tip = `${LONG_SHOT.name}: alcance ${u.minRange}–${this.longMax(u)}, AT − DF + ${diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)}. Toque no inimigo.`;
     sfxPlay.ui();
   }
 
@@ -1258,7 +1259,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `Tiro perfurante: reta da colmeia. Dobro do AT − DF em cada um na linha, aliado ou inimigo.`;
+    this.tip = `${PIERCING.name}: reta da colmeia. Dobro do AT − DF em cada um na linha, aliado ou inimigo.`;
     sfxPlay.ui();
   }
 
@@ -1571,7 +1572,7 @@ export class BattleEngine {
     this.spendTier(unit, "doubleStrike");
     this.spellKind = null;
     this.mode = "locked";
-    this.queue.push({ type: "combat", att: unit.id, def: foe.id });
+    this.queue.push({ type: "combat", att: unit.id, def: foe.id, noCounter: true });
     this.queue.push({ type: "combat", att: unit.id, def: foe.id });
   }
 
@@ -2351,14 +2352,26 @@ export class BattleEngine {
     const cur = this.hover ?? this.cursor;
     {
       const { cx, cy } = this.hexCenter(cur.x, cur.y);
-      ctx.strokeStyle = "rgba(240,235,227,0.9)";
-      ctx.lineWidth = 2;
-      this.hexPath(ctx, cx, cy, tile * 0.9);
-      ctx.stroke();
       const hid = tileAt(this.tiles, this.cols, cur.x, cur.y);
       const ht = TERRAIN[hid];
-      if (ht.height || ht.id === "barricade") {
-        const label = ht.height ? "ALTO +2" : "BARRICADA";
+      const blocked = !ht.passable;
+      if (blocked) {
+        ctx.save();
+        ctx.shadowColor = "rgba(219,58,44,0.95)";
+        ctx.shadowBlur = tile * 0.55;
+        ctx.strokeStyle = "rgba(255,90,72,0.95)";
+        ctx.lineWidth = 3;
+        this.hexPath(ctx, cx, cy, tile * 0.9);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.strokeStyle = "rgba(240,235,227,0.9)";
+        ctx.lineWidth = 2;
+        this.hexPath(ctx, cx, cy, tile * 0.9);
+        ctx.stroke();
+      }
+      if (blocked || ht.height) {
+        const label = blocked ? ht.name.toUpperCase() : "ALTO +2";
         const fontPx = Math.max(11, Math.round(tile * 0.32));
         ctx.font = `700 ${fontPx}px Figtree, sans-serif`;
         ctx.textAlign = "center";
@@ -2366,7 +2379,7 @@ export class BattleEngine {
         ctx.lineJoin = "round";
         ctx.lineWidth = Math.max(3, fontPx * 0.22);
         ctx.strokeStyle = "rgba(12,11,10,0.88)";
-        ctx.fillStyle = ht.height ? "#efe4c4" : "#e0b48a";
+        ctx.fillStyle = blocked ? "#ff7a68" : "#efe4c4";
         ctx.strokeText(label, cx, cy + tile * 0.38);
         ctx.fillText(label, cx, cy + tile * 0.38);
       }

@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -173,9 +173,9 @@ function slotLabel(action: SlotAction): string {
     case "lightning":
       return LIGHTNING.name;
     case "longShot":
-      return "Tiro longo";
+      return LONG_SHOT.name;
     case "piercing":
-      return "Tiro perfurante";
+      return PIERCING.name;
     case "cureMinor":
       return CURES.cureMinor.name;
     case "cureWounds":
