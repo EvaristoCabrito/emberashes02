@@ -1,4 +1,4 @@
-import type { Bag, ClassDef, ClassId, HealId, Mission, PotionId, TerrainDef, TerrainId, Unit } from "./types";
+import type { Bag, ClassDef, ClassId, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -331,7 +331,7 @@ export const GROWTH: Record<ClassId, { hp: number; atk: number; mag: number; def
   heavyKnight: { hp: 5, atk: 1, mag: 0, def: 3, res: 1 },
 };
 
-export const MAX_LEVEL = 10;
+export const MAX_LEVEL = 30;
 export const STAR_LEVEL = 5;
 export const STARS_TO_LEVEL = 2;
 
@@ -420,9 +420,9 @@ export function emberFromCompleted(completed: string[]): number {
   return n;
 }
 
-export const CURES: Record<HealId, { name: string; dice: number; faces: number; bonus: number; uses: number; range: number }> = {
-  cureMinor: { name: "Cura menor", dice: 1, faces: 8, bonus: 3, uses: 2, range: 1 },
-  cureWounds: { name: "Cura simples", dice: 3, faces: 8, bonus: 3, uses: 1, range: 1 },
+export const CURES: Record<HealId, { name: string; dice: number; faces: number; bonus: number; range: number }> = {
+  cureMinor: { name: "Cura menor", dice: 1, faces: 8, bonus: 3, range: 1 },
+  cureWounds: { name: "Cura simples", dice: 3, faces: 8, bonus: 3, range: 1 },
 };
 
 export function rollDice(dice: number, faces: number, bonus: number, rng: () => number): number {
@@ -476,7 +476,6 @@ export const FIREBALL = {
   name: "Bola de fogo",
   size: 2,
   range: 4,
-  uses: 2,
   dice: 2,
   faces: 8,
   bonus: 4,
@@ -484,9 +483,6 @@ export const FIREBALL = {
 
 export const LONG_SHOT = {
   name: "Tiro longo",
-  uses: 1,
-  usesAt: 3,
-  usesHigh: 2,
   rangeMul: 2,
   bonusDice: 1,
   bonusFaces: 8,
@@ -495,9 +491,6 @@ export const LONG_SHOT = {
 
 export const PIERCING = {
   name: "Tiro perfurante",
-  uses: 1,
-  usesAt: 3,
-  usesHigh: 2,
   dmgMul: 2,
 };
 
@@ -518,8 +511,6 @@ export function cleaveHexCount(level: number): number {
 export const LIGHTNING = {
   name: "Relâmpago",
   range: 4,
-  uses: 1,
-  unlockLevel: 4,
   dice: 4,
   faces: 12,
   bonus: 6,
@@ -536,24 +527,7 @@ export const DISEASE = {
 export const CURE_DISEASE = {
   name: "Curar Doença Leve",
   range: 1,
-  unlockLevel: 5,
-  usesHigh: 2,
-  usesHighAt: 10,
 };
-
-export function cureDiseaseUses(level: number): number {
-  if (level < CURE_DISEASE.unlockLevel) return 0;
-  return level >= CURE_DISEASE.usesHighAt ? CURE_DISEASE.usesHigh : 1;
-}
-
-export function archerSkillUses(level: number): number {
-  return level >= LONG_SHOT.usesAt ? LONG_SHOT.usesHigh : LONG_SHOT.uses;
-}
-
-export function lightningUses(level: number): number {
-  if (level < LIGHTNING.unlockLevel) return 0;
-  return LIGHTNING.uses + (level >= 7 ? 1 : 0);
-}
 
 export function lightningDice(level: number): number {
   return LIGHTNING.dice + (level >= 8 ? 2 : 0);
@@ -561,10 +535,6 @@ export function lightningDice(level: number): number {
 
 export function lightningFormula(level: number): string {
   return diceFormula(lightningDice(level), LIGHTNING.faces, LIGHTNING.bonus);
-}
-
-export function fireballUses(level: number): number {
-  return FIREBALL.uses + (level >= 7 ? 1 : 0);
 }
 
 export function fireballPower(level: number): { dice: number; faces: number; bonus: number } {
@@ -578,15 +548,52 @@ export function fireballFormula(level: number): string {
   return diceFormula(p.dice, p.faces, p.bonus);
 }
 
-export function cureUses(kind: HealId, level: number): number {
-  if (kind === "cureMinor") {
-    if (level >= 8) return 4;
-    if (level >= 4) return 3;
-    return CURES.cureMinor.uses;
-  }
-  if (level >= 8) return 3;
-  if (level >= 6) return 2;
-  return CURES.cureWounds.uses;
+/** Spell-slot tiers (D&D-style): how fast each class unlocks and refills tier N depends on its casting speed. */
+export type SpellTier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+type TierSpeed = "full" | "half" | "slow";
+
+const TIER_SPEED: Partial<Record<ClassId, TierSpeed>> = {
+  mage: "full",
+  conjurer: "full",
+  healer: "full",
+  paladin: "half",
+  swordsman: "slow",
+  archer: "slow",
+  lancer: "slow",
+  assassin: "slow",
+  rogue: "slow",
+  heavyKnight: "slow",
+};
+
+/** Levels needed to go from one tier's unlock to the next, for that casting speed. */
+const TIER_SPEED_STEP: Record<TierSpeed, number> = { full: 3, half: 4, slow: 5 };
+
+export function tierUses(classId: ClassId, tier: SpellTier, level: number): number {
+  const speed = TIER_SPEED[classId];
+  if (!speed) return 0;
+  const step = TIER_SPEED_STEP[speed];
+  return Math.max(0, Math.min(5, Math.floor(level / step) - tier + 2));
+}
+
+export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
+  lightning: 1,
+  longShot: 1,
+  cureMinor: 1,
+  fireball: 2,
+  piercing: 2,
+  cureWounds: 2,
+  cureDisease: 3,
+};
+
+export function spellTier(kind: SpellKind): SpellTier | null {
+  return SPELL_TIER[kind] ?? null;
+}
+
+export const TIER_KEYS = ["tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7", "tier8", "tier9", "tier10"] as const;
+export type TierKey = (typeof TIER_KEYS)[number];
+
+export function tierKey(tier: SpellTier): TierKey {
+  return TIER_KEYS[tier - 1];
 }
 
 export function enemyLevelFor(missionIndex: number): number {

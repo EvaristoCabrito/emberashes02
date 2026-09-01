@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, archerSkillUses, cleaveHexCount, cureDiseaseUses, cureSpan, cureUses, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, fireballUses, isProjectile, lightningDice, lightningFormula, lightningUses, parseLayout, potionLabel, rollCure, rollDice, rollPotion, STARTING_BAG, statsFor, terrainNote, TERRAIN } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, cleaveHexCount, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
   attackableEnemies,
@@ -229,14 +229,17 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     level,
     bag: side === "player" ? { ...(roster?.bags?.[spawn.name] ?? (cls.id === "healer" ? EMPTY_BAG : STARTING_BAG)) } : { ...EMPTY_BAG },
     spells: {
-      fireball: side === "player" && cls.id === "mage" ? fireballUses(level) : 0,
-      cureMinor: side === "player" && cls.id === "healer" ? cureUses("cureMinor", level) : 0,
-      cureWounds: side === "player" && cls.id === "healer" ? cureUses("cureWounds", level) : 0,
-      longShot: side === "player" && cls.id === "archer" ? archerSkillUses(level) : 0,
-      piercing: side === "player" && cls.id === "archer" ? archerSkillUses(level) : 0,
-      lightning: side === "player" && cls.id === "mage" ? lightningUses(level) : 0,
+      tier1: side === "player" ? tierUses(cls.id, 1, level) : 0,
+      tier2: side === "player" ? tierUses(cls.id, 2, level) : 0,
+      tier3: side === "player" ? tierUses(cls.id, 3, level) : 0,
+      tier4: side === "player" ? tierUses(cls.id, 4, level) : 0,
+      tier5: side === "player" ? tierUses(cls.id, 5, level) : 0,
+      tier6: side === "player" ? tierUses(cls.id, 6, level) : 0,
+      tier7: side === "player" ? tierUses(cls.id, 7, level) : 0,
+      tier8: side === "player" ? tierUses(cls.id, 8, level) : 0,
+      tier9: side === "player" ? tierUses(cls.id, 9, level) : 0,
+      tier10: side === "player" ? tierUses(cls.id, 10, level) : 0,
       cleave: side === "player" && cls.id === "swordsman" ? CLEAVE.usesPerTurn : 0,
-      cureDisease: side === "player" && cls.id === "healer" ? cureDiseaseUses(level) : 0,
     },
     size: cls.size,
     shock: null,
@@ -1210,7 +1213,7 @@ export class BattleEngine {
 
   startFireball(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells.fireball <= 0) return;
+    if (!u || this.tierRemaining(u, "fireball") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "fireball";
     this.spellArmed = false;
@@ -1222,7 +1225,7 @@ export class BattleEngine {
 
   startLongShot(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells.longShot <= 0) return;
+    if (!u || this.tierRemaining(u, "longShot") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "longShot";
     this.spellArmed = false;
@@ -1234,7 +1237,7 @@ export class BattleEngine {
 
   startPiercing(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells.piercing <= 0) return;
+    if (!u || this.tierRemaining(u, "piercing") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "piercing";
     this.spellArmed = false;
@@ -1246,7 +1249,7 @@ export class BattleEngine {
 
   startLightning(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells.lightning <= 0) return;
+    if (!u || this.tierRemaining(u, "lightning") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "lightning";
     this.spellArmed = false;
@@ -1302,7 +1305,7 @@ export class BattleEngine {
 
   startCure(kind: HealId): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells[kind] <= 0) return;
+    if (!u || this.tierRemaining(u, kind) <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = kind;
     this.spellArmed = false;
@@ -1314,7 +1317,7 @@ export class BattleEngine {
 
   startCureDisease(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
-    if (!u || u.spells.cureDisease <= 0) return;
+    if (!u || this.tierRemaining(u, "cureDisease") <= 0) return;
     this.mode = "awaitSpell";
     this.spellKind = "cureDisease";
     this.spellArmed = false;
@@ -1333,6 +1336,17 @@ export class BattleEngine {
 
   private isHeal(kind: SpellKind | null): kind is HealId {
     return kind === "cureMinor" || kind === "cureWounds";
+  }
+
+  private tierRemaining(u: Unit, kind: SpellKind): number {
+    const tier = spellTier(kind);
+    return tier ? u.spells[tierKey(tier)] : 0;
+  }
+
+  private spendTier(u: Unit, kind: SpellKind): void {
+    const tier = spellTier(kind);
+    if (!tier) return;
+    u.spells[tierKey(tier)] -= 1;
   }
 
   private longMax(u: Unit): number {
@@ -1414,7 +1428,7 @@ export class BattleEngine {
     const occ = occupancy(this.units);
     const target = occ.get(key(cell.x, cell.y));
     if (!target) return;
-    unit.spells[kind] -= 1;
+    this.spendTier(unit, kind);
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({ type: "heal", att: unit.id, def: target.id, kind });
@@ -1429,7 +1443,7 @@ export class BattleEngine {
     const occ = occupancy(this.units);
     const target = occ.get(key(cell.x, cell.y));
     if (!target) return;
-    unit.spells.cureDisease -= 1;
+    this.spendTier(unit, "cureDisease");
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({ type: "cureDisease", att: unit.id, def: target.id });
@@ -1456,7 +1470,7 @@ export class BattleEngine {
     const occ = occupancy(this.units);
     const foe = occ.get(key(cell.x, cell.y));
     if (!foe) return;
-    unit.spells.longShot -= 1;
+    this.spendTier(unit, "longShot");
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({
@@ -1480,7 +1494,7 @@ export class BattleEngine {
       const who = this.units.find((x) => x.alive && occupies(x, t.x, t.y));
       if (who && who.id !== unit.id && !ids.includes(who.id)) ids.push(who.id);
     }
-    unit.spells.piercing -= 1;
+    this.spendTier(unit, "piercing");
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul });
@@ -1495,7 +1509,7 @@ export class BattleEngine {
     const occ = occupancy(this.units);
     const foe = occ.get(key(cell.x, cell.y));
     if (!foe) return;
-    unit.spells.lightning -= 1;
+    this.spendTier(unit, "lightning");
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({
@@ -1868,7 +1882,7 @@ export class BattleEngine {
       const u = this.units.find((x) => x.alive && occupies(x, t.x, t.y));
       if (u && !ids.includes(u.id)) ids.push(u.id);
     }
-    unit.spells.fireball -= 1;
+    this.spendTier(unit, "fireball");
     this.mode = "locked";
     const power = fireballPower(unit.level);
     this.queue.push({

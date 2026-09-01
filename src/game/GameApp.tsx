@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CURE_DISEASE, CURES, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, startingBags, statsFor, usesStarXp } from "./data";
+import { CLASSES, CURE_DISEASE, CURES, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -182,7 +182,10 @@ function slotLabel(action: SlotAction): string {
 }
 
 function slotCount(action: SlotAction, unit: UnitPublic): number {
-  return action.kind === "potion" ? unit.bag[action.potion] : unit.spells[action.spell];
+  if (action.kind === "potion") return unit.bag[action.potion];
+  if (action.spell === "cleave") return unit.spells.cleave;
+  const tier = spellTier(action.spell);
+  return tier ? unit.spells[tierKey(tier)] : 0;
 }
 
 export function GameApp() {
@@ -1483,14 +1486,14 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
                         <img src="/game/icons/fireball.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
-                          Fogo {fireballFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells.fireball}</span>
+                          Fogo {fireballFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("fireball")!)]}</span>
                         </p>
                       </div>
-                      {unit.spells.lightning > 0 && (
+                      {unit.spells[tierKey(spellTier("lightning")!)] > 0 && (
                         <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
                           <img src="/game/icons/lightning.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                           <p className="text-xs truncate">
-                            Raio {lightningFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells.lightning}</span>
+                            Raio {lightningFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("lightning")!)]}</span>
                           </p>
                         </div>
                       )}
@@ -1501,13 +1504,13 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
                         <img src="/game/icons/long-shot.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
-                          Longo <span className="tabular-nums text-muted">×{unit.spells.longShot}</span>
+                          Longo <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("longShot")!)]}</span>
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
                         <img src="/game/icons/piercing.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
-                          Perfura <span className="tabular-nums text-muted">×{unit.spells.piercing}</span>
+                          Perfura <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("piercing")!)]}</span>
                         </p>
                       </div>
                     </>
@@ -1517,15 +1520,23 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
                         <img src="/game/icons/cure-minor.png?v=5" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
-                          Menor <span className="tabular-nums text-muted">×{unit.spells.cureMinor}</span>
+                          Menor <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("cureMinor")!)]}</span>
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
                         <img src="/game/icons/cure-wounds.png?v=5" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
-                          Simples <span className="tabular-nums text-muted">×{unit.spells.cureWounds}</span>
+                          Simples <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("cureWounds")!)]}</span>
                         </p>
                       </div>
+                      {unit.spells[tierKey(spellTier("cureDisease")!)] > 0 && (
+                        <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                          <img src="/game/icons/cure-minor.png?v=5" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <p className="text-xs truncate">
+                            {CURE_DISEASE.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("cureDisease")!)]}</span>
+                          </p>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -8,14 +8,17 @@ export interface Bag {
 }
 
 export interface Spells {
-  fireball: number;
-  cureMinor: number;
-  cureWounds: number;
-  longShot: number;
-  piercing: number;
-  lightning: number;
+  tier1: number;
+  tier2: number;
+  tier3: number;
+  tier4: number;
+  tier5: number;
+  tier6: number;
+  tier7: number;
+  tier8: number;
+  tier9: number;
+  tier10: number;
   cleave: number;
-  cureDisease: number;
 }
 
 export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin";
