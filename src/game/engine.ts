@@ -880,19 +880,25 @@ export class BattleEngine {
     u.diseased = false;
   }
 
-  /** Marks a unit as having acted this turn; if it's still alive, keeps it selected so it can still reposition. */
+  /**
+   * Marks a unit as having acted this turn. A player unit that hasn't moved yet this turn
+   * stays selected so it can still use its one move (order-independent move+attack); a unit
+   * that already moved, is dead, or belongs to the enemy ends its turn immediately instead —
+   * leaving an enemy "selected" here would expose it to player input (move/attack picks).
+   */
   private finishAction(u: Unit): void {
     u.acted = true;
     this.pendingFoeId = null;
     this.inspectedId = null;
     this.threat = [];
     this.attackFrom.clear();
-    if (!u.alive) {
+    const alreadyMoved = !u.alive || u.side !== "player" || !this.orig || u.x !== this.orig.x || u.y !== this.orig.y;
+    if (alreadyMoved) {
       u.moved = true;
       this.selectedId = null;
       this.reach.clear();
       this.orig = null;
-      this.mode = "idle";
+      this.mode = this.phase === "player" ? "idle" : "locked";
       return;
     }
     this.selectedId = u.id;
