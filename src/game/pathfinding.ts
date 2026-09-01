@@ -226,25 +226,34 @@ export function unitSize(unit: Pick<Unit, "size">): number {
 }
 
 /** The front row of a big creature's footprint — closest to the player, where the feet render (see footprint() below). */
-export function footprintFrontRow(unit: Point, width = 2): Point[] {
+export function footprintFrontRow(
+  unit: Point & { footprintOffsets?: { dx: number; dy: number }[] },
+  width = 2,
+): Point[] {
+  if (unit.footprintOffsets) {
+    return unit.footprintOffsets.filter((o) => o.dy === 0).map((o) => ({ x: unit.x + o.dx, y: unit.y }));
+  }
   const start = unit.x - Math.floor((width - 1) / 2);
   const out: Point[] = [];
   for (let i = 0; i < width; i++) out.push({ x: start + i, y: unit.y });
   return out;
 }
 
-export function footprint(unit: Pick<Unit, "x" | "y" | "size" | "footprintW" | "footprintH">): Point[] {
+export function footprint(
+  unit: Pick<Unit, "x" | "y" | "size" | "footprintW" | "footprintH" | "footprintOffsets">,
+): Point[] {
   const s = unitSize(unit);
   if (s <= 1) return [{ x: unit.x, y: unit.y }];
   if (s >= 4) {
-    // Big creatures (Troll, Asherah, ...): a block sized per class (footprintW x footprintH,
-    // default 2x4) hugging the drawn silhouette — wider ones (Asherah) get extra columns on
-    // both sides rather than a one-size-fits-all block. unit.x/unit.y is the front-most row
-    // (closest to the player, where the feet render); the other rows trail behind it, never
-    // past unit.y, so nothing sits hidden behind the sprite from the player's view.
-    // Hex rows alternate their horizontal offset every other line (odd-r layout), so every
-    // other row here is shifted one column left to keep the column stacking straight instead
-    // of zig-zagging to the right as it goes back.
+    // Big creatures (Troll, Asherah, ...): unit.x/unit.y is the front-most row (closest to the
+    // player, where the feet render); the rest of the shape trails behind it, never past
+    // unit.y, so nothing sits hidden behind the sprite from the player's view.
+    if (unit.footprintOffsets) {
+      return unit.footprintOffsets.map((o) => ({ x: unit.x + o.dx, y: unit.y + o.dy }));
+    }
+    // Fallback: a plain footprintW x footprintH rectangle (default 2x4). Hex rows alternate
+    // their horizontal offset every other line (odd-r layout), so every other row here is
+    // shifted one column left to keep the column stacking straight instead of zig-zagging.
     const width = unit.footprintW ?? 2;
     const height = unit.footprintH ?? 4;
     const out: Point[] = [];

@@ -15,6 +15,22 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
   highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
 };
 
+/**
+ * Shared footprint shape for big (size>=4) creatures: the 2-wide/3-tall block confirmed
+ * against the Troll/Asherah sprites, plus one extra hex above the head and one extra hex on
+ * the left at the arms row.
+ */
+const BIG_CREATURE_FOOTPRINT = [
+  { dx: 0, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: -2, dy: -1 },
+  { dx: -1, dy: -1 },
+  { dx: 0, dy: -1 },
+  { dx: 0, dy: -2 },
+  { dx: 1, dy: -2 },
+  { dx: -1, dy: -3 },
+];
+
 export const CLASSES: Record<ClassId, ClassDef> = {
   swordsman: {
     id: "swordsman",
@@ -190,8 +206,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "horror",
     size: 4,
-    footprintW: 4,
-    footprintH: 4,
+    footprintOffsets: BIG_CREATURE_FOOTPRINT,
     init: 7,
   },
   troll: {
@@ -208,8 +223,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "troll",
     size: 4,
-    footprintW: 2,
-    footprintH: 4,
+    footprintOffsets: BIG_CREATURE_FOOTPRINT,
     init: 8,
   },
   // Classes novas — nome, papel e arte ainda são provisórios (sprite reaproveita

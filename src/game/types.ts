@@ -84,6 +84,13 @@ export interface ClassDef {
   /** Footprint block for big creatures (size >= 4), in hexes. Defaults to 2 wide x 4 tall. */
   footprintW?: number;
   footprintH?: number;
+  /**
+   * Explicit footprint shape for big creatures (size >= 4), as {dx, dy} offsets from the
+   * unit's own tile — dy: 0 is the front row (feet, closest to the player), negative dy is
+   * further back. Overrides footprintW/footprintH when set, for shapes that aren't a plain
+   * rectangle.
+   */
+  footprintOffsets?: { dx: number; dy: number }[];
   /** Turn-order priority: lower acts first. Only set for player classes so far. */
   init?: number;
 }
@@ -148,6 +155,7 @@ export interface Unit {
   size: number;
   footprintW?: number;
   footprintH?: number;
+  footprintOffsets?: { dx: number; dy: number }[];
   shock: { dice: number; faces: number; bonus: number } | null;
   diseased: boolean;
   diseaseBase: { atk: number; mag: number; def: number; res: number; mov: number } | null;

@@ -249,6 +249,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     size: cls.size,
     footprintW: cls.footprintW,
     footprintH: cls.footprintH,
+    footprintOffsets: cls.footprintOffsets,
     shock: null,
     diseased: false,
     diseaseBase: null,
@@ -2105,10 +2106,16 @@ export class BattleEngine {
     ctx.restore();
   }
 
-  private footprintCentroid(x: number, y: number, size: number, footprintW?: number): { cx: number; cy: number } {
+  private footprintCentroid(
+    x: number,
+    y: number,
+    size: number,
+    footprintW?: number,
+    footprintOffsets?: { dx: number; dy: number }[],
+  ): { cx: number; cy: number } {
     // Big creatures anchor on their front row only — averaging in the row behind them would
     // drag the sprite's feet upward, off the tiles the player actually sees them standing on.
-    const cells = size >= 4 ? footprintFrontRow({ x, y }, footprintW ?? 2) : footprint({ x, y, size });
+    const cells = size >= 4 ? footprintFrontRow({ x, y, footprintOffsets }, footprintW ?? 2) : footprint({ x, y, size });
     let cx = 0;
     let cy = 0;
     for (const p of cells) {
@@ -2128,12 +2135,12 @@ export class BattleEngine {
       if (from && to) {
         const dur = 0.12;
         const k = easeOut(Math.min(1, a.t / dur));
-        const A = this.footprintCentroid(from.x, from.y, u.size, u.footprintW);
-        const B = this.footprintCentroid(to.x, to.y, u.size, u.footprintW);
+        const A = this.footprintCentroid(from.x, from.y, u.size, u.footprintW, u.footprintOffsets);
+        const B = this.footprintCentroid(to.x, to.y, u.size, u.footprintW, u.footprintOffsets);
         return { cx: A.cx + (B.cx - A.cx) * k, cy: A.cy + (B.cy - A.cy) * k };
       }
     }
-    return this.footprintCentroid(u.x, u.y, u.size, u.footprintW);
+    return this.footprintCentroid(u.x, u.y, u.size, u.footprintW, u.footprintOffsets);
   }
 
   private idleFrame(u: Unit, n: number): number {
