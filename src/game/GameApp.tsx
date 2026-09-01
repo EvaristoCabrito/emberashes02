@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CURES, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, startingBags, statsFor, usesStarXp } from "./data";
+import { CLASSES, CURE_DISEASE, CURES, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, cleaveHexCount, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, startingBags, statsFor, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -104,7 +104,7 @@ function classSpells(classId: ClassId): SpellKind[] {
     case "archer":
       return ["longShot", "piercing"];
     case "healer":
-      return ["cureMinor", "cureWounds"];
+      return ["cureMinor", "cureWounds", "cureDisease"];
     default:
       return [];
   }
@@ -154,6 +154,8 @@ function slotIcon(action: SlotAction): string {
       return "/game/icons/cure-minor.png?v=5";
     case "cureWounds":
       return "/game/icons/cure-wounds.png?v=5";
+    case "cureDisease":
+      return "/game/icons/cure-minor.png?v=5";
   }
 }
 
@@ -174,6 +176,8 @@ function slotLabel(action: SlotAction): string {
       return CURES.cureMinor.name;
     case "cureWounds":
       return CURES.cureWounds.name;
+    case "cureDisease":
+      return CURE_DISEASE.name;
   }
 }
 
@@ -1060,6 +1064,9 @@ function BattleScreen({
       case "cureWounds":
         engine.startCure("cureWounds");
         break;
+      case "cureDisease":
+        engine.startCureDisease();
+        break;
     }
   }
 
@@ -1178,7 +1185,10 @@ function BattleScreen({
                       </span>
                     )}
                   </p>
-                  <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>{unit.className}</p>
+                  <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>
+                    {unit.className}
+                    {unit.diseased && <span className="text-danger"> · Doente</span>}
+                  </p>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2">
                   <div className="h-1.5 flex-1 rounded-full bg-border overflow-hidden">
@@ -1403,6 +1413,7 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
               <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>
                 {unit.className} · Nv {unit.level}
               </p>
+              {unit.diseased && <p className="text-xs text-danger mt-0.5">Doente · −10% em todos os stats</p>}
               {unit.side === "player" && usesStarXp(unit.level) && (
                 <span className="inline-flex gap-0.5 mt-1">
                   {Array.from({ length: STARS_TO_LEVEL }, (_, i) => (

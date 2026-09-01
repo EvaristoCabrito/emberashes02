@@ -15,6 +15,7 @@ export interface Spells {
   piercing: number;
   lightning: number;
   cleave: number;
+  cureDisease: number;
 }
 
 export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin";
@@ -40,7 +41,7 @@ export type ClassId =
   | "heavyKnight";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
-export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "cleave";
+export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "cleave" | "cureDisease";
 export type ScreenId = "boot" | "title" | "campaign" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitSpell" | "locked";
@@ -140,6 +141,8 @@ export interface Unit {
   spells: Spells;
   size: number;
   shock: { dice: number; faces: number; bonus: number } | null;
+  diseased: boolean;
+  diseaseBase: { atk: number; mag: number; def: number; res: number; mov: number } | null;
 }
 
 export interface UnitPublic {
@@ -166,6 +169,7 @@ export interface UnitPublic {
   bag: Bag;
   spells: Spells;
   size: number;
+  diseased: boolean;
 }
 
 export interface Forecast {

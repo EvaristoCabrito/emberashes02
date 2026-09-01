@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURES, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, archerSkillUses, cleaveHexCount, cureSpan, cureUses, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, fireballUses, isProjectile, lightningDice, lightningFormula, lightningUses, parseLayout, potionLabel, rollCure, rollDice, rollPotion, STARTING_BAG, statsFor, terrainNote, TERRAIN } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, archerSkillUses, cleaveHexCount, cureDiseaseUses, cureSpan, cureUses, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, fireballUses, isProjectile, lightningDice, lightningFormula, lightningUses, parseLayout, potionLabel, rollCure, rollDice, rollPotion, STARTING_BAG, statsFor, terrainNote, TERRAIN } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
   attackableEnemies,
@@ -90,6 +90,7 @@ type Seq =
   | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number }
   | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; keepTurn?: boolean }
   | { type: "heal"; att: string; def: string; kind: HealId }
+  | { type: "cureDisease"; att: string; def: string }
   | { type: "banner"; text: string; dur: number }
   | { type: "delay"; dur: number }
   | { type: "checkEnd" };
@@ -139,11 +140,20 @@ interface HealAnim {
   applied: boolean;
 }
 
+interface CureDiseaseAnim {
+  type: "cureDisease";
+  att: string;
+  def: string;
+  t: number;
+  applied: boolean;
+}
+
 type Active =
   | MoveAnim
   | CombatAnim
   | SpellAnim
   | HealAnim
+  | CureDiseaseAnim
   | { type: "banner"; text: string; t: number; dur: number }
   | { type: "delay"; t: number; dur: number };
 
@@ -172,6 +182,7 @@ function pub(u: Unit): UnitPublic {
     bag: { ...u.bag },
     spells: { ...u.spells },
     size: u.size,
+    diseased: u.diseased,
   };
 }
 
@@ -225,9 +236,12 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
       piercing: side === "player" && cls.id === "archer" ? archerSkillUses(level) : 0,
       lightning: side === "player" && cls.id === "mage" ? lightningUses(level) : 0,
       cleave: side === "player" && cls.id === "swordsman" ? CLEAVE.usesPerTurn : 0,
+      cureDisease: side === "player" && cls.id === "healer" ? cureDiseaseUses(level) : 0,
     },
     size: cls.size,
     shock: null,
+    diseased: false,
+    diseaseBase: null,
   };
 }
 
@@ -521,6 +535,10 @@ export class BattleEngine {
       this.active = { type: "heal", att: step.att, def: step.def, kind: step.kind, t: 0, applied: false };
       this.banner = CURES[step.kind].name;
       sfxPlay.ui();
+    } else if (step.type === "cureDisease") {
+      this.active = { type: "cureDisease", att: step.att, def: step.def, t: 0, applied: false };
+      this.banner = CURE_DISEASE.name;
+      sfxPlay.ui();
     } else if (step.type === "banner") {
       this.banner = step.text;
       this.active = { type: "banner", text: step.text, t: 0, dur: step.dur };
@@ -589,6 +607,7 @@ export class BattleEngine {
     if (a.type === "combat") this.stepCombat(a, dt);
     if (a.type === "spell") this.stepSpell(a, dt);
     if (a.type === "heal") this.stepHeal(a, dt);
+    if (a.type === "cureDisease") this.stepCureDisease(a, dt);
   }
 
   private stepCombat(a: CombatAnim, dt: number): void {
@@ -632,7 +651,10 @@ export class BattleEngine {
         if (target.hp <= 0) {
           target.alive = false;
           sfxPlay.death();
-        } else sfxPlay.hit();
+        } else {
+          sfxPlay.hit();
+          this.maybeInflictDisease(actor, target);
+        }
         if (!this.reducedMotion) this.trauma = Math.min(1, this.trauma + 0.28);
         this.hitstop = 0.06;
       }
@@ -778,6 +800,65 @@ export class BattleEngine {
       sfxPlay.ui();
     }
     if (a.t >= 0.5) this.finishCombat(att);
+  }
+
+  private stepCureDisease(a: CureDiseaseAnim, dt: number): void {
+    const att = this.units.find((u) => u.id === a.att);
+    const target = this.units.find((u) => u.id === a.def);
+    if (!att || !target) {
+      this.active = null;
+      return;
+    }
+    a.t += dt;
+    if (!a.applied && a.t >= 0.2) {
+      a.applied = true;
+      this.curePlayerDisease(target);
+      this.emitParticle({
+        x: target.drawX,
+        y: target.drawY - 0.35,
+        vx: 0,
+        vy: -0.18,
+        life: 0,
+        max: 2,
+        size: 1,
+        color: "#d8ead2",
+        text: "curado",
+        kind: "text",
+        frame: 0,
+      });
+      this.tip = `${CURE_DISEASE.name} · ${target.name} está curado.`;
+      sfxPlay.ui();
+    }
+    if (a.t >= 0.5) this.finishCombat(att);
+  }
+
+  /** 20% chance for a wardog's bite to inflict disease on a surviving target. */
+  private maybeInflictDisease(actor: Unit, target: Unit): void {
+    if (actor.classId !== "wardog" || !target.alive || target.diseased) return;
+    if (this.rng() >= DISEASE.biteChance) return;
+    target.diseased = true;
+    target.diseaseBase = { atk: target.atk, mag: target.mag, def: target.def, res: target.res, mov: target.mov };
+    const pen = (n: number) => Math.round(n * (1 - DISEASE.statPenalty));
+    target.atk = pen(target.atk);
+    target.mag = pen(target.mag);
+    target.def = pen(target.def);
+    target.res = pen(target.res);
+    target.mov = Math.max(1, pen(target.mov));
+    this.tip = `${target.name} não se sente muito bem.`;
+  }
+
+  private curePlayerDisease(u: Unit): void {
+    if (!u.diseaseBase) {
+      u.diseased = false;
+      return;
+    }
+    u.atk = u.diseaseBase.atk;
+    u.mag = u.diseaseBase.mag;
+    u.def = u.diseaseBase.def;
+    u.res = u.diseaseBase.res;
+    u.mov = u.diseaseBase.mov;
+    u.diseaseBase = null;
+    u.diseased = false;
   }
 
   private finishCombat(att: Unit): void {
@@ -1065,7 +1146,7 @@ export class BattleEngine {
       unit.classId === "troll" ? " · parte barricadas" : ""
     }${
       unit.shock ? ` · Relâmpago ${diceFormula(unit.shock.dice, unit.shock.faces, unit.shock.bonus)} − RES no turno` : ""
-    }`;
+    }${unit.diseased ? " · Doente (−10% em todos os stats)" : ""}`;
     this.ensureVisible(unit.x, unit.y);
     sfxPlay.ui();
   }
@@ -1212,6 +1293,10 @@ export class BattleEngine {
       this.castCleave(u, cell);
       return;
     }
+    if (this.spellKind === "cureDisease") {
+      this.castCureDisease(u, cell);
+      return;
+    }
     this.castHeal(u, cell, this.spellKind);
   }
 
@@ -1224,6 +1309,18 @@ export class BattleEngine {
     this.spellAim = null;
     this.hover = null;
     this.tip = `${CURES[kind].name}: ${cureSpan(kind)} HP, alcance ${CURES[kind].range}. Toque num aliado ferido.`;
+    sfxPlay.ui();
+  }
+
+  startCureDisease(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.spells.cureDisease <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "cureDisease";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${CURE_DISEASE.name}: cura doença, alcance ${CURE_DISEASE.range}. Toque num aliado doente.`;
     sfxPlay.ui();
   }
 
@@ -1264,6 +1361,7 @@ export class BattleEngine {
     if (this.spellKind === "cleave") {
       return hexNeighbors(caster.x, caster.y).some((p) => p.x === cell.x && p.y === cell.y);
     }
+    if (this.spellKind === "cureDisease") return this.validCureDiseaseTarget(caster, cell);
     return this.validHealTarget(caster, cell);
   }
 
@@ -1290,6 +1388,13 @@ export class BattleEngine {
     return !!who && who.side === "player" && who.alive && who.hp < who.maxHp;
   }
 
+  private validCureDiseaseTarget(caster: Unit, cell: Point): boolean {
+    if (manhattan(caster, cell) > CURE_DISEASE.range) return false;
+    const occ = occupancy(this.units);
+    const who = occ.get(key(cell.x, cell.y));
+    return !!who && who.side === "player" && who.alive && who.diseased;
+  }
+
   private healRangeTiles(from: Point, range: number): Point[] {
     const out: Point[] = [];
     for (let y = 0; y < this.rows; y++) {
@@ -1313,6 +1418,21 @@ export class BattleEngine {
     this.spellKind = null;
     this.mode = "locked";
     this.queue.push({ type: "heal", att: unit.id, def: target.id, kind });
+  }
+
+  private castCureDisease(unit: Unit, cell: Point): void {
+    if (!this.validCureDiseaseTarget(unit, cell)) {
+      this.tip = "Alvo inválido.";
+      sfxPlay.ui();
+      return;
+    }
+    const occ = occupancy(this.units);
+    const target = occ.get(key(cell.x, cell.y));
+    if (!target) return;
+    unit.spells.cureDisease -= 1;
+    this.spellKind = null;
+    this.mode = "locked";
+    this.queue.push({ type: "cureDisease", att: unit.id, def: target.id });
   }
 
   confirmFireball(): void {
@@ -1430,11 +1550,17 @@ export class BattleEngine {
     if (u.bag[kind] <= 0) return;
     const def = POTIONS[kind];
     if (def.effect === "disease") {
+      if (!u.diseased) {
+        this.tip = `${def.name} · ${u.name} não está doente.`;
+        sfxPlay.ui();
+        return;
+      }
       u.bag[kind] -= 1;
+      this.curePlayerDisease(u);
       u.moved = true;
       u.x = Math.round(u.drawX);
       u.y = Math.round(u.drawY);
-      this.tip = `${def.name} · não há doença neste combate.`;
+      this.tip = `${def.name} · doença curada.`;
       this.deselect(true);
       sfxPlay.ui();
       return;
@@ -2093,6 +2219,10 @@ export class BattleEngine {
         overlay(this.healRangeTiles(selected, CURES[this.spellKind].range), "rgba(90,140,100,0.28)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.validHealTarget(selected, cell)) overlay([cell], "rgba(120,180,120,0.55)");
+      } else if (selected && this.spellKind === "cureDisease") {
+        overlay(this.healRangeTiles(selected, CURE_DISEASE.range), "rgba(90,140,100,0.28)");
+        const cell = this.hover ?? this.spellAim;
+        if (cell && this.validCureDiseaseTarget(selected, cell)) overlay([cell], "rgba(120,180,120,0.55)");
       }
     }
 

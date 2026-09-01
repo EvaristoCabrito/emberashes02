@@ -528,6 +528,24 @@ export const LIGHTNING = {
   echoBonus: 2,
 };
 
+export const DISEASE = {
+  biteChance: 0.2,
+  statPenalty: 0.1,
+};
+
+export const CURE_DISEASE = {
+  name: "Curar Doença Leve",
+  range: 1,
+  unlockLevel: 5,
+  usesHigh: 2,
+  usesHighAt: 10,
+};
+
+export function cureDiseaseUses(level: number): number {
+  if (level < CURE_DISEASE.unlockLevel) return 0;
+  return level >= CURE_DISEASE.usesHighAt ? CURE_DISEASE.usesHigh : 1;
+}
+
 export function archerSkillUses(level: number): number {
   return level >= LONG_SHOT.usesAt ? LONG_SHOT.usesHigh : LONG_SHOT.uses;
 }
