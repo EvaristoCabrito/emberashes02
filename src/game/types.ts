@@ -19,7 +19,25 @@ export interface Spells {
 
 export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin";
 export type Side = "player" | "enemy";
-export type ClassId = "swordsman" | "archer" | "mage" | "healer" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
+export type ClassId =
+  | "swordsman"
+  | "archer"
+  | "mage"
+  | "healer"
+  | "soldier"
+  | "brigand"
+  | "captain"
+  | "sorcerer"
+  | "horror"
+  | "pikeman"
+  | "wardog"
+  | "troll"
+  | "assassin"
+  | "rogue"
+  | "lancer"
+  | "conjurer"
+  | "paladin"
+  | "heavyKnight";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
 export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "cleave";
