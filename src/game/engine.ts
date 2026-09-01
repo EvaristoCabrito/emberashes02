@@ -254,6 +254,8 @@ export class BattleEngine {
   cursor: Point = { x: 0, y: 0 };
   reach: Map<string, ReachCell> = new Map();
   attackFrom: Map<string, Point> = new Map();
+  /** Player unit ids for this round, sorted by CLASSES[classId].init (lower first). */
+  private turnOrder: string[] = [];
   orig: Point | null = null;
   hover: Point | null = null;
   private lastClickAt = 0;
@@ -298,6 +300,10 @@ export class BattleEngine {
       this.nudgeOffHazard(u);
       u.bob = this.rng() * 16;
     }
+    this.turnOrder = this.units
+      .filter((u) => u.side === "player" && u.alive)
+      .sort((a, b) => (CLASSES[a.classId].init ?? 999) - (CLASSES[b.classId].init ?? 999))
+      .map((u) => u.id);
     const first = this.units.find((u) => u.side === "player");
     if (first) this.cursor = { x: first.x, y: first.y };
     this.tip =
@@ -387,6 +393,13 @@ export class BattleEngine {
         !!this.hover &&
         this.spellAimValid(selected, this.hover),
       spellKind: this.mode === "awaitSpell" ? this.spellKind : null,
+      turnQueue: (() => {
+        const active = this.activeTurnUnit();
+        return this.turnOrder
+          .map((id) => this.units.find((u) => u.id === id))
+          .filter((u): u is Unit => !!u && u.alive)
+          .map((u) => ({ id: u.id, name: u.name, acted: u.moved, active: u.id === active?.id }));
+      })(),
     };
   }
 
@@ -513,6 +526,10 @@ export class BattleEngine {
         u.moved = false;
         if (u.side === "player" && u.alive && u.classId === "swordsman") u.spells.cleave = CLEAVE.usesPerTurn;
       }
+      this.turnOrder = this.units
+        .filter((u) => u.side === "player" && u.alive)
+        .sort((a, b) => (CLASSES[a.classId].init ?? 999) - (CLASSES[b.classId].init ?? 999))
+        .map((u) => u.id);
       this.turn += 1;
       this.tickShock("player");
       this.burnStanding("player");
@@ -1015,9 +1032,24 @@ export class BattleEngine {
     else if (!p) this.result = "defeat";
   }
 
+  /** First not-yet-acted unit in this round's initiative order, or null if everyone has gone. */
+  activeTurnUnit(): Unit | null {
+    for (const id of this.turnOrder) {
+      const u = this.units.find((x) => x.id === id);
+      if (u && u.alive && !u.moved) return u;
+    }
+    return null;
+  }
+
   private select(unit: Unit): void {
     if (unit.side !== "player" || !unit.alive || unit.moved || this.phase !== "player") {
       this.inspect(unit);
+      return;
+    }
+    const active = this.activeTurnUnit();
+    if (active && active.id !== unit.id) {
+      this.inspect(unit);
+      this.tip = `Ainda não é a vez de ${unit.name} — espere ${active.name} agir.`;
       return;
     }
     if (this.selectedId === unit.id && this.mode === "awaitAction") return;
@@ -1029,6 +1061,7 @@ export class BattleEngine {
     this.attackFrom = attackableEnemies(unit, this.reach, this.units, this.tiles, this.cols);
     this.threat = [];
     this.mode = "selected";
+    this.tip = null;
     this.ensureVisible(unit.x, unit.y);
     sfxPlay.select();
   }

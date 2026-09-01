@@ -78,6 +78,8 @@ export interface ClassDef {
   maxRange: number;
   sprite: SpriteId;
   size: number;
+  /** Turn-order priority: lower acts first. Only set for player classes so far. */
+  init?: number;
 }
 
 export interface Spawn {
@@ -208,6 +210,8 @@ export interface HudSnapshot {
   pendingFoe: UnitPublic | null;
   spellReady: boolean;
   spellKind: SpellKind | null;
+  /** This round's player turn order, lowest initiative first. */
+  turnQueue: { id: string; name: string; acted: boolean; active: boolean }[];
 }
 
 export interface WalkDirs {

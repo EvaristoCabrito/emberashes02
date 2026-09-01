@@ -30,6 +30,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "kael",
     size: 1,
+    init: 7,
   },
   archer: {
     id: "archer",
@@ -45,6 +46,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 3,
     sprite: "nira",
     size: 1,
+    init: 3,
   },
   mage: {
     id: "mage",
@@ -60,6 +62,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 2,
     sprite: "voss",
     size: 1,
+    init: 5,
   },
   healer: {
     id: "healer",
@@ -75,6 +78,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "salazar",
     size: 1,
+    init: 8,
   },
   soldier: {
     id: "soldier",
@@ -90,6 +94,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "soldier",
     size: 1,
+    init: 2,
   },
   pikeman: {
     id: "pikeman",
@@ -105,6 +110,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 2,
     sprite: "pikeman",
     size: 1,
+    init: 3,
   },
   brigand: {
     id: "brigand",
@@ -120,6 +126,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 3,
     sprite: "brigand",
     size: 1,
+    init: 4,
   },
   captain: {
     id: "captain",
@@ -135,6 +142,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "captain",
     size: 1,
+    init: 1,
   },
   wardog: {
     id: "wardog",
@@ -150,6 +158,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "wardog",
     size: 2,
+    init: 6,
   },
   sorcerer: {
     id: "sorcerer",
@@ -165,6 +174,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 2,
     sprite: "sorcerer",
     size: 1,
+    init: 5,
   },
   horror: {
     id: "horror",
@@ -180,6 +190,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "horror",
     size: 4,
+    init: 7,
   },
   troll: {
     id: "troll",
@@ -195,6 +206,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "troll",
     size: 4,
+    init: 8,
   },
   // Classes novas — nome, papel e arte ainda são provisórios (sprite reaproveita
   // um já existente até a arte definitiva chegar).
@@ -212,6 +224,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "brigand",
     size: 1,
+    init: 1,
   },
   rogue: {
     id: "rogue",
@@ -227,6 +240,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 2,
     sprite: "brigand",
     size: 1,
+    init: 2,
   },
   lancer: {
     id: "lancer",
@@ -242,6 +256,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 2,
     sprite: "pikeman",
     size: 1,
+    init: 4,
   },
   conjurer: {
     id: "conjurer",
@@ -257,6 +272,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 2,
     sprite: "sorcerer",
     size: 1,
+    init: 6,
   },
   paladin: {
     id: "paladin",
@@ -272,6 +288,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "captain",
     size: 1,
+    init: 9,
   },
   heavyKnight: {
     id: "heavyKnight",
@@ -287,6 +304,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "troll",
     size: 1,
+    init: 10,
   },
 };
 
