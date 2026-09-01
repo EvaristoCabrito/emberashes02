@@ -15,12 +15,20 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
   highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
 };
 
-/**
- * Standard "tamanho tipo 8" footprint (8 hexes) shared by every size:4 creature (Troll,
- * Asherah): a 2-wide/3-tall block, plus one extra hex above the head and one extra hex at
- * the arms row — centered on the unit's own front tile rather than spread out to one side.
- */
-const BIG_CREATURE_FOOTPRINT = [
+// Footprint "tamanho tipo N" catalog: standard, reusable creature footprint shapes, named by
+// their hex count. Every entry is centered on the unit's own front tile (dy:0 is the row
+// closest to the player, where the feet render) rather than spread out to one side. New
+// creature sizes should get their own FOOTPRINT_TYPE_N here instead of a one-off shape.
+
+/** Tipo 3 — a normal side-by-side pair plus one hex behind, on the creature's back (e.g. o Cão de guerra). */
+const FOOTPRINT_TYPE_3 = [
+  { dx: 0, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: 0, dy: -1 },
+];
+
+/** Tipo 8 — a 2-wide/3-tall block plus one hex above the head and one at the arms row (Troll, Asherah). */
+const FOOTPRINT_TYPE_8 = [
   { dx: 0, dy: 0 },
   { dx: 1, dy: 0 },
   { dx: -1, dy: -1 },
@@ -29,13 +37,6 @@ const BIG_CREATURE_FOOTPRINT = [
   { dx: 0, dy: -2 },
   { dx: 1, dy: -2 },
   { dx: 0, dy: -3 },
-];
-
-/** Standard "tamanho tipo 3" footprint (3 hexes) for size:2 creatures like o Cão de guerra: the usual side-by-side pair plus one hex behind, on their back. */
-const MEDIUM_CREATURE_FOOTPRINT = [
-  { dx: 0, dy: 0 },
-  { dx: 1, dy: 0 },
-  { dx: 0, dy: -1 },
 ];
 
 export const CLASSES: Record<ClassId, ClassDef> = {
@@ -181,7 +182,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "wardog",
     size: 2,
-    footprintOffsets: MEDIUM_CREATURE_FOOTPRINT,
+    footprintOffsets: FOOTPRINT_TYPE_3,
     init: 6,
   },
   sorcerer: {
@@ -214,7 +215,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "horror",
     size: 4,
-    footprintOffsets: BIG_CREATURE_FOOTPRINT,
+    footprintOffsets: FOOTPRINT_TYPE_8,
     init: 7,
   },
   troll: {
@@ -231,7 +232,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "troll",
     size: 4,
-    footprintOffsets: BIG_CREATURE_FOOTPRINT,
+    footprintOffsets: FOOTPRINT_TYPE_8,
     init: 8,
   },
   // Classes novas — nome, papel e arte ainda são provisórios (sprite reaproveita
