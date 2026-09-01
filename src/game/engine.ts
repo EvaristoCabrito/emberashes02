@@ -90,7 +90,7 @@ function blankParticle(): Particle {
 type Seq =
   | { type: "move"; id: string; path: Point[] }
   | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number; noCounter?: boolean }
-  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number }
+  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number; spellKind?: SpellKind }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
   | { type: "banner"; text: string; dur: number }
@@ -134,6 +134,7 @@ interface SpellAnim {
   weaponBonusDice: number;
   weaponBonusFaces: number;
   weaponBonusBonus: number;
+  spellKind: SpellKind | null;
 }
 
 interface HealAnim {
@@ -557,6 +558,7 @@ export class BattleEngine {
         weaponBonusDice: step.weaponBonusDice ?? 0,
         weaponBonusFaces: step.weaponBonusFaces ?? 8,
         weaponBonusBonus: step.weaponBonusBonus ?? 0,
+        spellKind: step.spellKind ?? null,
       };
       this.banner = step.label ?? "";
       sfxPlay.crit();
@@ -776,7 +778,14 @@ export class BattleEngine {
         // AoE/line abilities (fireball, cleave, piercing...) run this once per unit actually
         // hit, so every landed hit grants its own XP — piercing can also clip an ally in the
         // line, which must never grant XP.
-        if (foe.side !== att.side) this.gainExp(att, foe.level, dmg);
+        if (foe.side !== att.side) {
+          // Black Mage / Conjurer finishing an enemy off with one of their own single-target
+          // spells (Lightning today) doubles the XP from that kill — never for AoE/line spells.
+          const isAoeSpell = a.spellKind === "fireball" || a.spellKind === "cleave" || a.spellKind === "piercing";
+          const killBonus =
+            foe.hp <= 0 && !isAoeSpell && (att.classId === "mage" || att.classId === "conjurer") ? 2 : 1;
+          this.gainExp(att, foe.level, dmg, killBonus);
+        }
         this.spawnHit(foe, dmg, crit);
         if (foe.hp <= 0) {
           foe.alive = false;
@@ -888,10 +897,10 @@ export class BattleEngine {
    * landed hit counts on its own. Side-eligibility (don't gain XP for friendly fire) is the
    * caller's job, since the same helper also grants XP for healing your own side.
    */
-  private gainExp(attacker: Unit, targetLevel: number, amount: number): void {
+  private gainExp(attacker: Unit, targetLevel: number, amount: number, multiplier = 1): void {
     if (amount <= 0 || attacker.side !== "player" || !attacker.alive) return;
     if (attacker.level >= MAX_LEVEL) return;
-    const gained = expForHit(attacker.level, targetLevel);
+    const gained = Math.round(expForHit(attacker.level, targetLevel) * multiplier);
     if (gained <= 0) return;
     attacker.xp += gained;
     while (attacker.xp >= EXP_TO_LEVEL && attacker.level < MAX_LEVEL) {
@@ -1588,7 +1597,7 @@ export class BattleEngine {
     this.spendTier(unit, "piercing");
     this.spellKind = null;
     this.mode = "locked";
-    this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul });
+    this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul, spellKind: "piercing" });
   }
 
   private castLightning(unit: Unit, cell: Point): void {
@@ -1613,6 +1622,7 @@ export class BattleEngine {
       bonus: LIGHTNING.bonus,
       label: LIGHTNING.name,
       echo: { dice: LIGHTNING.echoDice, faces: LIGHTNING.echoFaces, bonus: LIGHTNING.echoBonus },
+      spellKind: "lightning",
     });
   }
 
@@ -1661,6 +1671,7 @@ export class BattleEngine {
       weaponBonusDice: CLEAVE.bonusDice,
       weaponBonusFaces: CLEAVE.bonusFaces,
       weaponBonusBonus: CLEAVE.bonusBonus,
+      spellKind: "cleave",
     });
   }
 
@@ -1791,14 +1802,6 @@ export class BattleEngine {
       this.queue.push({ type: "delay", dur: 0.12 });
       return;
     }
-    if (next.classId === "captain") {
-      const near = players.some((p) => manhattan(next, p) <= next.mov + next.maxRange);
-      if (!near) {
-        next.moved = true;
-        this.queue.push({ type: "delay", dur: 0.08 });
-        return;
-      }
-    }
     let nearest = players[0];
     if (!nearest) {
       next.moved = true;
@@ -1841,7 +1844,7 @@ export class BattleEngine {
       this.lastClickCell && this.lastClickCell.x === cell.x && this.lastClickCell.y === cell.y && now - this.lastClickAt < 340;
     this.lastClickAt = now;
     this.lastClickCell = cell;
-    if (same && this.mode === "awaitAction" && selected && occupies(selected, cell.x, cell.y)) {
+    if (same && (this.mode === "awaitAction" || this.mode === "selected") && selected && occupies(selected, cell.x, cell.y)) {
       this.wait();
       const next = this.units.find((u) => u.side === "player" && u.alive && !u.moved);
       if (next) this.select(next);
@@ -2019,6 +2022,7 @@ export class BattleEngine {
       faces: power.faces,
       bonus: power.bonus,
       label: FIREBALL.name,
+      spellKind: "fireball",
     });
   }
 
