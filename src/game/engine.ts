@@ -677,7 +677,7 @@ export class BattleEngine {
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
-        this.gainExp(actor, target, hit.dmg);
+        if (target.side !== actor.side) this.gainExp(actor, target.level, hit.dmg);
         this.spawnHit(target, hit.dmg, hit.crit);
         if (target.hp <= 0) {
           target.alive = false;
@@ -773,7 +773,10 @@ export class BattleEngine {
         if (a.dmgMul > 1) dmg = Math.max(1, dmg * a.dmgMul);
         foe.hp = Math.max(0, foe.hp - dmg);
         foe.flash = 1;
-        this.gainExp(att, foe, dmg);
+        // AoE/line abilities (fireball, cleave, piercing...) run this once per unit actually
+        // hit, so every landed hit grants its own XP — piercing can also clip an ally in the
+        // line, which must never grant XP.
+        if (foe.side !== att.side) this.gainExp(att, foe.level, dmg);
         this.spawnHit(foe, dmg, crit);
         if (foe.hp <= 0) {
           foe.alive = false;
@@ -813,6 +816,7 @@ export class BattleEngine {
       const heal = rollCure(a.kind, this.rng);
       const gained = Math.min(heal, target.maxHp - target.hp);
       target.hp += gained;
+      this.gainExp(att, target.level, gained);
       this.emitParticle({
         x: target.drawX,
         y: target.drawY - 0.35,
@@ -877,11 +881,17 @@ export class BattleEngine {
     this.tip = `${target.name} não se sente muito bem.`;
   }
 
-  /** Grants XP for a damaging hit and applies any level-ups on the spot, mid-battle. */
-  private gainExp(attacker: Unit, defender: Unit, dmg: number): void {
-    if (dmg <= 0 || attacker.side !== "player" || defender.side === attacker.side || !attacker.alive) return;
+  /**
+   * Grants XP for an action with a measurable, real effect — damage on a hit, HP restored by
+   * a heal or potion — and applies any level-ups on the spot, mid-battle. Multi-target
+   * abilities (fireball, cleave, piercing...) call this once per unit actually hit, so every
+   * landed hit counts on its own. Side-eligibility (don't gain XP for friendly fire) is the
+   * caller's job, since the same helper also grants XP for healing your own side.
+   */
+  private gainExp(attacker: Unit, targetLevel: number, amount: number): void {
+    if (amount <= 0 || attacker.side !== "player" || !attacker.alive) return;
     if (attacker.level >= MAX_LEVEL) return;
-    const gained = expForHit(attacker.level, defender.level);
+    const gained = expForHit(attacker.level, targetLevel);
     if (gained <= 0) return;
     attacker.xp += gained;
     while (attacker.xp >= EXP_TO_LEVEL && attacker.level < MAX_LEVEL) {
@@ -1681,6 +1691,7 @@ export class BattleEngine {
     const heal = rollPotion(kind, this.rng);
     const gained = Math.min(heal, u.maxHp - u.hp);
     u.hp += gained;
+    this.gainExp(u, u.level, gained);
     u.bag[kind] -= 1;
     u.x = Math.round(u.drawX);
     u.y = Math.round(u.drawY);
