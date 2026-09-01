@@ -190,6 +190,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "horror",
     size: 4,
+    footprintW: 4,
+    footprintH: 4,
     init: 7,
   },
   troll: {
@@ -206,6 +208,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "troll",
     size: 4,
+    footprintW: 2,
+    footprintH: 4,
     init: 8,
   },
   // Classes novas — nome, papel e arte ainda são provisórios (sprite reaproveita

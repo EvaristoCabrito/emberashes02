@@ -81,6 +81,9 @@ export interface ClassDef {
   maxRange: number;
   sprite: SpriteId;
   size: number;
+  /** Footprint block for big creatures (size >= 4), in hexes. Defaults to 2 wide x 4 tall. */
+  footprintW?: number;
+  footprintH?: number;
   /** Turn-order priority: lower acts first. Only set for player classes so far. */
   init?: number;
 }
@@ -143,6 +146,8 @@ export interface Unit {
   bag: Bag;
   spells: Spells;
   size: number;
+  footprintW?: number;
+  footprintH?: number;
   shock: { dice: number; faces: number; bonus: number } | null;
   diseased: boolean;
   diseaseBase: { atk: number; mag: number; def: number; res: number; mov: number } | null;

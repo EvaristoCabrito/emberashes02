@@ -226,22 +226,32 @@ export function unitSize(unit: Pick<Unit, "size">): number {
 }
 
 /** The front row of a big creature's footprint — closest to the player, where the feet render (see footprint() below). */
-export function footprintFrontRow(unit: Point): Point[] {
-  return [
-    { x: unit.x, y: unit.y },
-    { x: unit.x + 1, y: unit.y },
-  ];
+export function footprintFrontRow(unit: Point, width = 2): Point[] {
+  const start = unit.x - Math.floor((width - 1) / 2);
+  const out: Point[] = [];
+  for (let i = 0; i < width; i++) out.push({ x: start + i, y: unit.y });
+  return out;
 }
 
-export function footprint(unit: Pick<Unit, "x" | "y" | "size">): Point[] {
+export function footprint(unit: Pick<Unit, "x" | "y" | "size" | "footprintW" | "footprintH">): Point[] {
   const s = unitSize(unit);
   if (s <= 1) return [{ x: unit.x, y: unit.y }];
   if (s >= 4) {
-    // Big creatures (Troll, Asherah): a 2-wide, 3-row block. unit.x/unit.y is the front-most
-    // row (closest to the player, where the feet render); the other 2 rows trail behind it,
-    // never past unit.y, so nothing sits hidden behind the sprite from the player's view.
+    // Big creatures (Troll, Asherah, ...): a block sized per class (footprintW x footprintH,
+    // default 2x4) hugging the drawn silhouette — wider ones (Asherah) get extra columns on
+    // both sides rather than a one-size-fits-all block. unit.x/unit.y is the front-most row
+    // (closest to the player, where the feet render); the other rows trail behind it, never
+    // past unit.y, so nothing sits hidden behind the sprite from the player's view.
+    // Hex rows alternate their horizontal offset every other line (odd-r layout), so every
+    // other row here is shifted one column left to keep the column stacking straight instead
+    // of zig-zagging to the right as it goes back.
+    const width = unit.footprintW ?? 2;
+    const height = unit.footprintH ?? 4;
     const out: Point[] = [];
-    for (let dy = 0; dy > -3; dy--) out.push(...footprintFrontRow({ x: unit.x, y: unit.y + dy }));
+    for (let dy = 0; dy > -height; dy--) {
+      const rowX = dy % 2 !== 0 ? unit.x - 1 : unit.x;
+      out.push(...footprintFrontRow({ x: rowX, y: unit.y + dy }, width));
+    }
     return out;
   }
   const out: Point[] = [{ x: unit.x, y: unit.y }];
