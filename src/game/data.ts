@@ -1,4 +1,4 @@
-import type { Bag, ClassDef, ClassId, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef } from "./types";
+import type { Bag, ClassDef, ClassId, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -737,6 +737,34 @@ export const WEAPON_MAX_ENH = WEAPON_ENH_COST.length;
 
 export function weaponEnhCost(nextRank: number): number {
   return WEAPON_ENH_COST[nextRank - 1] ?? Infinity;
+}
+
+// ------------------------------------------------------------- Equipment (paper doll)
+// Skeleton only: slots + the data shape exist and are wired into a screen, but no
+// EquipmentDef exists yet. "mainHand" isn't a slot here — it's the weapon system above.
+export const EQUIPMENT_SLOTS: { id: EquipSlot; label: string }[] = [
+  { id: "head", label: "Cabeça" },
+  { id: "neck", label: "Pescoço" },
+  { id: "shoulders", label: "Ombros" },
+  { id: "back", label: "Costas" },
+  { id: "chest", label: "Peito" },
+  { id: "hands", label: "Mãos" },
+  { id: "waist", label: "Cintura" },
+  { id: "legs", label: "Pernas" },
+  { id: "feet", label: "Pés" },
+  { id: "ring1", label: "Anel" },
+  { id: "ring2", label: "Anel" },
+  { id: "offHand", label: "Mão Secundária" },
+];
+
+export const EQUIPMENT: Record<string, EquipmentDef> = {};
+
+export function equipmentIcon(id: string): string {
+  return `/game/icons/equipment/${id}.png`;
+}
+
+export function equipmentForClass(classId: ClassId, slot: EquipSlot): EquipmentDef[] {
+  return Object.values(EQUIPMENT).filter((e) => e.slot === slot && (!e.usableBy || e.usableBy.includes(classId)));
 }
 
 export const EMBER_DROP: Partial<Record<ClassId, number>> = {

@@ -222,6 +222,40 @@ export interface WeaponDef {
   price: number;
 }
 
+/**
+ * Paper-doll equipment slots. "mainHand" isn't stored here — it's the existing weapon
+ * system (SaveData.equipped/weapons). Every other slot is a bare skeleton for now: the
+ * type and the UI exist, but EQUIPMENT in data.ts has no items in it yet.
+ */
+export type EquipSlot =
+  | "head"
+  | "neck"
+  | "shoulders"
+  | "back"
+  | "chest"
+  | "hands"
+  | "waist"
+  | "legs"
+  | "feet"
+  | "ring1"
+  | "ring2"
+  | "offHand";
+
+export interface EquipmentDef {
+  id: string;
+  name: string;
+  slot: EquipSlot;
+  /** Classes (base and prestige) allowed to equip this item. Empty/omitted = any class. */
+  usableBy?: ClassId[];
+  hp?: number;
+  atk?: number;
+  mag?: number;
+  def?: number;
+  res?: number;
+  mov?: number;
+  price?: number;
+}
+
 export interface Forecast {
   attacker: string;
   defender: string;
@@ -320,6 +354,8 @@ export interface SaveData {
   weapons: Record<string, number>;
   /** Hero name → equipped WeaponDef id. */
   equipped: Record<string, string>;
+  /** Hero name → slot → equipped EquipmentDef id. Skeleton only — EQUIPMENT has no items yet. */
+  equipment: Record<string, Partial<Record<EquipSlot, string>>>;
   ember: number;
   emberSeeded: boolean;
   muted: boolean;

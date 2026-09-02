@@ -1,5 +1,5 @@
-import { EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, startingBags } from "./data";
-import type { Bag, ClassId, SaveBank, SaveData } from "./types";
+import { EQUIPMENT, EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, startingBags } from "./data";
+import type { Bag, ClassId, EquipSlot, SaveBank, SaveData } from "./types";
 
 export const SLOT_COUNT = 5;
 export const SAVE_VERSION = 10;
@@ -115,6 +115,21 @@ function cleanEquipped(raw: unknown, owned: Record<string, number>): Record<stri
   return out;
 }
 
+function cleanEquipment(raw: unknown): Record<string, Partial<Record<EquipSlot, string>>> {
+  const out: Record<string, Partial<Record<EquipSlot, string>>> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [hero, slots] of Object.entries(raw as Record<string, unknown>)) {
+    if (!HEROES.includes(hero as (typeof HEROES)[number]) || !slots || typeof slots !== "object") continue;
+    const cleanSlots: Partial<Record<EquipSlot, string>> = {};
+    for (const [slot, itemId] of Object.entries(slots as Record<string, unknown>)) {
+      const def = typeof itemId === "string" ? EQUIPMENT[itemId] : undefined;
+      if (def && def.slot === slot) cleanSlots[slot as EquipSlot] = itemId as string;
+    }
+    if (Object.keys(cleanSlots).length > 0) out[hero] = cleanSlots;
+  }
+  return out;
+}
+
 function cleanHp(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, number> = {};
@@ -138,6 +153,7 @@ export function emptySave(muted = false): SaveData {
     promotions: {},
     weapons: {},
     equipped: {},
+    equipment: {},
     ember: 0,
     emberSeeded: true,
     muted,
@@ -198,6 +214,7 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
     promotions: cleanPromotions(raw.promotions),
     weapons,
     equipped: cleanEquipped(raw.equipped, weapons),
+    equipment: cleanEquipment(raw.equipment),
     ember,
     emberSeeded,
     muted: raw.muted === true || muted,

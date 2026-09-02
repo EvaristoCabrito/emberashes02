@@ -5,6 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
+import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, weaponEnhCost, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
@@ -618,6 +619,7 @@ export function GameApp() {
           weapons={save.weapons}
           equipped={save.equipped}
           heroClass={Object.fromEntries(DEFAULT_HEROES.map((h) => [h.name, save.promotions[h.name] ?? h.classId]))}
+          save={save}
           onMute={() => {
             unlockAudio();
             setMutedUi((v) => !v);
@@ -708,6 +710,7 @@ export function GameApp() {
           hud={hud}
           paused={paused}
           muted={muted}
+          save={save}
           onHud={onHud}
           onPause={() => setPaused(true)}
           onResume={() => {
@@ -1771,6 +1774,7 @@ function BattleScreen({
   hud,
   paused,
   muted,
+  save,
   onHud,
   onPause,
   onResume,
@@ -1783,6 +1787,7 @@ function BattleScreen({
   hud: HudSnapshot;
   paused: boolean;
   muted: boolean;
+  save: SaveData;
   onHud: (h: HudSnapshot) => void;
   onPause: () => void;
   onResume: () => void;
@@ -1792,6 +1797,7 @@ function BattleScreen({
   onQuit: () => void;
 }) {
   const [showStatus, setShowStatus] = useState(false);
+  const [invView, setInvView] = useState<"doll" | "pack" | null>(null);
   const [hotbars, setHotbars] = useState<Record<string, (SlotAction | null)[]>>({});
   const [editingSlots, setEditingSlots] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
@@ -2081,7 +2087,36 @@ function BattleScreen({
       )}
 
       {showStatus && unit && (
-        <StatusPanel unit={unit} onClose={() => setShowStatus(false)} />
+        <StatusPanel
+          unit={unit}
+          onClose={() => setShowStatus(false)}
+          onOpenInventory={
+            unit.side === "player"
+              ? () => {
+                  setShowStatus(false);
+                  setInvView("pack");
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {invView === "doll" && unit && unit.side === "player" && (
+        <PaperDollScreen
+          heroName={unit.name}
+          classId={unit.classId}
+          save={save}
+          onClose={() => setInvView(null)}
+          onSwitchToBackpack={() => setInvView("pack")}
+        />
+      )}
+      {invView === "pack" && unit && unit.side === "player" && (
+        <BackpackScreen
+          heroName={unit.name}
+          save={save}
+          onClose={() => setInvView(null)}
+          onSwitchToDoll={() => setInvView("doll")}
+        />
       )}
 
       {pickerSlot != null && actor && (
@@ -2151,7 +2186,7 @@ function SlotPicker({
   );
 }
 
-function StatusPanel({ unit, onClose }: { unit: UnitPublic; onClose: () => void }) {
+function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onClose: () => void; onOpenInventory?: () => void }) {
   const stats: Array<[string, string | number]> = [
     ["ATK", unit.atk],
     ["MAG", unit.mag],
@@ -2209,9 +2244,16 @@ function StatusPanel({ unit, onClose }: { unit: UnitPublic; onClose: () => void 
               )}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="shrink-0 size-8 grid place-items-center rounded-md border border-border" aria-label="Fechar">
-            <X className="size-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenInventory && (
+              <button type="button" onClick={onOpenInventory} className="h-8 px-2.5 rounded-md border border-border text-xs">
+                Mochila
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="size-8 grid place-items-center rounded-md border border-border" aria-label="Fechar">
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
 
         <div className="mb-4">

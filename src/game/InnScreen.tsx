@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponsForClass, potionLabel } from "./data";
-import type { Bag, ClassId, PotionId } from "./types";
+import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
+import type { Bag, ClassId, PotionId, SaveData } from "./types";
 
 const NPCS = [
   {
@@ -49,6 +50,7 @@ export function InnScreen({
   weapons,
   equipped,
   heroClass,
+  save,
   onMute,
   onLeave,
   onPay,
@@ -62,6 +64,7 @@ export function InnScreen({
   weapons: Record<string, number>;
   equipped: Record<string, string>;
   heroClass: Record<string, ClassId>;
+  save: SaveData;
   onMute: () => void;
   onLeave: () => void;
   onPay: (hero: string, cart: Record<PotionId, number>, lockpicks: number) => boolean;
@@ -75,6 +78,7 @@ export function InnScreen({
   const [cart, setCart] = useState<Record<PotionId, number>>({ ...EMPTY_CART });
   const [lockpickQty, setLockpickQty] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [invView, setInvView] = useState<"doll" | "pack" | null>(null);
   const bag = bags[hero] ?? { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
 
   const total = useMemo(
@@ -130,6 +134,7 @@ export function InnScreen({
         weapons={weapons}
         equipped={equipped}
         heroClass={heroClass}
+        save={save}
         onMute={onMute}
         onBack={() => setView("npc")}
         onBuyWeapon={onBuyWeapon}
@@ -151,6 +156,13 @@ export function InnScreen({
           <p className="text-xs uppercase tracking-[0.18em] text-muted">Pousada à margem da cinza</p>
           <h1 className="font-display text-2xl leading-none">A Estalagem do Osso Seco</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setInvView("pack")}
+          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]"
+        >
+          Mochila
+        </button>
         <button
           type="button"
           onClick={() => setView("smith")}
@@ -277,6 +289,18 @@ export function InnScreen({
           <ChevronLeft className="size-4" /> Sair da estalagem
         </Button>
       </div>
+      {invView === "pack" && (
+        <BackpackScreen heroName={hero} save={save} onClose={() => setInvView(null)} onSwitchToDoll={() => setInvView("doll")} />
+      )}
+      {invView === "doll" && (
+        <PaperDollScreen
+          heroName={hero}
+          classId={heroClass[hero] ?? "swordsman"}
+          save={save}
+          onClose={() => setInvView(null)}
+          onSwitchToBackpack={() => setInvView("pack")}
+        />
+      )}
     </section>
   );
 }
@@ -287,6 +311,7 @@ function SmithPanel({
   weapons,
   equipped,
   heroClass,
+  save,
   onMute,
   onBack,
   onBuyWeapon,
@@ -298,6 +323,7 @@ function SmithPanel({
   weapons: Record<string, number>;
   equipped: Record<string, string>;
   heroClass: Record<string, ClassId>;
+  save: SaveData;
   onMute: () => void;
   onBack: () => void;
   onBuyWeapon: (hero: string, weaponId: string) => boolean;
@@ -306,6 +332,7 @@ function SmithPanel({
 }) {
   const [hero, setHero] = useState<string>("Kael");
   const [note, setNote] = useState<string | null>(null);
+  const [invView, setInvView] = useState<"doll" | "pack" | null>(null);
 
   const classId = heroClass[hero];
   const pool = useMemo(() => [...weaponsForClass(classId)].sort((a, b) => weaponPower(a) - weaponPower(b)), [classId]);
@@ -353,6 +380,13 @@ function SmithPanel({
           <p className="text-xs uppercase tracking-[0.18em] text-muted">A forja no porão</p>
           <h1 className="font-display text-2xl leading-none">Vargan, o Ferreiro</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setInvView("pack")}
+          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]"
+        >
+          Mochila
+        </button>
         <p className="text-sm tabular-nums border border-border bg-bg/70 rounded-md px-2 py-1">Ember {ember}</p>
         <button type="button" onClick={onMute} className="size-10 grid place-items-center rounded-md border border-border bg-bg/70" aria-label="Som">
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
@@ -449,6 +483,18 @@ function SmithPanel({
           <ChevronLeft className="size-4" /> Voltar à estalagem
         </Button>
       </div>
+      {invView === "pack" && (
+        <BackpackScreen heroName={hero} save={save} onClose={() => setInvView(null)} onSwitchToDoll={() => setInvView("doll")} />
+      )}
+      {invView === "doll" && (
+        <PaperDollScreen
+          heroName={hero}
+          classId={heroClass[hero] ?? "swordsman"}
+          save={save}
+          onClose={() => setInvView(null)}
+          onSwitchToBackpack={() => setInvView("pack")}
+        />
+      )}
     </section>
   );
 }
