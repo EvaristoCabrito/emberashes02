@@ -278,6 +278,8 @@ export interface SaveData {
   levels: Record<string, number>;
   xp: Record<string, number>;
   bags: Record<string, Bag>;
+  /** Hero name → promoted ClassId chosen at PROMOTE_LEVEL. Unset until the player picks. */
+  promotions: Record<string, ClassId>;
   ember: number;
   emberSeeded: boolean;
   muted: boolean;

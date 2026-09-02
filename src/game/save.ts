@@ -1,8 +1,8 @@
-import { MAX_LEVEL, MISSIONS, STARS_TO_LEVEL, emberFromCompleted, startingBags } from "./data";
-import type { Bag, SaveBank, SaveData } from "./types";
+import { MAX_LEVEL, MISSIONS, PROMOTIONS, STARS_TO_LEVEL, emberFromCompleted, startingBags } from "./data";
+import type { Bag, ClassId, SaveBank, SaveData } from "./types";
 
 export const SLOT_COUNT = 5;
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 const BANK_KEY = "ember-save-bank";
 const SAVE_KEY = "ember-save";
 const SAVE_BAK_KEY = "ember-save.bak";
@@ -13,6 +13,13 @@ export const DEFAULT_XP: Record<string, number> = { Kael: 0, Neera: 0, Voss: 0, 
 
 const HEROES = ["Kael", "Neera", "Voss", "Salazar"] as const;
 const MISSION_IDS = new Set(MISSIONS.map((m) => m.id));
+
+const HERO_BASE_CLASS: Record<(typeof HEROES)[number], ClassId> = {
+  Kael: "swordsman",
+  Neera: "archer",
+  Voss: "mage",
+  Salazar: "healer",
+};
 
 function clampInt(value: unknown, min: number, max: number): number {
   const n = Math.floor(Number(value));
@@ -75,6 +82,18 @@ function cleanXp(raw: unknown): Record<string, number> {
   return xp;
 }
 
+function cleanPromotions(raw: unknown): Record<string, ClassId> {
+  const out: Record<string, ClassId> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!HEROES.includes(k as (typeof HEROES)[number])) continue;
+    const base = HERO_BASE_CLASS[k as (typeof HEROES)[number]];
+    const options = PROMOTIONS[base];
+    if (options && typeof v === "string" && (options as string[]).includes(v)) out[k] = v as ClassId;
+  }
+  return out;
+}
+
 function cleanHp(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, number> = {};
@@ -95,6 +114,7 @@ export function emptySave(muted = false): SaveData {
     levels: { ...DEFAULT_LEVELS },
     xp: { ...DEFAULT_XP },
     bags: startingBags(),
+    promotions: {},
     ember: 0,
     emberSeeded: true,
     muted,
@@ -151,6 +171,7 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
     levels,
     xp: cleanXp(raw.xp),
     bags: version < 4 ? startingBags() : cloneBags(raw.bags as Record<string, Bag>),
+    promotions: cleanPromotions(raw.promotions),
     ember,
     emberSeeded,
     muted: raw.muted === true || muted,

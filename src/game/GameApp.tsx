@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -205,6 +205,7 @@ export function GameApp() {
   const [muted, setMutedUi] = useState(() => (typeof window === "undefined" ? false : loadBank().muted));
   const muteReady = useRef(false);
   const [lastGrowth, setLastGrowth] = useState<GrowthLine[] | null>(null);
+  const [pendingPromotions, setPendingPromotions] = useState<{ name: string; options: [ClassId, ClassId] }[]>([]);
   const [testMode, setTestMode] = useState(false);
   const awardedRef = useRef<string | null>(null);
   const combatStartRef = useRef<SaveData | null>(null);
@@ -304,7 +305,8 @@ export function GameApp() {
         combatStartRef.current = snapshot;
         persistCurrent(snapshot);
       }
-      const battle = new BattleEngine(m, art, { hp, levels, bags }, Date.now() % 100000);
+      const promotions = testMode ? {} : save.promotions;
+      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -338,6 +340,7 @@ export function GameApp() {
     const battleHp = engine.battlePlayerHp();
     const bags = engine.remainingBags();
     const growth: GrowthLine[] = [];
+    const newPromotions: { name: string; options: [ClassId, ClassId] }[] = [];
     const levels = { ...save.levels };
     const xp = { ...(save.xp ?? {}) };
     const hp: Record<string, number> = {};
@@ -416,8 +419,13 @@ export function GameApp() {
         levels[u.name] = to;
         xp[u.name] = starsTo;
       }
+      const options = PROMOTIONS[u.classId];
+      if (!testMode && u.alive && options && !save.promotions[u.name] && from < PROMOTE_LEVEL && to >= PROMOTE_LEVEL) {
+        newPromotions.push({ name: u.name, options });
+      }
     }
     setLastGrowth(growth);
+    if (newPromotions.length > 0) setPendingPromotions(newPromotions);
     if (awardedRef.current === mission.id) return;
     awardedRef.current = mission.id;
     const completed = save.completed.includes(mission.id) ? save.completed : [...save.completed, mission.id];
@@ -443,6 +451,12 @@ export function GameApp() {
   useEffect(() => {
     if (screen === "victory") persistVictory();
   }, [screen, persistVictory]);
+
+  const choosePromotion = (name: string, classId: ClassId) => {
+    sfxPlay.ui();
+    persistCurrent({ ...save, promotions: { ...save.promotions, [name]: classId } });
+    setPendingPromotions((list) => list.filter((p) => p.name !== name));
+  };
 
   const bootAudio = () => {
     unlockAudio();
@@ -679,6 +693,10 @@ export function GameApp() {
           }}
           hasNext={MISSIONS.some((m) => m.index === mission.index + 1)}
         />
+      )}
+
+      {screen === "victory" && pendingPromotions.length > 0 && (
+        <PromotionScreen pending={pendingPromotions} onPick={choosePromotion} />
       )}
 
       {screen === "defeat" && mission && (
@@ -1684,6 +1702,44 @@ function ResultScreen({
         </Button>
       </div>
     </section>
+  );
+}
+
+function PromotionScreen({
+  pending,
+  onPick,
+}: {
+  pending: { name: string; options: [ClassId, ClassId] }[];
+  onPick: (name: string, classId: ClassId) => void;
+}) {
+  const current = pending[0];
+  if (!current) return null;
+  return (
+    <div className="absolute inset-0 z-50 bg-bg/90 flex items-end sm:items-center justify-center p-4">
+      <div className="w-full max-w-md bg-surface border border-border rounded-xl p-5 max-h-[90dvh] overflow-y-auto">
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">Nível {PROMOTE_LEVEL}</p>
+        <h2 className="font-display text-2xl leading-none mt-1 mb-2">{current.name} pode se promover</h2>
+        <p className="text-sm text-muted mb-4">
+          Escolha um caminho. {current.name} não perde as magias que já tem — as novas se somam a partir de agora.
+        </p>
+        <div className="flex flex-col gap-2">
+          {current.options.map((classId) => {
+            const cls = CLASSES[classId];
+            return (
+              <button
+                key={classId}
+                type="button"
+                onClick={() => onPick(current.name, classId)}
+                className="w-full text-left rounded-xl border border-border bg-bg/40 px-4 py-3 hover:border-accent"
+              >
+                <p className="font-display text-xl leading-tight">{cls.name}</p>
+                <p className="text-sm text-muted">{sheetLine(statsFor(classId, PROMOTE_LEVEL))}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 

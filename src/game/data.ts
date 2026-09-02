@@ -850,6 +850,19 @@ const PROMOTED_TABLE: Partial<Record<ClassId, number[][]>> = {
   templar: HALF_TABLE,
 };
 
+export const PROMOTE_LEVEL = 15;
+
+/** Base class → the two classes it can promote into at PROMOTE_LEVEL. Player picks one;
+ * the base class's own spell list stays available afterward (hybrid, nothing lost). */
+export const PROMOTIONS: Partial<Record<ClassId, [ClassId, ClassId]>> = {
+  mage: ["elementalist", "warlock"],
+  conjurer: ["sorcerer", "necromancer"],
+  healer: ["cleric", "bishop"],
+  swordsman: ["paladin", "heavyKnight"],
+  archer: ["ranger", "assassin"],
+  lancer: ["sentinel", "templar"],
+};
+
 export function tierUses(classId: ClassId, tier: SpellTier, level: number): number {
   const table = PROMOTED_TABLE[classId];
   if (table) {

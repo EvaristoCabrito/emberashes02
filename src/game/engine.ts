@@ -27,6 +27,8 @@ import {
 } from "./pathfinding";
 import { sfxPlay } from "./audio";
 import type {
+  Bag,
+  ClassId,
   Forecast,
   GameArt,
   HealId,
@@ -40,7 +42,6 @@ import type {
   TerrainId,
   Unit,
   UnitPublic,
-  Bag,
 } from "./types";
 
 interface Layout {
@@ -193,12 +194,15 @@ interface Roster {
   hp: Record<string, number>;
   levels: Record<string, number>;
   bags?: Record<string, Bag>;
+  /** Hero name → promoted ClassId chosen at PROMOTE_LEVEL, overriding the mission spawn's base class. */
+  promotions?: Record<string, ClassId>;
 }
 
 function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i: number, roster?: Roster, enemyLevel = 1): Unit {
-  const cls = CLASSES[spawn.classId];
+  const classId = (side === "player" ? roster?.promotions?.[spawn.name] : undefined) ?? spawn.classId;
+  const cls = CLASSES[classId];
   const level = side === "enemy" ? enemyLevel : (roster?.levels[spawn.name] ?? 1);
-  const st = statsFor(spawn.classId, level);
+  const st = statsFor(classId, level);
   const hpCap = roster?.hp[spawn.name];
   const hp = hpCap != null && hpCap > 0 ? Math.min(st.hp, hpCap) : st.hp;
   return {
