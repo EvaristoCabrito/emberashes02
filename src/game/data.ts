@@ -338,7 +338,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   // progressão de magia (tierUses / CLASS_TIER_TABLE mais abaixo) já é a de verdade.
   elementalist: {
     id: "elementalist",
-    name: "Elementalist",
+    name: "Elementalista",
     role: "Promovido — Mago Negro",
     hp: 22,
     atk: 3,
@@ -354,7 +354,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   warlock: {
     id: "warlock",
-    name: "Warlock",
+    name: "Bruxo",
     role: "Promovido — Mago Negro",
     hp: 22,
     atk: 3,
@@ -370,7 +370,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   sorcerer: {
     id: "sorcerer",
-    name: "Sorcerer",
+    name: "Arcanista",
     role: "Promovido — Conjurador",
     hp: 20,
     atk: 1,
@@ -386,7 +386,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   necromancer: {
     id: "necromancer",
-    name: "Necromancer",
+    name: "Necromante",
     role: "Promovido — Conjurador",
     hp: 20,
     atk: 1,
@@ -418,7 +418,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   bishop: {
     id: "bishop",
-    name: "Bishop",
+    name: "Bispo",
     role: "Promovido — Curandeiro",
     hp: 26,
     atk: 4,
@@ -434,7 +434,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   ranger: {
     id: "ranger",
-    name: "Ranger",
+    name: "Patrulheiro",
     role: "Promovido — Arqueira",
     hp: 24,
     atk: 8,
@@ -450,7 +450,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   sentinel: {
     id: "sentinel",
-    name: "Sentinel",
+    name: "Sentinela",
     role: "Promovido — Lanceiro",
     hp: 26,
     atk: 8,
@@ -466,7 +466,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   templar: {
     id: "templar",
-    name: "Templar",
+    name: "Templário",
     role: "Promovido — Lanceiro",
     hp: 26,
     atk: 8,
