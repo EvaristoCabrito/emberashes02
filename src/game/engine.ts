@@ -203,12 +203,15 @@ interface Roster {
   bags?: Record<string, Bag>;
   /** Hero name → promoted ClassId chosen at PROMOTE_LEVEL, overriding the mission spawn's base class. */
   promotions?: Record<string, ClassId>;
+  /** Enemy name → level override, for Map Editor balance-testing. Falls back to the
+   * mission's uniform enemyLevelFor(index) when a name has no entry. */
+  enemyLevels?: Record<string, number>;
 }
 
 function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i: number, roster?: Roster, enemyLevel = 1): Unit {
   const classId = (side === "player" ? roster?.promotions?.[spawn.name] : undefined) ?? spawn.classId;
   const cls = CLASSES[classId];
-  const level = side === "enemy" ? enemyLevel : (roster?.levels[spawn.name] ?? 1);
+  const level = side === "enemy" ? (roster?.enemyLevels?.[spawn.name] ?? enemyLevel) : (roster?.levels[spawn.name] ?? 1);
   const st = statsFor(classId, level);
   const hpCap = roster?.hp[spawn.name];
   const hp = hpCap != null && hpCap > 0 ? Math.min(st.hp, hpCap) : st.hp;
@@ -331,7 +334,7 @@ export class BattleEngine {
     this.rng = mulberry32(seed + mission.index * 97);
     this.units = [
       ...mission.playerSpawns.map((s, i) => spawnUnit(s, "player", i, roster)),
-      ...mission.enemySpawns.map((s, i) => spawnUnit(s, "enemy", i, undefined, enemyLevelFor(mission.index))),
+      ...mission.enemySpawns.map((s, i) => spawnUnit(s, "enemy", i, roster, enemyLevelFor(mission.index))),
     ];
     for (const u of this.units) {
       this.nudgeOffHazard(u);

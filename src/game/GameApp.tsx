@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -278,12 +278,14 @@ export function GameApp() {
   };
 
   const startBattle = useCallback(
-    (id: string, carried = save.unitHp, override?: Mission) => {
+    (id: string, carried = save.unitHp, override?: Mission, playerLevels?: Record<string, number>, enemyLevels?: Record<string, number>) => {
       if (!art) return;
       const m = override ?? missionById(id);
       if (!m) return;
       const levels: Record<string, number> = testMode
-        ? { Kael: m.index + 1, Neera: m.index + 1, Voss: m.index + 1, Salazar: m.index + 1 }
+        ? override
+          ? Object.fromEntries(m.playerSpawns.map((s) => [s.name, playerLevels?.[s.name] ?? m.index + 1]))
+          : { Kael: m.index + 1, Neera: m.index + 1, Voss: m.index + 1, Salazar: m.index + 1 }
         : save.levels;
       const bags = testMode ? startingBags() : save.bags;
       let hp = { ...carried };
@@ -309,7 +311,7 @@ export function GameApp() {
         persistCurrent(snapshot);
       }
       const promotions = testMode ? {} : save.promotions;
-      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions }, Date.now() % 100000);
+      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, enemyLevels }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -554,9 +556,9 @@ export function GameApp() {
       {screen === "mapEditor" && (
         <MapEditorScreen
           onBack={() => setScreen("testMenu")}
-          onPlaytest={(m) => {
+          onPlaytest={(m, playerLevels, enemyLevels) => {
             setCustomMission(m);
-            startBattle(m.id, {}, m);
+            startBattle(m.id, {}, m, playerLevels, enemyLevels);
           }}
         />
       )}
@@ -1049,6 +1051,13 @@ const CUSTOM_MAPS_KEY = "ember-custom-maps";
 const EDITOR_COLS_DEFAULT = 10;
 const EDITOR_ROWS_DEFAULT = 8;
 
+/** A spawn as edited in the Map Editor — the real Spawn shape plus a per-spawn test
+ * level, which only exists for "Testar" (balance testing). It never leaves the editor:
+ * draftToMission() strips it back down to a plain Spawn before export/playtest. */
+interface DraftSpawn extends Spawn {
+  level: number;
+}
+
 interface MapDraft {
   id: string;
   title: string;
@@ -1060,9 +1069,13 @@ interface MapDraft {
   cols: number;
   rows: number;
   tiles: TerrainId[];
-  playerSpawns: Spawn[];
-  enemySpawns: Spawn[];
+  playerSpawns: DraftSpawn[];
+  enemySpawns: DraftSpawn[];
 }
+
+/** Default level for a newly added spawn: enough spell slots unlocked to actually test
+ * with, without being maxed out. */
+const DEFAULT_TEST_LEVEL = 10;
 
 function blankDraft(): MapDraft {
   return {
@@ -1096,10 +1109,17 @@ function missionToDraft(m: Mission): MapDraft {
     cols: m.cols,
     rows: m.rows,
     tiles: parseLayout(m.layout),
-    playerSpawns: m.playerSpawns.map((s) => ({ ...s })),
-    enemySpawns: m.enemySpawns.map((s) => ({ ...s })),
+    playerSpawns: m.playerSpawns.map((s) => ({ ...s, level: DEFAULT_TEST_LEVEL })),
+    enemySpawns: m.enemySpawns.map((s) => ({ ...s, level: enemyLevelFor(m.index) })),
   };
 }
+
+const DEFAULT_HEROES: { name: string; classId: ClassId }[] = [
+  { name: "Kael", classId: "swordsman" },
+  { name: "Neera", classId: "archer" },
+  { name: "Voss", classId: "mage" },
+  { name: "Salazar", classId: "healer" },
+];
 
 function loadCustomMaps(): MapDraft[] {
   try {
@@ -1137,8 +1157,8 @@ function draftToMission(d: MapDraft): Mission {
     cols: d.cols,
     rows: d.rows,
     layout,
-    playerSpawns: d.playerSpawns,
-    enemySpawns: d.enemySpawns,
+    playerSpawns: d.playerSpawns.map(({ level: _level, ...s }) => s),
+    enemySpawns: d.enemySpawns.map(({ level: _level, ...s }) => s),
     hub: d.hub || undefined,
   };
 }
@@ -1158,7 +1178,13 @@ const TERRAIN_SWATCH: Record<TerrainId, string> = {
   highruin: "#5f584c",
 };
 
-function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytest: (m: Mission) => void }) {
+function MapEditorScreen({
+  onBack,
+  onPlaytest,
+}: {
+  onBack: () => void;
+  onPlaytest: (m: Mission, playerLevels: Record<string, number>, enemyLevels: Record<string, number>) => void;
+}) {
   const [saved, setSaved] = useState<MapDraft[]>(() => loadCustomMaps());
   const [draft, setDraft] = useState<MapDraft>(() => saved[0] ?? blankDraft());
   const [brush, setBrush] = useState<TerrainId>("plains");
@@ -1183,11 +1209,12 @@ function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytes
         return { ...d, [key]: list.filter((_, i) => i !== existing) };
       }
       const n = list.length + 1;
-      const spawn: Spawn = {
+      const spawn: DraftSpawn = {
         name: mode === "player" ? `Herói ${n}` : `Inimigo ${n}`,
         classId: mode === "player" ? "swordsman" : "soldier",
         x,
         y,
+        level: mode === "player" ? DEFAULT_TEST_LEVEL : enemyLevelFor(0),
       };
       return { ...d, [key]: [...list, spawn] };
     });
@@ -1221,7 +1248,7 @@ function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytes
     });
   };
 
-  const updateSpawn = (side: "playerSpawns" | "enemySpawns", i: number, patch: Partial<Spawn>) => {
+  const updateSpawn = (side: "playerSpawns" | "enemySpawns", i: number, patch: Partial<DraftSpawn>) => {
     setDraft((d) => {
       const list = d[side].slice();
       list[i] = { ...list[i]!, ...patch };
@@ -1231,6 +1258,25 @@ function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytes
 
   const removeSpawn = (side: "playerSpawns" | "enemySpawns", i: number) => {
     setDraft((d) => ({ ...d, [side]: d[side].filter((_, idx) => idx !== i) }));
+  };
+
+  const addDefaultHeroes = () => {
+    setDraft((d) => {
+      const occupied = new Set([...d.playerSpawns, ...d.enemySpawns].map((s) => `${s.x},${s.y}`));
+      const already = new Set(d.playerSpawns.map((s) => s.name));
+      const added: DraftSpawn[] = [];
+      let x = 0;
+      const y = d.rows - 1;
+      for (const h of DEFAULT_HEROES) {
+        if (already.has(h.name)) continue;
+        while (x < d.cols && occupied.has(`${x},${y}`)) x++;
+        if (x >= d.cols) break;
+        added.push({ name: h.name, classId: h.classId, x, y, level: DEFAULT_TEST_LEVEL });
+        occupied.add(`${x},${y}`);
+        x++;
+      }
+      return { ...d, playerSpawns: [...d.playerSpawns, ...added] };
+    });
   };
 
   const doSave = () => {
@@ -1391,6 +1437,13 @@ function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytes
           </div>
         </div>
 
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={addDefaultHeroes}>
+            Adicionar Kael, Neera, Voss, Salazar
+          </Button>
+          <p className="text-xs text-muted ml-auto">Nível de cada um é editável na lista abaixo.</p>
+        </div>
+
         {mode === "paint" && (
           <div className="flex flex-wrap gap-1.5">
             {(Object.keys(TERRAIN) as TerrainId[]).map((t) => (
@@ -1463,6 +1516,19 @@ function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytes
                     </option>
                   ))}
                 </select>
+                <label className="flex items-center gap-1 shrink-0" title="Nível (só afeta o Testar)">
+                  <span className="text-muted">Nv</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={MAX_LEVEL}
+                    className="w-12 bg-bg border border-border rounded-md px-1 py-1"
+                    value={s.level}
+                    onChange={(e) =>
+                      updateSpawn(side, i, { level: Math.max(1, Math.min(MAX_LEVEL, Number(e.target.value) || DEFAULT_TEST_LEVEL)) })
+                    }
+                  />
+                </label>
                 <button type="button" onClick={() => removeSpawn(side, i)} className="text-danger px-1.5" aria-label="Remover">
                   <X className="size-3.5" />
                 </button>
@@ -1482,7 +1548,16 @@ function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytes
       </div>
 
       <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex flex-col gap-2 border-t border-border">
-        <Button size="lg" className="w-full" disabled={draft.playerSpawns.length === 0} onClick={() => onPlaytest(draftToMission(draft))}>
+        <Button
+          size="lg"
+          className="w-full"
+          disabled={draft.playerSpawns.length === 0}
+          onClick={() => {
+            const playerLevels = Object.fromEntries(draft.playerSpawns.map((s) => [s.name, s.level]));
+            const enemyLevels = Object.fromEntries(draft.enemySpawns.map((s) => [s.name, s.level]));
+            onPlaytest(draftToMission(draft), playerLevels, enemyLevels);
+          }}
+        >
           Testar
         </Button>
         <div className="flex gap-2">
