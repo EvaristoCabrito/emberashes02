@@ -92,6 +92,16 @@ export interface ClassDef {
   maxRange: number;
   sprite: SpriteId;
   size: number;
+  /** Footprint block for big creatures (size >= 4), in hexes. Defaults to 2 wide x 4 tall. */
+  footprintW?: number;
+  footprintH?: number;
+  /**
+   * Explicit footprint shape for big creatures (size >= 4), as {dx, dy} offsets from the
+   * unit's own tile — dy: 0 is the front row (feet, closest to the player), negative dy is
+   * further back. Overrides footprintW/footprintH when set, for shapes that aren't a plain
+   * rectangle.
+   */
+  footprintOffsets?: { dx: number; dy: number }[];
   /** Turn-order priority: lower acts first. Only set for player classes so far. */
   init?: number;
 }
@@ -151,9 +161,14 @@ export interface Unit {
   fade: number;
   bob: number;
   level: number;
+  /** XP toward the next level (0..EXP_TO_LEVEL-1). Player-only; always 0 for enemies. */
+  xp: number;
   bag: Bag;
   spells: Spells;
   size: number;
+  footprintW?: number;
+  footprintH?: number;
+  footprintOffsets?: { dx: number; dy: number }[];
   shock: { dice: number; faces: number; bonus: number } | null;
   diseased: boolean;
   diseaseBase: { atk: number; mag: number; def: number; res: number; mov: number } | null;
@@ -181,6 +196,7 @@ export interface UnitPublic {
   x: number;
   y: number;
   level: number;
+  xp: number;
   bag: Bag;
   spells: Spells;
   size: number;
@@ -316,8 +332,6 @@ export interface GrowthLine {
   resFrom: number;
   resTo: number;
   fallen: boolean;
-  starsFrom: number;
-  starsTo: number;
-  starsNeed: number;
-  starReasons: string[];
+  /** XP toward the next level at the end of the mission (0..EXP_TO_LEVEL-1). */
+  xp: number;
 }

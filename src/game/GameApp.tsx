@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, Pencil, RotateCcw, Star, Swords, Volume2, VolumeX, X } from "lucide-react";
+import { ChevronLeft, Pencil, RotateCcw, Swords, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -175,9 +175,9 @@ function slotLabel(action: SlotAction): string {
     case "lightning":
       return LIGHTNING.name;
     case "longShot":
-      return "Tiro longo";
+      return LONG_SHOT.name;
     case "piercing":
-      return "Tiro perfurante";
+      return PIERCING.name;
     case "cureMinor":
       return CURES.cureMinor.name;
     case "cureWounds":
@@ -346,50 +346,20 @@ export function GameApp() {
     const levels = { ...save.levels };
     const xp = { ...(save.xp ?? {}) };
     const hp: Record<string, number> = {};
-    const startHpMap = combatStartRef.current?.unitHp ?? save.unitHp;
     for (const u of engine.units.filter((x) => x.side === "player")) {
-      const from = u.level;
-      let to = from;
-      let starsFrom = xp[u.name] ?? 0;
-      let starsTo = starsFrom;
-      const starReasons: string[] = [];
-      if (!testMode && u.alive && from < MAX_LEVEL) {
-        if (usesStarXp(from)) {
-          let gained = 1;
-          starReasons.push("sobreviveu");
-          const battleNow = engine.battlePlayerHp()[u.name] ?? u.hp;
-          const entered = startHpMap[u.name];
-          const startHp = entered != null && entered > 0 ? entered : statsFor(u.classId, from).hp;
-          if (battleNow >= u.maxHp) {
-            gained += 1;
-            starReasons.push("HP cheio");
-          } else if (battleNow >= startHp) {
-            gained += 1;
-            starReasons.push("sem dano");
-          }
-          gained = Math.min(STARS_TO_LEVEL, gained);
-          starsTo = starsFrom + gained;
-          to = from;
-          while (starsTo >= STARS_TO_LEVEL && to < MAX_LEVEL) {
-            starsTo -= STARS_TO_LEVEL;
-            to += 1;
-          }
-          if (to >= MAX_LEVEL) starsTo = 0;
-        } else {
-          to = Math.min(MAX_LEVEL, from + 1);
-        }
-      }
+      // Levels (and any level-ups from XP earned mid-battle) already happened live in the
+      // engine — `from` is just whatever was on file before this mission started.
+      const from = levels[u.name] ?? u.level;
+      const to = u.level;
       const stFrom = statsFor(u.classId, from);
       const stTo = statsFor(u.classId, to);
       const mag = CLASSES[u.classId].mag > 0;
       const battle = battleHp[u.name] ?? u.hp;
       const healed = u.alive
-        ? Math.min(stFrom.hp, battle + Math.ceil((stFrom.hp - battle) * 0.5))
-        : Math.max(1, Math.ceil(stFrom.hp * 0.5));
+        ? Math.min(stTo.hp, battle + Math.ceil((stTo.hp - battle) * 0.5))
+        : Math.max(1, Math.ceil(stTo.hp * 0.5));
       const restHp = u.alive ? healed - battle : healed;
-      const extra = stTo.hp - stFrom.hp;
-      const camp = Math.min(stTo.hp, healed + extra);
-      hp[u.name] = camp;
+      hp[u.name] = healed;
       growth.push({
         name: u.name,
         from,
@@ -397,8 +367,8 @@ export function GameApp() {
         hpBattle: battle,
         maxFrom: stFrom.hp,
         restHp,
-        levelHp: extra,
-        hpCamp: camp,
+        levelHp: stTo.hp - stFrom.hp,
+        hpCamp: healed,
         maxTo: stTo.hp,
         powerFrom: mag ? stFrom.mag : stFrom.atk,
         powerTo: mag ? stTo.mag : stTo.atk,
@@ -412,14 +382,11 @@ export function GameApp() {
         resFrom: stFrom.res,
         resTo: stTo.res,
         fallen: !u.alive,
-        starsFrom,
-        starsTo,
-        starsNeed: STARS_TO_LEVEL,
-        starReasons,
+        xp: u.xp,
       });
       if (!testMode && u.alive) {
         levels[u.name] = to;
-        xp[u.name] = starsTo;
+        xp[u.name] = u.xp;
       }
       const options = PROMOTIONS[u.classId];
       if (!testMode && u.alive && options && !save.promotions[u.name] && from < PROMOTE_LEVEL && to >= PROMOTE_LEVEL) {
@@ -642,7 +609,6 @@ export function GameApp() {
           hud={hud}
           paused={paused}
           muted={muted}
-          xp={save.xp}
           onHud={onHud}
           onPause={() => setPaused(true)}
           onResume={() => {
@@ -870,7 +836,7 @@ function TitleScreen({
       <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-xl mx-auto w-full">
         <p className="text-sm tracking-[0.28em] uppercase text-muted mb-3">Táticas em cinzas</p>
         <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight leading-none mb-4">Ember</h1>
-        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.22</p>
+        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.233</p>
         <p className="text-muted text-base leading-relaxed mb-8 max-w-md">
           Três sobreviventes. Um tabuleiro de guerra. Cada casa conta.
         </p>
@@ -892,32 +858,104 @@ function TitleScreen({
         </div>
         {error && <p className="mt-4 text-sm text-danger">{error}</p>}
       </div>
-      {help && (
-        <div className="absolute inset-0 z-20 bg-bg/80 flex items-end sm:items-center justify-center p-4">
-          <div className="w-full max-w-md bg-surface border border-border rounded-xl p-6">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <h2 className="font-display text-2xl">Como jogar</h2>
-              <button type="button" onClick={onHelp} className="size-11 grid place-items-center" aria-label="Fechar">
-                <X className="size-5" />
-              </button>
-            </div>
-            <ul className="space-y-3 text-sm text-muted leading-relaxed">
-              <li>Toque numa aliada para ver movimento (azul) e ataque (vermelho).</li>
-              <li>Toque num inimigo para ver HP, alcance e a área vermelha de perigo.</li>
-              <li>Golpe de arma: AT − DF, dentro do alcance da ficha.</li>
-              <li>Magia ofensiva: o dado − RES, no alcance da magia.</li>
-              <li>Todo mundo tem AT, MAG, DF, RES, Mov e Alc. Nada fica de fora da ficha.</li>
-              <li>Terreno alto (barranco, tronco morto, casa abandonada): +2 de dano. A arqueira também ganha +1 de alcance. No alto, outro hex alto na frente não corta a flecha.</li>
-              <li>Barricada (estacas, 3 hexes): ninguém passa. De trás você atira. Projéteis não acertam quem está atrás.</li>
-              <li>Depois de mover, dois cliques no personagem = Esperar e passa ao próximo.</li>
-            </ul>
-            <Button className="mt-5 w-full" onClick={onHelp}>
-              Entendi
-            </Button>
-          </div>
-        </div>
-      )}
+      {help && <HelpModal onClose={onHelp} />}
     </section>
+  );
+}
+
+/** One entry per casting-speed tier: how fast a class's spell tiers unlock/grow with level. */
+const SKILL_SPEED_GROUPS: { label: string; heroes: string; classId: ClassId; step: number }[] = [
+  { label: "Conjuração Rápida", heroes: "Voss, Salazar", classId: "mage", step: 3 },
+  { label: "Conjuração Média", heroes: "nenhuma heroína atual — reservado p/ Paladino e afins", classId: "paladin", step: 4 },
+  { label: "Conjuração Lenta", heroes: "Kael, Neera", classId: "swordsman", step: 5 },
+];
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<"basicos" | "tabelas">("basicos");
+  return (
+    <div className="absolute inset-0 z-20 bg-bg/80 flex items-end sm:items-center justify-center p-4">
+      <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto bg-surface border border-border rounded-xl p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="font-display text-2xl">Como jogar</h2>
+          <button type="button" onClick={onClose} className="size-11 grid place-items-center" aria-label="Fechar">
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="flex gap-1 mb-4 border-b border-border">
+          <button
+            type="button"
+            onClick={() => setTab("basicos")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "basicos" ? "border-accent text-fg" : "border-transparent text-muted"}`}
+          >
+            Básicos
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("tabelas")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "tabelas" ? "border-accent text-fg" : "border-transparent text-muted"}`}
+          >
+            Tabelas
+          </button>
+        </div>
+        {tab === "basicos" ? (
+          <ul className="space-y-3 text-sm text-muted leading-relaxed">
+            <li>Toque numa aliada para ver movimento (azul) e ataque (vermelho).</li>
+            <li>Toque num inimigo para ver HP, alcance e a área vermelha de perigo.</li>
+            <li>Golpe de arma: AT − DF, dentro do alcance da ficha.</li>
+            <li>Magia ofensiva: o dado − RES, no alcance da magia.</li>
+            <li>Todo mundo tem AT, MAG, DF, RES, Mov e Alc. Nada fica de fora da ficha.</li>
+            <li>Terreno alto (barranco, tronco morto, casa abandonada): +2 de dano. A arqueira também ganha +1 de alcance. No alto, outro hex alto na frente não corta a flecha.</li>
+            <li>Barricada (estacas, 3 hexes): ninguém passa. De trás você atira. Projéteis não acertam quem está atrás.</li>
+            <li>Depois de mover, dois cliques no personagem = Esperar e passa ao próximo.</li>
+          </ul>
+        ) : (
+          <div className="space-y-5">
+            <p className="text-sm text-muted leading-relaxed">
+              Cada tier de magia/habilidade ganha +1 uso a cada N níveis, dependendo da velocidade de conjuração
+              da classe — não é um uso a mais por nível. As tabelas abaixo mostram exatamente quantos usos cada
+              tier (1 a 5) dá em cada nível, pra cada velocidade.
+            </p>
+            {SKILL_SPEED_GROUPS.map((g) => (
+              <div key={g.label}>
+                <p className="text-sm font-medium">
+                  {g.label} <span className="text-muted font-normal">· {g.heroes}</span>
+                </p>
+                <p className="text-xs text-muted mb-1.5">+1 uso a cada {g.step} níveis por tier.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs tabular-nums border-collapse">
+                    <thead>
+                      <tr className="text-muted">
+                        <th className="text-left font-normal pr-2 py-1">Nv</th>
+                        {[1, 2, 3, 4, 5].map((t) => (
+                          <th key={t} className="text-right font-normal px-1.5 py-1">
+                            T{t}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map((level) => (
+                        <tr key={level} className="border-t border-border/60">
+                          <td className="text-left py-0.5 pr-2 text-muted">{level}</td>
+                          {[1, 2, 3, 4, 5].map((t) => (
+                            <td key={t} className="text-right px-1.5 py-0.5">
+                              {tierUses(g.classId, t as 1 | 2 | 3 | 4 | 5, level)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <Button className="mt-5 w-full" onClick={onClose}>
+          Entendi
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -1021,7 +1059,6 @@ function BattleScreen({
   hud,
   paused,
   muted,
-  xp,
   onHud,
   onPause,
   onResume,
@@ -1034,7 +1071,6 @@ function BattleScreen({
   hud: HudSnapshot;
   paused: boolean;
   muted: boolean;
-  xp: Record<string, number>;
   onHud: (h: HudSnapshot) => void;
   onPause: () => void;
   onResume: () => void;
@@ -1203,14 +1239,9 @@ function BattleScreen({
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-sm font-medium truncate">
                     {unit.name} · Nv {unit.level}
-                    {unit.side === "player" && usesStarXp(unit.level) && (
-                      <span className="inline-flex gap-0.5 ml-1 align-middle">
-                        {Array.from({ length: STARS_TO_LEVEL }, (_, i) => (
-                          <Star
-                            key={i}
-                            className={`size-3 ${i < (xp[unit.name] ?? 0) ? "fill-accent text-accent" : "text-muted"}`}
-                          />
-                        ))}
+                    {unit.side === "player" && (
+                      <span className="text-xs text-muted font-normal ml-1 align-middle tabular-nums">
+                        {unit.level >= MAX_LEVEL ? "· NÍVEL MÁX." : `· ${unit.xp}/${EXP_TO_LEVEL} XP`}
                       </span>
                     )}
                   </p>
@@ -1333,7 +1364,7 @@ function BattleScreen({
       )}
 
       {showStatus && unit && (
-        <StatusPanel unit={unit} xp={xp} onClose={() => setShowStatus(false)} />
+        <StatusPanel unit={unit} onClose={() => setShowStatus(false)} />
       )}
 
       {pickerSlot != null && actor && (
@@ -1403,7 +1434,7 @@ function SlotPicker({
   );
 }
 
-function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<string, number>; onClose: () => void }) {
+function StatusPanel({ unit, onClose }: { unit: UnitPublic; onClose: () => void }) {
   const stats: Array<[string, string | number]> = [
     ["ATK", unit.atk],
     ["MAG", unit.mag],
@@ -1443,12 +1474,21 @@ function StatusPanel({ unit, xp, onClose }: { unit: UnitPublic; xp: Record<strin
                 {unit.className} · Nv {unit.level}
               </p>
               {unit.diseased && <p className="text-xs text-danger mt-0.5">Doente · −10% em todos os stats</p>}
-              {unit.side === "player" && usesStarXp(unit.level) && (
-                <span className="inline-flex gap-0.5 mt-1">
-                  {Array.from({ length: STARS_TO_LEVEL }, (_, i) => (
-                    <Star key={i} className={`size-3.5 ${i < (xp[unit.name] ?? 0) ? "fill-accent text-accent" : "text-muted"}`} />
-                  ))}
-                </span>
+              {unit.side === "player" && (
+                <div className="mt-1.5 max-w-[9rem]">
+                  {unit.level >= MAX_LEVEL ? (
+                    <p className="text-[11px] text-muted tabular-nums">Nível máximo</p>
+                  ) : (
+                    <>
+                      <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                        <div className="h-full bg-accent" style={{ width: `${(unit.xp / EXP_TO_LEVEL) * 100}%` }} />
+                      </div>
+                      <p className="text-[11px] text-muted tabular-nums mt-0.5">
+                        {unit.xp}/{EXP_TO_LEVEL} XP
+                      </p>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1636,22 +1676,17 @@ function ResultScreen({
                   {g.to !== g.from ? ` · Nv ${g.from} → ${g.to}` : ` · Nv ${g.from}`}
                   {g.fallen ? " · caiu" : ""}
                 </p>
-                {(g.from >= STAR_LEVEL || g.to >= STAR_LEVEL) && (
-                  <p className="flex items-center gap-1 mt-1 text-sm">
-                    {Array.from({ length: g.starsNeed }, (_, i) => (
-                      <Star
-                        key={i}
-                        className={`size-4 ${i < g.starsTo ? "fill-accent text-accent" : "text-muted"}`}
-                      />
-                    ))}
-                    <span className="text-muted tabular-nums">
-                      {g.starsTo}/{g.starsNeed}
-                      {g.to !== g.from ? " · subiu" : ""}
+                {g.to < MAX_LEVEL ? (
+                  <p className="flex items-center gap-2 mt-1 text-sm">
+                    <span className="h-1.5 w-24 rounded-full bg-border overflow-hidden">
+                      <span className="block h-full bg-accent" style={{ width: `${(g.xp / EXP_TO_LEVEL) * 100}%` }} />
                     </span>
-                    {g.starReasons.length > 0 && (
-                      <span className="text-muted"> · {g.starReasons.join(" · ")}</span>
-                    )}
+                    <span className="text-muted tabular-nums">
+                      {g.xp}/{EXP_TO_LEVEL} XP{g.to !== g.from ? " · subiu" : ""}
+                    </span>
                   </p>
+                ) : (
+                  g.to !== g.from && <p className="mt-1 text-sm text-accent">Nível máximo · subiu</p>
                 )}
                 <p className="text-sm text-muted tabular-nums mt-1">Combate: {g.hpBattle}/{g.maxFrom}</p>
                 {g.fallen ? (

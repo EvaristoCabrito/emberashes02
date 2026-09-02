@@ -15,6 +15,30 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
   highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
 };
 
+// Footprint "tamanho tipo N" catalog: standard, reusable creature footprint shapes, named by
+// their hex count. Every entry is centered on the unit's own front tile (dy:0 is the row
+// closest to the player, where the feet render) rather than spread out to one side. New
+// creature sizes should get their own FOOTPRINT_TYPE_N here instead of a one-off shape.
+
+/** Tipo 3 — a normal side-by-side pair plus one hex behind, on the creature's back (e.g. o Cão de guerra). */
+const FOOTPRINT_TYPE_3 = [
+  { dx: 0, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: 0, dy: -1 },
+];
+
+/** Tipo 8 — a 2-wide/3-tall block plus one hex above the head and one at the arms row (Troll, Asherah). */
+const FOOTPRINT_TYPE_8 = [
+  { dx: 0, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: -1, dy: -1 },
+  { dx: 0, dy: -1 },
+  { dx: 1, dy: -1 },
+  { dx: 0, dy: -2 },
+  { dx: 1, dy: -2 },
+  { dx: 0, dy: -3 },
+];
+
 export const CLASSES: Record<ClassId, ClassDef> = {
   swordsman: {
     id: "swordsman",
@@ -158,6 +182,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "wardog",
     size: 2,
+    footprintOffsets: FOOTPRINT_TYPE_3,
     init: 6,
   },
   cultist: {
@@ -190,6 +215,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "horror",
     size: 4,
+    footprintOffsets: FOOTPRINT_TYPE_8,
     init: 7,
   },
   troll: {
@@ -206,6 +232,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     maxRange: 1,
     sprite: "troll",
     size: 4,
+    footprintOffsets: FOOTPRINT_TYPE_8,
     init: 8,
   },
   // Classes novas — nome, papel e arte ainda são provisórios (sprite reaproveita
@@ -489,11 +516,23 @@ export const GROWTH: Record<ClassId, { hp: number; atk: number; mag: number; def
 };
 
 export const MAX_LEVEL = 30;
-export const STAR_LEVEL = 5;
-export const STARS_TO_LEVEL = 2;
 
-export function usesStarXp(level: number): boolean {
-  return level >= STAR_LEVEL && level < MAX_LEVEL;
+/** XP needed to go up one level — flat at every level, Final Fantasy Tactics-style. */
+export const EXP_TO_LEVEL = 100;
+
+/** XP a hit lands when attacker and defender are the same level. */
+export const BASE_EXP_PER_HIT = 30;
+
+/**
+ * XP granted for a single damaging hit. Fighting your own level or below always pays the
+ * full BASE_EXP_PER_HIT; fighting below your weight class tapers that off linearly down to 0
+ * once the level gap reaches the full level range (MAX_LEVEL − 1) — e.g. a level 30 attacking
+ * a level 1 gains nothing, a level 1 attacking a level 1 gains the full 30.
+ */
+export function expForHit(attackerLevel: number, defenderLevel: number): number {
+  const gap = Math.max(0, attackerLevel - defenderLevel);
+  const falloff = Math.max(0, 1 - gap / (MAX_LEVEL - 1));
+  return Math.round(BASE_EXP_PER_HIT * falloff);
 }
 
 export function statsFor(classId: ClassId, level: number) {
@@ -535,10 +574,10 @@ export interface PotionDef {
 }
 
 export const POTIONS: Record<PotionId, PotionDef> = {
-  mid: { id: "mid", name: "Poção média", dice: 2, faces: 8, bonus: 4, effect: "heal" },
-  weak: { id: "weak", name: "Poção fraca", dice: 1, faces: 8, bonus: 2, effect: "heal" },
-  potent: { id: "potent", name: "Poção de cura potente", dice: 2, faces: 12, bonus: 6, effect: "heal" },
-  disease: { id: "disease", name: "Poção de curar doenças", dice: 0, faces: 0, bonus: 0, effect: "disease" },
+  mid: { id: "mid", name: "Poção Média", dice: 2, faces: 8, bonus: 4, effect: "heal" },
+  weak: { id: "weak", name: "Poção Fraca", dice: 1, faces: 8, bonus: 2, effect: "heal" },
+  potent: { id: "potent", name: "Poção De Cura Potente", dice: 2, faces: 12, bonus: 6, effect: "heal" },
+  disease: { id: "disease", name: "Poção De Curar Doenças", dice: 0, faces: 0, bonus: 0, effect: "disease" },
 };
 
 export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1 };
@@ -578,8 +617,8 @@ export function emberFromCompleted(completed: string[]): number {
 }
 
 export const CURES: Record<HealId, { name: string; dice: number; faces: number; bonus: number; range: number }> = {
-  cureMinor: { name: "Cura menor", dice: 1, faces: 8, bonus: 3, range: 1 },
-  cureWounds: { name: "Cura simples", dice: 3, faces: 8, bonus: 3, range: 1 },
+  cureMinor: { name: "Cura Menor", dice: 1, faces: 8, bonus: 3, range: 1 },
+  cureWounds: { name: "Cura Média", dice: 3, faces: 8, bonus: 3, range: 2 },
 };
 
 export function rollDice(dice: number, faces: number, bonus: number, rng: () => number): number {
@@ -630,7 +669,7 @@ export function potionSpan(kind: PotionId): string {
 }
 
 export const FIREBALL = {
-  name: "Bola de fogo",
+  name: "Bola De Fogo",
   size: 2,
   range: 4,
   dice: 2,
@@ -639,15 +678,16 @@ export const FIREBALL = {
 };
 
 export const LONG_SHOT = {
-  name: "Tiro longo",
+  name: "Tiro Longo",
   rangeMul: 2,
+  rangeBonus: 1,
   bonusDice: 1,
   bonusFaces: 8,
   bonus: 1,
 };
 
 export const PIERCING = {
-  name: "Tiro perfurante",
+  name: "Tiro Perfurante",
   dmgMul: 2,
 };
 

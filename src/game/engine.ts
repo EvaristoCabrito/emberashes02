@@ -1,4 +1,5 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, POTIONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
   attackableEnemies,
@@ -9,6 +10,7 @@ import {
   cleaveHexes,
   cubeRound,
   footprint,
+  footprintFrontRow,
   hexNeighbors,
   hexDist,
   inBounds,
@@ -88,8 +90,8 @@ function blankParticle(): Particle {
 
 type Seq =
   | { type: "move"; id: string; path: Point[] }
-  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number }
-  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number }
+  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number; noCounter?: boolean; spellKind?: SpellKind }
+  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number; spellKind?: SpellKind }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
   | { type: "banner"; text: string; dur: number }
@@ -113,6 +115,8 @@ interface CombatAnim {
   swapped: boolean;
   bonusDice: number;
   bonusFlat: number;
+  noCounter: boolean;
+  spellKind: SpellKind | null;
 }
 
 interface SpellAnim {
@@ -132,6 +136,7 @@ interface SpellAnim {
   weaponBonusDice: number;
   weaponBonusFaces: number;
   weaponBonusBonus: number;
+  spellKind: SpellKind | null;
 }
 
 interface HealAnim {
@@ -183,6 +188,7 @@ function pub(u: Unit): UnitPublic {
     x: u.x,
     y: u.y,
     level: u.level,
+    xp: u.xp,
     bag: { ...u.bag },
     spells: { ...u.spells },
     size: u.size,
@@ -193,6 +199,7 @@ function pub(u: Unit): UnitPublic {
 interface Roster {
   hp: Record<string, number>;
   levels: Record<string, number>;
+  xp?: Record<string, number>;
   bags?: Record<string, Bag>;
   /** Hero name → promoted ClassId chosen at PROMOTE_LEVEL, overriding the mission spawn's base class. */
   promotions?: Record<string, ClassId>;
@@ -235,6 +242,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     fade: 1,
     bob: 0,
     level,
+    xp: side === "player" ? (roster?.xp?.[spawn.name] ?? 0) : 0,
     bag: side === "player" ? { ...(roster?.bags?.[spawn.name] ?? (cls.id === "healer" ? EMPTY_BAG : STARTING_BAG)) } : { ...EMPTY_BAG },
     spells: {
       tier1: side === "player" ? tierUses(cls.id, 1, level) : 0,
@@ -249,6 +257,9 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
       tier10: side === "player" ? tierUses(cls.id, 10, level) : 0,
     },
     size: cls.size,
+    footprintW: cls.footprintW,
+    footprintH: cls.footprintH,
+    footprintOffsets: cls.footprintOffsets,
     shock: null,
     diseased: false,
     diseaseBase: null,
@@ -533,7 +544,18 @@ export class BattleEngine {
     } else if (step.type === "combat") {
       const target = this.units.find((u) => u.id === step.def);
       if (!target || !target.alive) return;
-      this.active = { type: "combat", att: step.att, def: step.def, stage: "lunge", t: 0, swapped: false, bonusDice: step.bonusDice ?? 0, bonusFlat: step.bonusFlat ?? 0 };
+      this.active = {
+        type: "combat",
+        att: step.att,
+        def: step.def,
+        stage: "lunge",
+        t: 0,
+        swapped: false,
+        bonusDice: step.bonusDice ?? 0,
+        bonusFlat: step.bonusFlat ?? 0,
+        noCounter: step.noCounter ?? false,
+        spellKind: step.spellKind ?? null,
+      };
     } else if (step.type === "spell") {
       this.active = {
         type: "spell",
@@ -552,6 +574,7 @@ export class BattleEngine {
         weaponBonusDice: step.weaponBonusDice ?? 0,
         weaponBonusFaces: step.weaponBonusFaces ?? 8,
         weaponBonusBonus: step.weaponBonusBonus ?? 0,
+        spellKind: step.spellKind ?? null,
       };
       this.banner = step.label ?? "";
       sfxPlay.crit();
@@ -672,6 +695,12 @@ export class BattleEngine {
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
+        if (target.side !== actor.side) {
+          // Long Shot finishing the target off also doubles the kill's XP, same as a
+          // non-AoE Mage/Conjurer spell kill (see stepSpell).
+          const killBonus = target.hp <= 0 && a.stage === "hit" && a.spellKind === "longShot" ? 2 : 1;
+          this.gainExp(actor, target.level, hit.dmg, killBonus);
+        }
         this.spawnHit(target, hit.dmg, hit.crit);
         if (target.hp <= 0) {
           target.alive = false;
@@ -699,7 +728,7 @@ export class BattleEngine {
         actor.drawY = actor.y;
         a.t = 0;
         if (a.stage === "recover") {
-          if (def.alive && canCounter(att, def, { x: att.x, y: att.y }, this.tiles, this.cols)) a.stage = "counterLunge";
+          if (!a.noCounter && def.alive && canCounter(att, def, { x: att.x, y: att.y }, this.tiles, this.cols)) a.stage = "counterLunge";
           else if (!def.alive) a.stage = "fade";
           else this.finishCombat(att);
         } else if (!att.alive) a.stage = "fade";
@@ -767,6 +796,17 @@ export class BattleEngine {
         if (a.dmgMul > 1) dmg = Math.max(1, dmg * a.dmgMul);
         foe.hp = Math.max(0, foe.hp - dmg);
         foe.flash = 1;
+        // AoE/line abilities (fireball, cleave, piercing...) run this once per unit actually
+        // hit, so every landed hit grants its own XP — piercing can also clip an ally in the
+        // line, which must never grant XP.
+        if (foe.side !== att.side) {
+          // Black Mage / Conjurer finishing an enemy off with one of their own single-target
+          // spells (Lightning today) doubles the XP from that kill — never for AoE/line spells.
+          const isAoeSpell = a.spellKind === "fireball" || a.spellKind === "cleave" || a.spellKind === "piercing";
+          const killBonus =
+            foe.hp <= 0 && !isAoeSpell && (att.classId === "mage" || att.classId === "conjurer") ? 2 : 1;
+          this.gainExp(att, foe.level, dmg, killBonus);
+        }
         this.spawnHit(foe, dmg, crit);
         if (foe.hp <= 0) {
           foe.alive = false;
@@ -806,6 +846,7 @@ export class BattleEngine {
       const heal = rollCure(a.kind, this.rng);
       const gained = Math.min(heal, target.maxHp - target.hp);
       target.hp += gained;
+      this.gainExp(att, target.level, gained);
       this.emitParticle({
         x: target.drawX,
         y: target.drawY - 0.35,
@@ -868,6 +909,48 @@ export class BattleEngine {
     target.res = pen(target.res);
     target.mov = Math.max(1, pen(target.mov));
     this.tip = `${target.name} não se sente muito bem.`;
+  }
+
+  /**
+   * Grants XP for an action with a measurable, real effect — damage on a hit, HP restored by
+   * a heal or potion — and applies any level-ups on the spot, mid-battle. Multi-target
+   * abilities (fireball, cleave, piercing...) call this once per unit actually hit, so every
+   * landed hit counts on its own. Side-eligibility (don't gain XP for friendly fire) is the
+   * caller's job, since the same helper also grants XP for healing your own side.
+   */
+  private gainExp(attacker: Unit, targetLevel: number, amount: number, multiplier = 1): void {
+    if (amount <= 0 || attacker.side !== "player" || !attacker.alive) return;
+    if (attacker.level >= MAX_LEVEL) return;
+    const gained = Math.round(expForHit(attacker.level, targetLevel) * multiplier);
+    if (gained <= 0) return;
+    attacker.xp += gained;
+    while (attacker.xp >= EXP_TO_LEVEL && attacker.level < MAX_LEVEL) {
+      attacker.xp -= EXP_TO_LEVEL;
+      this.levelUpUnit(attacker);
+    }
+    if (attacker.level >= MAX_LEVEL) attacker.xp = 0;
+  }
+
+  /** Bumps a unit by one level: stat growth, the level's HP gain added to current HP (not a full heal), and any newly-unlocked tier uses granted right away. */
+  private levelUpUnit(u: Unit): void {
+    const from = u.level;
+    const to = from + 1;
+    const before = statsFor(u.classId, from);
+    const after = statsFor(u.classId, to);
+    u.level = to;
+    u.maxHp = after.hp;
+    u.atk = after.atk;
+    u.mag = after.mag;
+    u.def = after.def;
+    u.res = after.res;
+    u.hp = Math.min(u.maxHp, u.hp + (after.hp - before.hp));
+    for (let t = 1; t <= 10; t++) {
+      const tier = t as SpellTier;
+      const key = tierKey(tier);
+      const gain = tierUses(u.classId, tier, to) - tierUses(u.classId, tier, from);
+      if (gain > 0) u.spells[key] += gain;
+    }
+    this.tip = `${u.name} subiu para o nível ${to}!`;
   }
 
   private curePlayerDisease(u: Unit): void {
@@ -1238,7 +1321,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `Bola de fogo: alcance ${FIREBALL.range}, ${fireballFormula(u.level)} − RES em área. Toque para mirar, toque de novo para lançar.`;
+    this.tip = `${FIREBALL.name}: alcance ${FIREBALL.range}, ${fireballFormula(u.level)} − RES em área. Toque para mirar, toque de novo para lançar.`;
     sfxPlay.ui();
   }
 
@@ -1250,7 +1333,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `Tiro longo: alcance ${u.minRange}–${this.longMax(u)}, AT − DF + ${diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)}. Toque no inimigo.`;
+    this.tip = `${LONG_SHOT.name}: alcance ${u.minRange}–${this.longMax(u)}, AT − DF + ${diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)}. Toque no inimigo.`;
     sfxPlay.ui();
   }
 
@@ -1262,7 +1345,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `Tiro perfurante: reta da colmeia. Dobro do AT − DF em cada um na linha, aliado ou inimigo.`;
+    this.tip = `${PIERCING.name}: reta da colmeia. Dobro do AT − DF em cada um na linha, aliado ou inimigo.`;
     sfxPlay.ui();
   }
 
@@ -1385,7 +1468,7 @@ export class BattleEngine {
 
   private longMax(u: Unit): number {
     const extra = u.classId === "archer" && TERRAIN[tileAt(this.tiles, this.cols, u.x, u.y)].height ? 1 : 0;
-    return u.maxRange * LONG_SHOT.rangeMul + extra;
+    return u.maxRange * LONG_SHOT.rangeMul + LONG_SHOT.rangeBonus + extra;
   }
 
   private spellAimValid(caster: Unit, cell: Point): boolean {
@@ -1517,6 +1600,7 @@ export class BattleEngine {
       def: foe.id,
       bonusDice: LONG_SHOT.bonusFaces,
       bonusFlat: LONG_SHOT.bonus,
+      spellKind: "longShot",
     });
   }
 
@@ -1535,7 +1619,7 @@ export class BattleEngine {
     this.spendTier(unit, "piercing");
     this.spellKind = null;
     this.mode = "locked";
-    this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul });
+    this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul, spellKind: "piercing" });
   }
 
   private castLightning(unit: Unit, cell: Point): void {
@@ -1560,6 +1644,7 @@ export class BattleEngine {
       bonus: LIGHTNING.bonus,
       label: LIGHTNING.name,
       echo: { dice: LIGHTNING.echoDice, faces: LIGHTNING.echoFaces, bonus: LIGHTNING.echoBonus },
+      spellKind: "lightning",
     });
   }
 
@@ -1575,7 +1660,7 @@ export class BattleEngine {
     this.spendTier(unit, "doubleStrike");
     this.spellKind = null;
     this.mode = "locked";
-    this.queue.push({ type: "combat", att: unit.id, def: foe.id });
+    this.queue.push({ type: "combat", att: unit.id, def: foe.id, noCounter: true });
     this.queue.push({ type: "combat", att: unit.id, def: foe.id });
   }
 
@@ -1608,6 +1693,7 @@ export class BattleEngine {
       weaponBonusDice: CLEAVE.bonusDice,
       weaponBonusFaces: CLEAVE.bonusFaces,
       weaponBonusBonus: CLEAVE.bonusBonus,
+      spellKind: "cleave",
     });
   }
 
@@ -1638,6 +1724,7 @@ export class BattleEngine {
     const heal = rollPotion(kind, this.rng);
     const gained = Math.min(heal, u.maxHp - u.hp);
     u.hp += gained;
+    this.gainExp(u, u.level, gained);
     u.bag[kind] -= 1;
     u.x = Math.round(u.drawX);
     u.y = Math.round(u.drawY);
@@ -1737,14 +1824,6 @@ export class BattleEngine {
       this.queue.push({ type: "delay", dur: 0.12 });
       return;
     }
-    if (next.classId === "captain") {
-      const near = players.some((p) => manhattan(next, p) <= next.mov + next.maxRange);
-      if (!near) {
-        next.moved = true;
-        this.queue.push({ type: "delay", dur: 0.08 });
-        return;
-      }
-    }
     let nearest = players[0];
     if (!nearest) {
       next.moved = true;
@@ -1787,7 +1866,7 @@ export class BattleEngine {
       this.lastClickCell && this.lastClickCell.x === cell.x && this.lastClickCell.y === cell.y && now - this.lastClickAt < 340;
     this.lastClickAt = now;
     this.lastClickCell = cell;
-    if (same && this.mode === "awaitAction" && selected && occupies(selected, cell.x, cell.y)) {
+    if (same && (this.mode === "awaitAction" || this.mode === "selected") && selected && occupies(selected, cell.x, cell.y)) {
       this.wait();
       const next = this.units.find((u) => u.side === "player" && u.alive && !u.moved);
       if (next) this.select(next);
@@ -1965,6 +2044,7 @@ export class BattleEngine {
       faces: power.faces,
       bonus: power.bonus,
       label: FIREBALL.name,
+      spellKind: "fireball",
     });
   }
 
@@ -2105,8 +2185,18 @@ export class BattleEngine {
     ctx.restore();
   }
 
-  private footprintCentroid(x: number, y: number, size: number): { cx: number; cy: number } {
-    const cells = footprint({ x, y, size });
+  private footprintCentroid(
+    x: number,
+    y: number,
+    size: number,
+    footprintW?: number,
+    footprintOffsets?: { dx: number; dy: number }[],
+  ): { cx: number; cy: number } {
+    // Units with an extended footprint anchor on their front tile(s) only — averaging in the
+    // cells behind them would drag the sprite's feet upward, off the tile the player actually
+    // sees them standing on.
+    const cells =
+      size >= 4 || footprintOffsets ? footprintFrontRow({ x, y, footprintOffsets }, footprintW ?? 2) : footprint({ x, y, size });
     let cx = 0;
     let cy = 0;
     for (const p of cells) {
@@ -2126,12 +2216,12 @@ export class BattleEngine {
       if (from && to) {
         const dur = 0.12;
         const k = easeOut(Math.min(1, a.t / dur));
-        const A = this.footprintCentroid(from.x, from.y, u.size);
-        const B = this.footprintCentroid(to.x, to.y, u.size);
+        const A = this.footprintCentroid(from.x, from.y, u.size, u.footprintW, u.footprintOffsets);
+        const B = this.footprintCentroid(to.x, to.y, u.size, u.footprintW, u.footprintOffsets);
         return { cx: A.cx + (B.cx - A.cx) * k, cy: A.cy + (B.cy - A.cy) * k };
       }
     }
-    return this.footprintCentroid(u.x, u.y, u.size);
+    return this.footprintCentroid(u.x, u.y, u.size, u.footprintW, u.footprintOffsets);
   }
 
   private idleFrame(u: Unit, n: number): number {
@@ -2355,14 +2445,26 @@ export class BattleEngine {
     const cur = this.hover ?? this.cursor;
     {
       const { cx, cy } = this.hexCenter(cur.x, cur.y);
-      ctx.strokeStyle = "rgba(240,235,227,0.9)";
-      ctx.lineWidth = 2;
-      this.hexPath(ctx, cx, cy, tile * 0.9);
-      ctx.stroke();
       const hid = tileAt(this.tiles, this.cols, cur.x, cur.y);
       const ht = TERRAIN[hid];
-      if (ht.height || ht.id === "barricade") {
-        const label = ht.height ? "ALTO +2" : "BARRICADA";
+      const blocked = !ht.passable;
+      if (blocked) {
+        ctx.save();
+        ctx.shadowColor = "rgba(219,58,44,0.95)";
+        ctx.shadowBlur = tile * 0.55;
+        ctx.strokeStyle = "rgba(255,90,72,0.95)";
+        ctx.lineWidth = 3;
+        this.hexPath(ctx, cx, cy, tile * 0.9);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.strokeStyle = "rgba(240,235,227,0.9)";
+        ctx.lineWidth = 2;
+        this.hexPath(ctx, cx, cy, tile * 0.9);
+        ctx.stroke();
+      }
+      if (blocked || ht.height) {
+        const label = blocked ? ht.name.toUpperCase() : "ALTO +2";
         const fontPx = Math.max(11, Math.round(tile * 0.32));
         ctx.font = `700 ${fontPx}px Figtree, sans-serif`;
         ctx.textAlign = "center";
@@ -2370,7 +2472,7 @@ export class BattleEngine {
         ctx.lineJoin = "round";
         ctx.lineWidth = Math.max(3, fontPx * 0.22);
         ctx.strokeStyle = "rgba(12,11,10,0.88)";
-        ctx.fillStyle = ht.height ? "#efe4c4" : "#e0b48a";
+        ctx.fillStyle = blocked ? "#ff7a68" : "#efe4c4";
         ctx.strokeText(label, cx, cy + tile * 0.38);
         ctx.fillText(label, cx, cy + tile * 0.38);
       }
@@ -2409,7 +2511,11 @@ export class BattleEngine {
       const img = (walkDirs ? walkDirs[u.walkPose] : undefined) ?? frames?.[fi] ?? frames?.[0];
       const h = cell * (s >= 4 ? 3.35 : s === 2 ? 1.72 : boss ? 1.44 : 1.42) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
       const w = cell * (s >= 4 ? 2.85 : s === 2 ? 1.85 : boss ? 1.12 : 1.11) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
-      ctx.translate(px + sway, py + cell * 0.42 + bob);
+      // Big creatures plant their feet at the bottom corner of their front hex (tile * 0.9,
+      // matching the hex outline radius used elsewhere) instead of the smaller offset tuned
+      // for normal-size sprites, so the feet don't float above the tile they stand on.
+      const footY = s >= 4 ? tile * 0.9 : cell * 0.42;
+      ctx.translate(px + sway, py + footY + bob);
       if (u.sprite === "kael") ctx.scale(u.facing, 1);
       else ctx.scale(u.facing * (1 - breath * 0.22), 1 + breath);
       if (u.flash > 0) ctx.filter = `brightness(${1.8 + u.flash})`;

@@ -225,9 +225,44 @@ export function unitSize(unit: Pick<Unit, "size">): number {
   return Math.max(1, unit.size || 1);
 }
 
-export function footprint(unit: Pick<Unit, "x" | "y" | "size">): Point[] {
+/** The front row of a big creature's footprint — closest to the player, where the feet render (see footprint() below). */
+export function footprintFrontRow(
+  unit: Point & { footprintOffsets?: { dx: number; dy: number }[] },
+  width = 2,
+): Point[] {
+  if (unit.footprintOffsets) {
+    return unit.footprintOffsets.filter((o) => o.dy === 0).map((o) => ({ x: unit.x + o.dx, y: unit.y }));
+  }
+  const start = unit.x - Math.floor((width - 1) / 2);
+  const out: Point[] = [];
+  for (let i = 0; i < width; i++) out.push({ x: start + i, y: unit.y });
+  return out;
+}
+
+export function footprint(
+  unit: Pick<Unit, "x" | "y" | "size" | "footprintW" | "footprintH" | "footprintOffsets">,
+): Point[] {
   const s = unitSize(unit);
   if (s <= 1) return [{ x: unit.x, y: unit.y }];
+  // Explicit shape (any size tier): unit.x/unit.y is the front-most tile (closest to the
+  // player, where the feet render); the rest of the shape trails behind it, never past
+  // unit.y, so nothing sits hidden behind the sprite from the player's view.
+  if (unit.footprintOffsets) {
+    return unit.footprintOffsets.map((o) => ({ x: unit.x + o.dx, y: unit.y + o.dy }));
+  }
+  if (s >= 4) {
+    // Fallback: a plain footprintW x footprintH rectangle (default 2x4). Hex rows alternate
+    // their horizontal offset every other line (odd-r layout), so every other row here is
+    // shifted one column left to keep the column stacking straight instead of zig-zagging.
+    const width = unit.footprintW ?? 2;
+    const height = unit.footprintH ?? 4;
+    const out: Point[] = [];
+    for (let dy = 0; dy > -height; dy--) {
+      const rowX = dy % 2 !== 0 ? unit.x - 1 : unit.x;
+      out.push(...footprintFrontRow({ x: rowX, y: unit.y + dy }, width));
+    }
+    return out;
+  }
   const out: Point[] = [{ x: unit.x, y: unit.y }];
   const want = s <= 2 ? 2 : Math.min(4, s);
   for (const n of hexNeighbors(unit.x, unit.y)) {
