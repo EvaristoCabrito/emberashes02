@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -863,11 +863,13 @@ function TitleScreen({
   );
 }
 
-/** One entry per casting-speed tier: how fast a class's spell tiers unlock/grow with level. */
-const SKILL_SPEED_GROUPS: { label: string; heroes: string; classId: ClassId; step: number }[] = [
-  { label: "Conjuração Rápida", heroes: "Voss, Salazar", classId: "mage", step: 3 },
-  { label: "Conjuração Média", heroes: "nenhuma heroína atual — reservado p/ Paladino e afins", classId: "paladin", step: 4 },
-  { label: "Conjuração Lenta", heroes: "Kael, Neera", classId: "swordsman", step: 5 },
+/** One entry per casting-speed tier: which classes share it, one classId to read the table
+ * from (every class in the group has identical numbers), and how many tiers it goes up to.
+ * Class names, not hero names — keeps it about the role, not who's playing it. */
+const SKILL_SPEED_GROUPS: { label: string; classes: string; classId: ClassId; maxTier: number }[] = [
+  { label: "Conjuração Rápida", classes: `${CLASSES.mage.name}, ${CLASSES.conjurer.name}, ${CLASSES.healer.name}`, classId: "mage", maxTier: 10 },
+  { label: "Conjuração Média", classes: CLASSES.archer.name, classId: "archer", maxTier: 8 },
+  { label: "Conjuração Lenta", classes: `${CLASSES.swordsman.name}, ${CLASSES.lancer.name}`, classId: "swordsman", maxTier: 6 },
 ];
 
 function HelpModal({ onClose }: { onClose: () => void }) {
@@ -911,22 +913,20 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="space-y-5">
             <p className="text-sm text-muted leading-relaxed">
-              Cada tier de magia/habilidade ganha +1 uso a cada N níveis, dependendo da velocidade de conjuração
-              da classe — não é um uso a mais por nível. As tabelas abaixo mostram exatamente quantos usos cada
-              tier (1 a 5) dá em cada nível, pra cada velocidade.
+              Cada classe tem uma velocidade de conjuração — ela decide quantos usos de cada tier (1 a 5) a
+              classe tem em cada nível. As tabelas abaixo mostram os números exatos, nível a nível.
             </p>
             {SKILL_SPEED_GROUPS.map((g) => (
               <div key={g.label}>
                 <p className="text-sm font-medium">
-                  {g.label} <span className="text-muted font-normal">· {g.heroes}</span>
+                  {g.label} <span className="text-muted font-normal">· {g.classes}</span>
                 </p>
-                <p className="text-xs text-muted mb-1.5">+1 uso a cada {g.step} níveis por tier.</p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs tabular-nums border-collapse">
                     <thead>
                       <tr className="text-muted">
                         <th className="text-left font-normal pr-2 py-1">Nv</th>
-                        {[1, 2, 3, 4, 5].map((t) => (
+                        {Array.from({ length: g.maxTier }, (_, i) => i + 1).map((t) => (
                           <th key={t} className="text-right font-normal px-1.5 py-1">
                             T{t}
                           </th>
@@ -937,9 +937,9 @@ function HelpModal({ onClose }: { onClose: () => void }) {
                       {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map((level) => (
                         <tr key={level} className="border-t border-border/60">
                           <td className="text-left py-0.5 pr-2 text-muted">{level}</td>
-                          {[1, 2, 3, 4, 5].map((t) => (
+                          {Array.from({ length: g.maxTier }, (_, i) => i + 1).map((t) => (
                             <td key={t} className="text-right px-1.5 py-0.5">
-                              {tierUses(g.classId, t as 1 | 2 | 3 | 4 | 5, level)}
+                              {tierUses(g.classId, t as SpellTier, level)}
                             </td>
                           ))}
                         </tr>
