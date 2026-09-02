@@ -1275,6 +1275,7 @@ function MapEditorScreen({
   const [draft, setDraft] = useState<MapDraft>(() => saved[0] ?? blankDraft());
   const [brush, setBrush] = useState<TerrainId>("plains");
   const [mode, setMode] = useState<"paint" | "player" | "enemy">("paint");
+  const [gridStyle, setGridStyle] = useState<"hex" | "square">("hex");
   const [exportText, setExportText] = useState<string | null>(null);
   const [copyOk, setCopyOk] = useState(false);
 
@@ -1510,6 +1511,19 @@ function MapEditorScreen({
           </label>
           <div className="flex-1" />
           <div className="flex rounded-md border border-border overflow-hidden text-xs">
+            {(["hex", "square"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setGridStyle(g)}
+                title={g === "hex" ? "Grade em hexágono, igual ao jogo" : "Grade quadrada (mais rápida de editar)"}
+                className={`px-2.5 py-1.5 ${gridStyle === g ? "bg-accent text-bg" : "bg-bg text-muted"}`}
+              >
+                {g === "hex" ? "Hexágono" : "Quadrado"}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-md border border-border overflow-hidden text-xs">
             {(["paint", "player", "enemy"] as const).map((m) => (
               <button
                 key={m}
@@ -1556,29 +1570,71 @@ function MapEditorScreen({
           className="overflow-auto resize shrink-0 border border-border rounded-md p-2 bg-bg/40 h-[60vh] min-h-[320px] min-w-[280px] [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-bg/60 [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full"
           style={{ scrollbarWidth: "auto", scrollbarColor: "var(--color-border, #5a5a5a) transparent" }}
         >
-          <div
-            className="grid gap-px w-max"
-            style={{ gridTemplateColumns: `repeat(${draft.cols}, 22px)` }}
-          >
-            {draft.tiles.map((t, i) => {
-              const x = i % draft.cols;
-              const y = Math.floor(i / draft.cols);
-              const p = draft.playerSpawns.find((s) => s.x === x && s.y === y);
-              const e = draft.enemySpawns.find((s) => s.x === x && s.y === y);
+          {gridStyle === "square" ? (
+            <div
+              className="grid gap-px w-max"
+              style={{ gridTemplateColumns: `repeat(${draft.cols}, 22px)` }}
+            >
+              {draft.tiles.map((t, i) => {
+                const x = i % draft.cols;
+                const y = Math.floor(i / draft.cols);
+                const p = draft.playerSpawns.find((s) => s.x === x && s.y === y);
+                const e = draft.enemySpawns.find((s) => s.x === x && s.y === y);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    title={p ? p.name : e ? e.name : TERRAIN[t].name}
+                    onClick={() => onCellClick(x, y)}
+                    className="size-[22px] grid place-items-center text-[9px] font-bold"
+                    style={{ background: TERRAIN_SWATCH[t] }}
+                  >
+                    {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            (() => {
+              const HR = 13;
+              const SQRT3 = Math.sqrt(3);
+              const hexW = SQRT3 * HR;
+              const hexH = 2 * HR;
+              const boardW = HR * SQRT3 * (draft.cols + 0.5);
+              const boardH = HR * (1.5 * (draft.rows - 1) + 2);
               return (
-                <button
-                  key={i}
-                  type="button"
-                  title={p ? p.name : e ? e.name : TERRAIN[t].name}
-                  onClick={() => onCellClick(x, y)}
-                  className="size-[22px] grid place-items-center text-[9px] font-bold"
-                  style={{ background: TERRAIN_SWATCH[t] }}
-                >
-                  {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : null}
-                </button>
+                <div className="relative" style={{ width: boardW, height: boardH }}>
+                  {draft.tiles.map((t, i) => {
+                    const x = i % draft.cols;
+                    const y = Math.floor(i / draft.cols);
+                    const p = draft.playerSpawns.find((s) => s.x === x && s.y === y);
+                    const e = draft.enemySpawns.find((s) => s.x === x && s.y === y);
+                    const cx = HR * SQRT3 * (x + 0.5 * (y & 1) + 0.5);
+                    const cy = HR * (1.5 * y + 1);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        title={p ? p.name : e ? e.name : TERRAIN[t].name}
+                        onClick={() => onCellClick(x, y)}
+                        className="absolute grid place-items-center text-[8px] font-bold border border-black/20"
+                        style={{
+                          left: cx - hexW / 2,
+                          top: cy - HR,
+                          width: hexW,
+                          height: hexH,
+                          background: TERRAIN_SWATCH[t],
+                          clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+                        }}
+                      >
+                        {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
               );
-            })}
-          </div>
+            })()
+          )}
         </div>
 
         {(["playerSpawns", "enemySpawns"] as const).map((side) => (
