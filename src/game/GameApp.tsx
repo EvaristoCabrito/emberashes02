@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -20,7 +20,7 @@ import {
   writeSlot,
   selectSlot,
 } from "./save";
-import type { ClassId, GameArt, GrowthLine, HudSnapshot, PotionId, SaveBank, SaveData, ScreenId, SpellKind, UnitPublic } from "./types";
+import type { ClassId, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition } from "./types";
 
 function hudBlank(): HudSnapshot {
   return {
@@ -249,7 +249,8 @@ export function GameApp() {
     };
   }, []);
 
-  const mission = missionId ? missionById(missionId) : undefined;
+  const [customMission, setCustomMission] = useState<Mission | null>(null);
+  const mission = customMission && customMission.id === missionId ? customMission : missionId ? missionById(missionId) : undefined;
   const hasProgress = hasAnySave(bank);
 
   const applySlot = (next: SaveBank) => {
@@ -277,9 +278,9 @@ export function GameApp() {
   };
 
   const startBattle = useCallback(
-    (id: string, carried = save.unitHp) => {
+    (id: string, carried = save.unitHp, override?: Mission) => {
       if (!art) return;
-      const m = missionById(id);
+      const m = override ?? missionById(id);
       if (!m) return;
       const levels: Record<string, number> = testMode
         ? { Kael: m.index + 1, Neera: m.index + 1, Voss: m.index + 1, Salazar: m.index + 1 }
@@ -537,7 +538,25 @@ export function GameApp() {
             setTestMode(true);
             setLastGrowth(null);
             setMissionId(null);
-            setScreen("campaign");
+            setScreen("testMenu");
+          }}
+        />
+      )}
+
+      {screen === "testMenu" && (
+        <TestMenuScreen
+          onBack={() => setScreen("title")}
+          onDebug={() => setScreen("campaign")}
+          onMapEditor={() => setScreen("mapEditor")}
+        />
+      )}
+
+      {screen === "mapEditor" && (
+        <MapEditorScreen
+          onBack={() => setScreen("testMenu")}
+          onPlaytest={(m) => {
+            setCustomMission(m);
+            startBattle(m.id, {}, m);
           }}
         />
       )}
@@ -645,21 +664,30 @@ export function GameApp() {
           turn={hud.turn}
           growth={lastGrowth}
           art={briefArt(mission.id)}
-          innOpen={innUnlocked(save.completed) && mission.index <= 11}
+          innOpen={!customMission && innUnlocked(save.completed) && mission.index <= 11}
           onInn={() => {
             setMissionId("estalagem");
             setScreen("inn");
           }}
-          onMap={() => setScreen("campaign")}
+          onMap={() => {
+            if (customMission) {
+              setCustomMission(null);
+              setScreen("mapEditor");
+              return;
+            }
+            setScreen("campaign");
+          }}
+          mapLabel={customMission ? "Voltar ao editor" : undefined}
           onTitle={() => setScreen("title")}
           onNext={() => {
+            if (customMission) return;
             const nxt = MISSIONS.find((m) => m.index === mission.index + 1);
             if (nxt) {
               setMissionId(nxt.id);
               setScreen("briefing");
             } else setScreen("title");
           }}
-          hasNext={MISSIONS.some((m) => m.index === mission.index + 1)}
+          hasNext={!customMission && MISSIONS.some((m) => m.index === mission.index + 1)}
         />
       )}
 
@@ -676,7 +704,16 @@ export function GameApp() {
           growth={null}
           art={briefArt(mission.id)}
           onTitle={() => setScreen("title")}
-          onNext={() => startBattle(mission.id, save.unitHp)}
+          onNext={() => startBattle(mission.id, save.unitHp, customMission ?? undefined)}
+          onMap={
+            customMission
+              ? () => {
+                  setCustomMission(null);
+                  setScreen("mapEditor");
+                }
+              : undefined
+          }
+          mapLabel={customMission ? "Voltar ao editor" : undefined}
           hasNext
           retry
         />
@@ -971,6 +1008,509 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+function TestMenuScreen({ onBack, onDebug, onMapEditor }: { onBack: () => void; onDebug: () => void; onMapEditor: () => void }) {
+  return (
+    <section className="h-dvh min-h-0 flex flex-col bg-bg">
+      <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 border-b border-border">
+        <button type="button" onClick={onBack} className="size-10 grid place-items-center rounded-md border border-border" aria-label="Voltar">
+          <ChevronLeft className="size-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm uppercase tracking-[0.18em] text-muted">Modo teste</p>
+          <h1 className="font-display text-3xl leading-none">O que abrir?</h1>
+        </div>
+      </header>
+      <div className="flex-1 min-h-0 flex flex-col justify-center gap-3 p-5 max-w-md mx-auto w-full">
+        <button
+          type="button"
+          onClick={onDebug}
+          className="text-left rounded-xl border border-border bg-bg/40 px-5 py-4 hover:border-accent"
+        >
+          <p className="font-display text-2xl leading-tight">Debug</p>
+          <p className="text-sm text-muted mt-1">Joga qualquer missão da campanha, sem travar progresso — o de sempre.</p>
+        </button>
+        <button
+          type="button"
+          onClick={onMapEditor}
+          className="text-left rounded-xl border border-border bg-bg/40 px-5 py-4 hover:border-accent"
+        >
+          <p className="font-display text-2xl leading-tight">Map Editor</p>
+          <p className="text-sm text-muted mt-1">Pinta terreno, posiciona spawns, testa na hora e exporta pra colar no jogo.</p>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+const CUSTOM_MAPS_KEY = "ember-custom-maps";
+const EDITOR_COLS_DEFAULT = 10;
+const EDITOR_ROWS_DEFAULT = 8;
+
+interface MapDraft {
+  id: string;
+  title: string;
+  place: string;
+  briefing: string;
+  objective: string;
+  win: WinCondition;
+  hub: boolean;
+  cols: number;
+  rows: number;
+  tiles: TerrainId[];
+  playerSpawns: Spawn[];
+  enemySpawns: Spawn[];
+}
+
+function blankDraft(): MapDraft {
+  return {
+    id: `custom-${Date.now().toString(36)}`,
+    title: "Mapa sem nome",
+    place: "",
+    briefing: "",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    hub: false,
+    cols: EDITOR_COLS_DEFAULT,
+    rows: EDITOR_ROWS_DEFAULT,
+    tiles: Array.from({ length: EDITOR_COLS_DEFAULT * EDITOR_ROWS_DEFAULT }, () => "plains" as TerrainId),
+    playerSpawns: [],
+    enemySpawns: [],
+  };
+}
+
+/** Loads an existing campaign mission into the editor as a NEW draft — always under a
+ * different id/title, so saving/exporting it never collides with or overwrites the real
+ * mission (per user request: importing must save under another name). */
+function missionToDraft(m: Mission): MapDraft {
+  return {
+    id: `${m.id}-edit-${Date.now().toString(36)}`,
+    title: `${m.title} (editado)`,
+    place: m.place,
+    briefing: m.briefing,
+    objective: m.objective,
+    win: m.win,
+    hub: !!m.hub,
+    cols: m.cols,
+    rows: m.rows,
+    tiles: parseLayout(m.layout),
+    playerSpawns: m.playerSpawns.map((s) => ({ ...s })),
+    enemySpawns: m.enemySpawns.map((s) => ({ ...s })),
+  };
+}
+
+function loadCustomMaps(): MapDraft[] {
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_MAPS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? (parsed as MapDraft[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomMaps(maps: MapDraft[]) {
+  try {
+    window.localStorage.setItem(CUSTOM_MAPS_KEY, JSON.stringify(maps));
+  } catch {
+    // ignore — editor still works in-session without persistence
+  }
+}
+
+function draftToMission(d: MapDraft): Mission {
+  const layout: string[] = [];
+  for (let r = 0; r < d.rows; r++) {
+    let row = "";
+    for (let c = 0; c < d.cols; c++) row += TILE_CHAR[d.tiles[r * d.cols + c] ?? "plains"];
+    layout.push(row);
+  }
+  return {
+    id: d.id,
+    index: 0,
+    title: d.title,
+    place: d.place,
+    briefing: d.briefing,
+    objective: d.objective,
+    win: d.win,
+    cols: d.cols,
+    rows: d.rows,
+    layout,
+    playerSpawns: d.playerSpawns,
+    enemySpawns: d.enemySpawns,
+    hub: d.hub || undefined,
+  };
+}
+
+const TERRAIN_SWATCH: Record<TerrainId, string> = {
+  plains: "#9c8f6f",
+  woods: "#3f5c3a",
+  ruins: "#6b6560",
+  water: "#2c5f7a",
+  ember: "#7a2c2c",
+  hill: "#8a7a4f",
+  flame: "#b5501f",
+  column: "#4a4a52",
+  nave: "#26262c",
+  barricade: "#5a4630",
+  highwood: "#4a3f2a",
+  highruin: "#5f584c",
+};
+
+function MapEditorScreen({ onBack, onPlaytest }: { onBack: () => void; onPlaytest: (m: Mission) => void }) {
+  const [saved, setSaved] = useState<MapDraft[]>(() => loadCustomMaps());
+  const [draft, setDraft] = useState<MapDraft>(() => saved[0] ?? blankDraft());
+  const [brush, setBrush] = useState<TerrainId>("plains");
+  const [mode, setMode] = useState<"paint" | "player" | "enemy">("paint");
+  const [exportText, setExportText] = useState<string | null>(null);
+  const [copyOk, setCopyOk] = useState(false);
+
+  const setTile = (i: number, t: TerrainId) => {
+    setDraft((d) => {
+      const tiles = d.tiles.slice();
+      tiles[i] = t;
+      return { ...d, tiles };
+    });
+  };
+
+  const toggleSpawn = (x: number, y: number) => {
+    setDraft((d) => {
+      const key: "playerSpawns" | "enemySpawns" = mode === "player" ? "playerSpawns" : "enemySpawns";
+      const list = d[key];
+      const existing = list.findIndex((s) => s.x === x && s.y === y);
+      if (existing >= 0) {
+        return { ...d, [key]: list.filter((_, i) => i !== existing) };
+      }
+      const n = list.length + 1;
+      const spawn: Spawn = {
+        name: mode === "player" ? `Herói ${n}` : `Inimigo ${n}`,
+        classId: mode === "player" ? "swordsman" : "soldier",
+        x,
+        y,
+      };
+      return { ...d, [key]: [...list, spawn] };
+    });
+  };
+
+  const onCellClick = (x: number, y: number) => {
+    const i = y * draft.cols + x;
+    if (mode === "paint") setTile(i, brush);
+    else toggleSpawn(x, y);
+  };
+
+  const resize = (cols: number, rows: number) => {
+    cols = Math.max(3, Math.min(40, cols));
+    rows = Math.max(3, Math.min(40, rows));
+    setDraft((d) => {
+      const tiles: TerrainId[] = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          tiles.push(r < d.rows && c < d.cols ? (d.tiles[r * d.cols + c] ?? "plains") : "plains");
+        }
+      }
+      const inBounds = (s: Spawn) => s.x < cols && s.y < rows;
+      return {
+        ...d,
+        cols,
+        rows,
+        tiles,
+        playerSpawns: d.playerSpawns.filter(inBounds),
+        enemySpawns: d.enemySpawns.filter(inBounds),
+      };
+    });
+  };
+
+  const updateSpawn = (side: "playerSpawns" | "enemySpawns", i: number, patch: Partial<Spawn>) => {
+    setDraft((d) => {
+      const list = d[side].slice();
+      list[i] = { ...list[i]!, ...patch };
+      return { ...d, [side]: list };
+    });
+  };
+
+  const removeSpawn = (side: "playerSpawns" | "enemySpawns", i: number) => {
+    setDraft((d) => ({ ...d, [side]: d[side].filter((_, idx) => idx !== i) }));
+  };
+
+  const doSave = () => {
+    const next = saved.some((m) => m.id === draft.id) ? saved.map((m) => (m.id === draft.id ? draft : m)) : [...saved, draft];
+    setSaved(next);
+    saveCustomMaps(next);
+  };
+
+  const doExport = () => {
+    doSave();
+    setExportText(JSON.stringify(draftToMission(draft), null, 2));
+    setCopyOk(false);
+  };
+
+  const classOptions = Object.keys(CLASSES) as ClassId[];
+
+  return (
+    <section className="h-dvh min-h-0 flex flex-col bg-bg">
+      <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 border-b border-border">
+        <button type="button" onClick={onBack} className="size-10 grid place-items-center rounded-md border border-border" aria-label="Voltar">
+          <ChevronLeft className="size-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm uppercase tracking-[0.18em] text-muted">Modo teste</p>
+          <h1 className="font-display text-2xl leading-none">Map Editor</h1>
+        </div>
+      </header>
+
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Button variant="ghost" size="sm" onClick={() => setDraft(blankDraft())}>
+            Novo
+          </Button>
+          <select
+            className="bg-bg border border-border rounded-md px-2 py-1.5"
+            value=""
+            onChange={(e) => {
+              const m = missionById(e.target.value);
+              if (m) setDraft(missionToDraft(m));
+            }}
+          >
+            <option value="">Carregar da campanha…</option>
+            {MISSIONS.filter((m) => !m.hub).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.title}
+              </option>
+            ))}
+          </select>
+          {saved.length > 0 && (
+            <select
+              id="mapPick"
+              className="flex-1 min-w-0 bg-bg border border-border rounded-md px-2 py-1.5"
+              value={draft.id}
+              onChange={(e) => {
+                const found = saved.find((m) => m.id === e.target.value);
+                if (found) setDraft(found);
+              }}
+            >
+              {!saved.some((m) => m.id === draft.id) && <option value={draft.id}>{draft.title} (não salvo)</option>}
+              {saved.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <label className="flex flex-col gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Id</span>
+            <input
+              className="bg-bg border border-border rounded-md px-2 py-1.5"
+              value={draft.id}
+              onChange={(e) => setDraft((d) => ({ ...d, id: e.target.value.replace(/[^a-z0-9-]/gi, "") }))}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Título</span>
+            <input
+              className="bg-bg border border-border rounded-md px-2 py-1.5"
+              value={draft.title}
+              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Local</span>
+            <input
+              className="bg-bg border border-border rounded-md px-2 py-1.5"
+              value={draft.place}
+              onChange={(e) => setDraft((d) => ({ ...d, place: e.target.value }))}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Objetivo</span>
+            <input
+              className="bg-bg border border-border rounded-md px-2 py-1.5"
+              value={draft.objective}
+              onChange={(e) => setDraft((d) => ({ ...d, objective: e.target.value }))}
+            />
+          </label>
+          <label className="flex flex-col gap-1 col-span-2">
+            <span className="text-muted text-xs uppercase tracking-wide">Briefing</span>
+            <textarea
+              className="bg-bg border border-border rounded-md px-2 py-1.5 min-h-16"
+              value={draft.briefing}
+              onChange={(e) => setDraft((d) => ({ ...d, briefing: e.target.value }))}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Vitória</span>
+            <select
+              className="bg-bg border border-border rounded-md px-2 py-1.5"
+              value={draft.win}
+              onChange={(e) => setDraft((d) => ({ ...d, win: e.target.value as WinCondition }))}
+            >
+              <option value="rout">Derrote todos (rout)</option>
+              <option value="boss">Derrube o chefe (boss)</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 mt-5">
+            <input type="checkbox" checked={draft.hub} onChange={(e) => setDraft((d) => ({ ...d, hub: e.target.checked }))} />
+            <span className="text-muted">É um hub (sem combate)</span>
+          </label>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Col</span>
+            <input
+              type="number"
+              className="w-16 bg-bg border border-border rounded-md px-2 py-1"
+              value={draft.cols}
+              onChange={(e) => resize(Number(e.target.value) || draft.cols, draft.rows)}
+            />
+          </label>
+          <label className="flex items-center gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">Lin</span>
+            <input
+              type="number"
+              className="w-16 bg-bg border border-border rounded-md px-2 py-1"
+              value={draft.rows}
+              onChange={(e) => resize(draft.cols, Number(e.target.value) || draft.rows)}
+            />
+          </label>
+          <div className="flex-1" />
+          <div className="flex rounded-md border border-border overflow-hidden text-xs">
+            {(["paint", "player", "enemy"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`px-2.5 py-1.5 ${mode === m ? "bg-accent text-bg" : "bg-bg text-muted"}`}
+              >
+                {m === "paint" ? "Terreno" : m === "player" ? "Herói" : "Inimigo"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {mode === "paint" && (
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.keys(TERRAIN) as TerrainId[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setBrush(t)}
+                className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1.5 ${brush === t ? "border-accent" : "border-border"}`}
+              >
+                <span className="size-3 rounded-sm inline-block" style={{ background: TERRAIN_SWATCH[t] }} />
+                {TERRAIN[t].name}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode !== "paint" && (
+          <p className="text-xs text-muted">
+            Clique numa casa vazia pra adicionar {mode === "player" ? "um herói" : "um inimigo"}; clique numa casa ocupada
+            (do mesmo lado) pra remover. Edite nome/classe na lista abaixo.
+          </p>
+        )}
+
+        <div className="overflow-auto border border-border rounded-md p-2 bg-bg/40">
+          <div
+            className="grid gap-px w-max"
+            style={{ gridTemplateColumns: `repeat(${draft.cols}, 22px)` }}
+          >
+            {draft.tiles.map((t, i) => {
+              const x = i % draft.cols;
+              const y = Math.floor(i / draft.cols);
+              const p = draft.playerSpawns.find((s) => s.x === x && s.y === y);
+              const e = draft.enemySpawns.find((s) => s.x === x && s.y === y);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  title={p ? p.name : e ? e.name : TERRAIN[t].name}
+                  onClick={() => onCellClick(x, y)}
+                  className="size-[22px] grid place-items-center text-[9px] font-bold"
+                  style={{ background: TERRAIN_SWATCH[t] }}
+                >
+                  {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {(["playerSpawns", "enemySpawns"] as const).map((side) => (
+          <div key={side} className="flex flex-col gap-1.5">
+            <p className="text-xs uppercase tracking-wide text-muted">
+              {side === "playerSpawns" ? "Heróis" : "Inimigos"} ({draft[side].length})
+            </p>
+            {draft[side].map((s, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs">
+                <span className="text-muted tabular-nums w-10">{s.x},{s.y}</span>
+                <input
+                  className="flex-1 min-w-0 bg-bg border border-border rounded-md px-1.5 py-1"
+                  value={s.name}
+                  onChange={(e) => updateSpawn(side, i, { name: e.target.value })}
+                />
+                <select
+                  className="bg-bg border border-border rounded-md px-1.5 py-1"
+                  value={s.classId}
+                  onChange={(e) => updateSpawn(side, i, { classId: e.target.value as ClassId })}
+                >
+                  {classOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {CLASSES[c].name}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={() => removeSpawn(side, i)} className="text-danger px-1.5" aria-label="Remover">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {exportText && (
+          <label className="flex flex-col gap-1">
+            <span className="text-muted text-xs uppercase tracking-wide">
+              Exportado — copia e manda pro Claude colar em data.ts
+            </span>
+            <textarea readOnly className="bg-bg border border-border rounded-md px-2 py-1.5 text-xs font-mono h-40" value={exportText} />
+          </label>
+        )}
+      </div>
+
+      <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex flex-col gap-2 border-t border-border">
+        <Button size="lg" className="w-full" disabled={draft.playerSpawns.length === 0} onClick={() => onPlaytest(draftToMission(draft))}>
+          Testar
+        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" className="flex-1" onClick={doSave}>
+            Salvar
+          </Button>
+          <Button variant="ghost" className="flex-1" onClick={doExport}>
+            Exportar
+          </Button>
+          {exportText && (
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(exportText);
+                  setCopyOk(true);
+                } catch {
+                  setCopyOk(false);
+                }
+              }}
+            >
+              {copyOk ? "Copiado!" : "Copiar"}
+            </Button>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1650,6 +2190,7 @@ function ResultScreen({
   onNext,
   onInn,
   onMap,
+  mapLabel,
   hasNext,
   innOpen,
   retry,
@@ -1664,6 +2205,7 @@ function ResultScreen({
   onNext: () => void;
   onInn?: () => void;
   onMap?: () => void;
+  mapLabel?: string;
   hasNext: boolean;
   innOpen?: boolean;
   retry?: boolean;
@@ -1744,9 +2286,9 @@ function ResultScreen({
             Estalagem do Osso Seco
           </Button>
         )}
-        {win && onMap && (
+        {(win || mapLabel) && onMap && (
           <Button variant="ghost" className="w-full" onClick={onMap}>
-            Cenários
+            {mapLabel ?? "Cenários"}
           </Button>
         )}
         <Button variant="ghost" className="w-full" onClick={onTitle}>

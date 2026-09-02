@@ -1025,7 +1025,7 @@ export function parseLayout(layout: string[]): TerrainId[] {
   return tiles;
 }
 
-const TILE_CHAR: Record<TerrainId, string> = {
+export const TILE_CHAR: Record<TerrainId, string> = {
   plains: ".",
   woods: "w",
   ruins: "r",
