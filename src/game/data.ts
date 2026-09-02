@@ -90,7 +90,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   healer: {
     id: "healer",
-    name: "Clérigo",
+    name: "Curandeiro",
     role: "Cura",
     hp: 26,
     atk: 4,
@@ -403,7 +403,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   cleric: {
     id: "cleric",
     name: "Cleric",
-    role: "Promovido — Clérigo",
+    role: "Promovido — Curandeiro",
     hp: 26,
     atk: 4,
     mag: 8,
@@ -419,7 +419,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   bishop: {
     id: "bishop",
     name: "Bishop",
-    role: "Promovido — Clérigo",
+    role: "Promovido — Curandeiro",
     hp: 26,
     atk: 4,
     mag: 8,
