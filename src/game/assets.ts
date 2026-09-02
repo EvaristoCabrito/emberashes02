@@ -1,6 +1,6 @@
 import type { GameArt, SpriteId, TerrainId } from "./types";
 
-const TILES: TerrainId[] = ["plains", "woods", "ruins", "water", "ember", "hill", "flame", "column", "nave", "barricade", "highwood", "highruin", "chest", "door", "void"];
+const TILES: TerrainId[] = ["plains", "woods", "ruins", "water", "ember", "hill", "flame", "column", "nave", "barricade", "highwood", "highruin", "chest", "door", "deadtree", "void"];
 const SPRITES: SpriteId[] = ["kael", "nira", "voss", "salazar", "soldier", "brigand", "captain", "sorcerer", "horror", "pikeman", "wardog", "troll"];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -27,7 +27,7 @@ export async function loadGameArt(): Promise<GameArt> {
   const tiles = {} as Record<TerrainId, HTMLImageElement>;
   await Promise.all(
     TILES.map(async (id) => {
-      tiles[id] = await loadImage(`/game/tiles/${id}.png?v=3`);
+      tiles[id] = await loadImage(`/game/tiles/${id}.png?v=4`);
     }),
   );
   const sprites = {} as Record<SpriteId, HTMLImageElement[]>;

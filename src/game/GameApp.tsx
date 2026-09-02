@@ -1259,6 +1259,7 @@ const TERRAIN_SWATCH: Record<TerrainId, string> = {
   highruin: "#5f584c",
   chest: "#7a5c2e",
   door: "#4a3524",
+  deadtree: "#4a3f2a",
   void: "#050505",
 };
 

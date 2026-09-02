@@ -15,6 +15,7 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
   highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
   chest: { id: "chest", name: "Baú trancado", moveCost: 99, def: 0, atk: 0, passable: false },
   door: { id: "door", name: "Porta trancada", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
+  deadtree: { id: "deadtree", name: "Tronco caído", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
   /** Pure void — a building block for closed/indoor maps: apaga o terreno e nem se atravessa, nem se vê através. */
   void: { id: "void", name: "Vazio", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
 };
@@ -1193,6 +1194,7 @@ const CHAR: Record<string, TerrainId> = {
   s: "highruin",
   k: "chest",
   o: "door",
+  t: "deadtree",
   v: "void",
 };
 
@@ -1221,6 +1223,7 @@ export const TILE_CHAR: Record<TerrainId, string> = {
   highruin: "s",
   chest: "k",
   door: "o",
+  deadtree: "t",
   void: "v",
 };
 
@@ -1868,7 +1871,7 @@ function stampTactics(m: Mission): Mission {
     for (const p of cand) {
       if (got >= n) break;
       const i = p.y * m.cols + p.x;
-      if (tiles[i] === "hill" || tiles[i] === "highwood" || tiles[i] === "highruin" || tiles[i] === "barricade") continue;
+      if (tiles[i] === "hill" || tiles[i] === "highwood" || tiles[i] === "highruin" || tiles[i] === "deadtree" || tiles[i] === "barricade") continue;
       if (taken.some((q) => oddrDist(p.x, p.y, q.x, q.y) < 3)) continue;
       tiles[i] = kind;
       taken.push(p);
@@ -1876,12 +1879,12 @@ function stampTactics(m: Mission): Mission {
     }
   };
   pick(3, "hill");
-  const highKinds: TerrainId[] = ["hill", "highwood", "highruin"];
+  const highKinds: TerrainId[] = ["hill", "highwood", "highruin", "deadtree"];
   for (let y = 0; y < m.rows; y++) {
     for (let x = 0; x < m.cols; x++) {
       const i = y * m.cols + x;
       if (tiles[i] !== "hill") continue;
-      const v = (x * 17 + y * 31 + m.index * 9) % 3;
+      const v = (x * 17 + y * 31 + m.index * 9) % highKinds.length;
       tiles[i] = highKinds[v] ?? "hill";
     }
   }
