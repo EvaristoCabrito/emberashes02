@@ -40,7 +40,18 @@ export type ClassId =
   | "lancer"
   | "conjurer"
   | "paladin"
-  | "heavyKnight";
+  | "heavyKnight"
+  // Promoted classes (promotion at level 15) — provisional stats/sprites, wired for
+  // spell-slot progression only. Combat stats, real art and the promotion quest come later.
+  | "elementalist"
+  | "warlock"
+  | "conjurerSorcerer"
+  | "necromancer"
+  | "cleric"
+  | "bishop"
+  | "ranger"
+  | "sentinel"
+  | "templar";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
 export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "doubleStrike" | "cleave" | "cureDisease";
