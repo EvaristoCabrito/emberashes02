@@ -370,8 +370,9 @@ function SmithPanel({
 
   return (
     <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
-      <img src="/game/portraits/vargan.png" alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: "60% 35%" }} />
+      <img src="/game/portraits/vargan.png" alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: "34% 42%" }} />
       <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/85 to-bg/50" />
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-bg/90" />
       <header className="relative z-10 flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
         <button type="button" onClick={onBack} className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]">
           <ChevronLeft className="size-4 inline -mt-0.5" /> Voltar
@@ -392,7 +393,7 @@ function SmithPanel({
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
       </header>
-      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 max-w-lg mx-auto w-full">
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 max-w-lg ml-auto w-full">
         <div className="rounded-xl border border-border bg-surface/90 p-3">
           <p className="text-sm leading-relaxed text-fg/90">
             “Aço, sangue, alma — tudo é forjado.” Ele não fala mais que isso. Aponta pra bigorna e espera você escolher.

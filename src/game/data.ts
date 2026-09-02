@@ -584,7 +584,7 @@ export const POTIONS: Record<PotionId, PotionDef> = {
   disease: { id: "disease", name: "Poção De Curar Doenças", dice: 0, faces: 0, bonus: 0, effect: "disease" },
 };
 
-export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1, lockpick: 0 };
+export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1, lockpick: 3 };
 export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
 export const BAG_MAX = 9;
 
@@ -1174,7 +1174,7 @@ export function startingBags(): Record<string, Bag> {
     Kael: { ...STARTING_BAG },
     Neera: { ...STARTING_BAG },
     Voss: { ...STARTING_BAG },
-    Salazar: { ...EMPTY_BAG },
+    Salazar: { ...EMPTY_BAG, lockpick: 3 },
   };
 }
 

@@ -1,4 +1,4 @@
-import { EQUIPMENT, EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, startingBags } from "./data";
+import { EQUIPMENT, EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, starterWeaponFor, startingBags } from "./data";
 import type { Bag, ClassId, EquipSlot, SaveBank, SaveData } from "./types";
 
 export const SLOT_COUNT = 5;
@@ -142,6 +142,19 @@ function cleanHp(raw: unknown): Record<string, number> {
   return out;
 }
 
+/** Every hero starts equipped with their class's cheapest weapon — free, already owned. */
+function starterEquipment(): { weapons: Record<string, number>; equipped: Record<string, string> } {
+  const weapons: Record<string, number> = {};
+  const equipped: Record<string, string> = {};
+  for (const hero of HEROES) {
+    const id = starterWeaponFor(HERO_BASE_CLASS[hero]);
+    if (!id) continue;
+    weapons[id] = 0;
+    equipped[hero] = id;
+  }
+  return { weapons, equipped };
+}
+
 export function emptySave(muted = false): SaveData {
   return {
     version: SAVE_VERSION,
@@ -151,8 +164,7 @@ export function emptySave(muted = false): SaveData {
     xp: { ...DEFAULT_XP },
     bags: startingBags(),
     promotions: {},
-    weapons: {},
-    equipped: {},
+    ...starterEquipment(),
     equipment: {},
     ember: 0,
     emberSeeded: true,
@@ -197,6 +209,16 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
 
   const completed = cleanStringList(raw.completed, MISSION_IDS);
   const weapons = cleanWeapons(raw.weapons);
+  const equipped = cleanEquipped(raw.equipped, weapons);
+  // Backfill: any hero with nothing equipped yet (old save, predates weapons) gets their
+  // class's free starter weapon, same as a brand new save already does.
+  for (const hero of HEROES) {
+    if (equipped[hero]) continue;
+    const id = starterWeaponFor(HERO_BASE_CLASS[hero]);
+    if (!id) continue;
+    weapons[id] = weapons[id] ?? 0;
+    equipped[hero] = id;
+  }
   let ember = clampInt(raw.ember, 0, 9999);
   let emberSeeded = raw.emberSeeded === true;
   if (!emberSeeded) {
@@ -213,7 +235,7 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
     bags: version < 4 ? startingBags() : cloneBags(raw.bags as Record<string, Bag>),
     promotions: cleanPromotions(raw.promotions),
     weapons,
-    equipped: cleanEquipped(raw.equipped, weapons),
+    equipped,
     equipment: cleanEquipment(raw.equipment),
     ember,
     emberSeeded,
