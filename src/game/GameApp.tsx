@@ -867,9 +867,24 @@ function TitleScreen({
  * from (every class in the group has identical numbers), and how many tiers it goes up to.
  * Class names, not hero names — keeps it about the role, not who's playing it. */
 const SKILL_SPEED_GROUPS: { label: string; classes: string; classId: ClassId; maxTier: number }[] = [
-  { label: "Conjuração Rápida", classes: `${CLASSES.mage.name}, ${CLASSES.conjurer.name}, ${CLASSES.healer.name}`, classId: "mage", maxTier: 10 },
-  { label: "Conjuração Média", classes: CLASSES.archer.name, classId: "archer", maxTier: 8 },
-  { label: "Conjuração Lenta", classes: `${CLASSES.swordsman.name}, ${CLASSES.lancer.name}`, classId: "swordsman", maxTier: 6 },
+  {
+    label: "Conjuração Rápida",
+    classes: ["mage", "conjurer", "healer", "elementalist", "sorcerer", "bishop"].map((c) => CLASSES[c as ClassId].name).join(", "),
+    classId: "mage",
+    maxTier: 10,
+  },
+  {
+    label: "Conjuração Média",
+    classes: ["archer", "warlock", "necromancer", "cleric", "paladin", "assassin", "templar"].map((c) => CLASSES[c as ClassId].name).join(", "),
+    classId: "archer",
+    maxTier: 8,
+  },
+  {
+    label: "Conjuração Lenta",
+    classes: ["swordsman", "lancer", "heavyKnight", "ranger", "sentinel"].map((c) => CLASSES[c as ClassId].name).join(", "),
+    classId: "swordsman",
+    maxTier: 6,
+  },
 ];
 
 function HelpModal({ onClose }: { onClose: () => void }) {
