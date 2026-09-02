@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, potionLabel } from "./data";
-import type { Bag, PotionId } from "./types";
+import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponsForClass, potionLabel } from "./data";
+import type { Bag, ClassId, PotionId } from "./types";
 
 const NPCS = [
   {
@@ -46,17 +46,30 @@ export function InnScreen({
   bags,
   ember,
   muted,
+  weapons,
+  equipped,
+  heroClass,
   onMute,
   onLeave,
   onPay,
+  onBuyWeapon,
+  onEquipWeapon,
+  onUpgradeWeapon,
 }: {
   bags: Record<string, Bag>;
   ember: number;
   muted: boolean;
+  weapons: Record<string, number>;
+  equipped: Record<string, string>;
+  heroClass: Record<string, ClassId>;
   onMute: () => void;
   onLeave: () => void;
   onPay: (hero: string, cart: Record<PotionId, number>, lockpicks: number) => boolean;
+  onBuyWeapon: (hero: string, weaponId: string) => boolean;
+  onEquipWeapon: (hero: string, weaponId: string) => void;
+  onUpgradeWeapon: (weaponId: string) => boolean;
 }) {
+  const [view, setView] = useState<"npc" | "smith">("npc");
   const [npc, setNpc] = useState<(typeof NPCS)[number]>(NPCS[0]);
   const [hero, setHero] = useState<string>("Kael");
   const [cart, setCart] = useState<Record<PotionId, number>>({ ...EMPTY_CART });
@@ -109,6 +122,23 @@ export function InnScreen({
     setNote("Pago. Os frascos foram para o saco.");
   };
 
+  if (view === "smith") {
+    return (
+      <SmithPanel
+        ember={ember}
+        muted={muted}
+        weapons={weapons}
+        equipped={equipped}
+        heroClass={heroClass}
+        onMute={onMute}
+        onBack={() => setView("npc")}
+        onBuyWeapon={onBuyWeapon}
+        onEquipWeapon={onEquipWeapon}
+        onUpgradeWeapon={onUpgradeWeapon}
+      />
+    );
+  }
+
   return (
     <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
       <img src="/game/brief-estalagem.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -121,6 +151,13 @@ export function InnScreen({
           <p className="text-xs uppercase tracking-[0.18em] text-muted">Pousada à margem da cinza</p>
           <h1 className="font-display text-2xl leading-none">A Estalagem do Osso Seco</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setView("smith")}
+          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]"
+        >
+          Ferreiro
+        </button>
         <p className="text-sm tabular-nums border border-border bg-bg/70 rounded-md px-2 py-1">Ember {ember}</p>
         <button type="button" onClick={onMute} className="size-10 grid place-items-center rounded-md border border-border bg-bg/70" aria-label="Som">
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
@@ -238,6 +275,178 @@ export function InnScreen({
       <div className="relative z-10 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))] max-w-lg mx-auto w-full">
         <Button variant="ghost" className="w-full" onClick={onLeave}>
           <ChevronLeft className="size-4" /> Sair da estalagem
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function SmithPanel({
+  ember,
+  muted,
+  weapons,
+  equipped,
+  heroClass,
+  onMute,
+  onBack,
+  onBuyWeapon,
+  onEquipWeapon,
+  onUpgradeWeapon,
+}: {
+  ember: number;
+  muted: boolean;
+  weapons: Record<string, number>;
+  equipped: Record<string, string>;
+  heroClass: Record<string, ClassId>;
+  onMute: () => void;
+  onBack: () => void;
+  onBuyWeapon: (hero: string, weaponId: string) => boolean;
+  onEquipWeapon: (hero: string, weaponId: string) => void;
+  onUpgradeWeapon: (weaponId: string) => boolean;
+}) {
+  const [hero, setHero] = useState<string>("Kael");
+  const [note, setNote] = useState<string | null>(null);
+
+  const classId = heroClass[hero];
+  const pool = useMemo(() => [...weaponsForClass(classId)].sort((a, b) => weaponPower(a) - weaponPower(b)), [classId]);
+  const equippedId = equipped[hero];
+  const equippedWeapon = equippedId ? WEAPONS[equippedId] : null;
+  const equippedEnh = equippedId ? (weapons[equippedId] ?? 0) : 0;
+  const owned = pool.filter((w) => weapons[w.id] != null && w.id !== equippedId);
+  const notOwned = pool.filter((w) => weapons[w.id] == null);
+
+  const buy = (weaponId: string) => {
+    setNote(null);
+    if (!onBuyWeapon(hero, weaponId)) {
+      setNote("Vargan recusou. Falta Ember.");
+      return;
+    }
+    setNote(`${WEAPONS[weaponId]!.name} comprada e equipada.`);
+  };
+
+  const equip = (weaponId: string) => {
+    setNote(null);
+    onEquipWeapon(hero, weaponId);
+  };
+
+  const upgrade = () => {
+    if (!equippedId) return;
+    setNote(null);
+    if (!onUpgradeWeapon(equippedId)) {
+      setNote("Vargan recusou. Falta Ember ou já está no máximo.");
+      return;
+    }
+    setNote(`${equippedWeapon?.name} aprimorada.`);
+  };
+
+  const nextEnhCost = equippedEnh < WEAPON_MAX_ENH ? weaponEnhCost(equippedEnh + 1) : null;
+
+  return (
+    <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
+      <img src="/game/portraits/vargan.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/85 to-bg/50" />
+      <header className="relative z-10 flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
+        <button type="button" onClick={onBack} className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]">
+          <ChevronLeft className="size-4 inline -mt-0.5" /> Voltar
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">A forja no porão</p>
+          <h1 className="font-display text-2xl leading-none">Vargan, o Ferreiro</h1>
+        </div>
+        <p className="text-sm tabular-nums border border-border bg-bg/70 rounded-md px-2 py-1">Ember {ember}</p>
+        <button type="button" onClick={onMute} className="size-10 grid place-items-center rounded-md border border-border bg-bg/70" aria-label="Som">
+          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+        </button>
+      </header>
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 max-w-lg mx-auto w-full">
+        <div className="rounded-xl border border-border bg-surface/90 p-3">
+          <p className="text-sm leading-relaxed text-fg/90">
+            “Aço, sangue, alma — tudo é forjado.” Ele não fala mais que isso. Aponta pra bigorna e espera você escolher.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface/90 p-3 flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">Quem empunha</p>
+          <div className="flex flex-wrap gap-1">
+            {HERO_NAMES.map((name) => (
+              <Button
+                key={name}
+                size="sm"
+                variant={hero === name ? undefined : "quiet"}
+                onClick={() => {
+                  setHero(name);
+                  setNote(null);
+                }}
+              >
+                {name}
+              </Button>
+            ))}
+          </div>
+
+          <p className="text-xs uppercase tracking-[0.16em] text-muted mt-2">Equipada</p>
+          {equippedWeapon ? (
+            <div className="flex items-center gap-2 rounded-md border border-accent px-2 py-1.5">
+              <img src={weaponIcon(equippedWeapon.id)} alt="" className="size-10 rounded-sm object-cover" />
+              <span className="flex-1 text-sm min-w-0">
+                {equippedWeapon.name} {equippedEnh > 0 ? `+${equippedEnh}` : ""}
+                <span className="block text-[11px] text-muted tabular-nums">
+                  {weaponDiceLabel(equippedWeapon.id)} {equippedEnh > 0 ? `+ ${equippedEnh} aprimoro` : ""}
+                </span>
+              </span>
+              <Button size="sm" disabled={nextEnhCost == null || ember < nextEnhCost} onClick={upgrade}>
+                {nextEnhCost == null ? "Máx." : `+1 · ${nextEnhCost} Ember`}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Nenhuma arma equipada ainda.</p>
+          )}
+
+          {owned.length > 0 && (
+            <>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted mt-2">No saco</p>
+              <div className="flex flex-col gap-1">
+                {owned.map((w) => (
+                  <div key={w.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                    <img src={weaponIcon(w.id)} alt="" className="size-8 rounded-sm object-cover" />
+                    <span className="flex-1 text-sm min-w-0">
+                      {w.name}
+                      <span className="block text-[11px] text-muted tabular-nums">{weaponDiceLabel(w.id)}</span>
+                    </span>
+                    <Button size="sm" variant="quiet" onClick={() => equip(w.id)}>
+                      Equipar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {notOwned.length > 0 && (
+            <>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted mt-2">Na bancada</p>
+              <div className="flex flex-col gap-1">
+                {notOwned.map((w) => (
+                  <div key={w.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                    <img src={weaponIcon(w.id)} alt="" className="size-8 rounded-sm object-cover" />
+                    <span className="flex-1 text-sm min-w-0">
+                      {w.name}
+                      <span className="block text-[11px] text-muted tabular-nums">
+                        {weaponDiceLabel(w.id)} · {w.price} Ember
+                      </span>
+                    </span>
+                    <Button size="sm" disabled={ember < w.price} onClick={() => buy(w.id)}>
+                      Comprar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {note && <p className="text-sm text-accent">{note}</p>}
+        </div>
+      </div>
+      <div className="relative z-10 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))] max-w-lg mx-auto w-full">
+        <Button variant="ghost" className="w-full" onClick={onBack}>
+          <ChevronLeft className="size-4" /> Voltar à estalagem
         </Button>
       </div>
     </section>

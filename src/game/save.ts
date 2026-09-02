@@ -1,4 +1,4 @@
-import { EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, emberFromCompleted, startingBags } from "./data";
+import { EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, startingBags } from "./data";
 import type { Bag, ClassId, SaveBank, SaveData } from "./types";
 
 export const SLOT_COUNT = 5;
@@ -95,6 +95,26 @@ function cleanPromotions(raw: unknown): Record<string, ClassId> {
   return out;
 }
 
+function cleanWeapons(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!WEAPONS[id]) continue;
+    out[id] = clampInt(v, 0, 5);
+  }
+  return out;
+}
+
+function cleanEquipped(raw: unknown, owned: Record<string, number>): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [hero, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!HEROES.includes(hero as (typeof HEROES)[number])) continue;
+    if (typeof v === "string" && WEAPONS[v] && owned[v] != null) out[hero] = v;
+  }
+  return out;
+}
+
 function cleanHp(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, number> = {};
@@ -116,6 +136,8 @@ export function emptySave(muted = false): SaveData {
     xp: { ...DEFAULT_XP },
     bags: startingBags(),
     promotions: {},
+    weapons: {},
+    equipped: {},
     ember: 0,
     emberSeeded: true,
     muted,
@@ -158,6 +180,7 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
   }
 
   const completed = cleanStringList(raw.completed, MISSION_IDS);
+  const weapons = cleanWeapons(raw.weapons);
   let ember = clampInt(raw.ember, 0, 9999);
   let emberSeeded = raw.emberSeeded === true;
   if (!emberSeeded) {
@@ -173,6 +196,8 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
     xp: cleanXp(raw.xp),
     bags: version < 4 ? startingBags() : cloneBags(raw.bags as Record<string, Bag>),
     promotions: cleanPromotions(raw.promotions),
+    weapons,
+    equipped: cleanEquipped(raw.equipped, weapons),
     ember,
     emberSeeded,
     muted: raw.muted === true || muted,

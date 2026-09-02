@@ -167,6 +167,10 @@ export interface Unit {
   xp: number;
   bag: Bag;
   spells: Spells;
+  /** Equipped WeaponDef id, or null (player units start with the group's weakest weapon; enemies have none). */
+  weaponId: string | null;
+  /** Tabletop-style enhancement on the equipped weapon, 0..5. */
+  weaponEnh: number;
   size: number;
   footprintW?: number;
   footprintH?: number;
@@ -201,8 +205,21 @@ export interface UnitPublic {
   xp: number;
   bag: Bag;
   spells: Spells;
+  weaponId: string | null;
+  weaponEnh: number;
   size: number;
   diseased: boolean;
+}
+
+export interface WeaponDef {
+  id: string;
+  name: string;
+  /** Classes (base and prestige) allowed to equip this weapon. */
+  usableBy: ClassId[];
+  dice: number;
+  faces: number;
+  bonus: number;
+  price: number;
 }
 
 export interface Forecast {
@@ -299,6 +316,10 @@ export interface SaveData {
   bags: Record<string, Bag>;
   /** Hero name → promoted ClassId chosen at PROMOTE_LEVEL. Unset until the player picks. */
   promotions: Record<string, ClassId>;
+  /** Owned WeaponDef id → enhancement level (0..5). Presence in the map means it's owned. */
+  weapons: Record<string, number>;
+  /** Hero name → equipped WeaponDef id. */
+  equipped: Record<string, string>;
   ember: number;
   emberSeeded: boolean;
   muted: boolean;

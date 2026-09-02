@@ -1,4 +1,4 @@
-import { isProjectile, TERRAIN } from "./data";
+import { isProjectile, TERRAIN, weaponPreview, weaponRoll } from "./data";
 import { canHitFrom } from "./pathfinding";
 import type { Forecast, TerrainId, Unit } from "./types";
 
@@ -26,7 +26,8 @@ export function rollDamage(
   rng: () => number,
 ): { dmg: number; crit: boolean } {
   const b = terrainBonus(attacker, defender, attTile, defTile);
-  const raw = powerOf(attacker) + b.atk - protOf(attacker, defender) - b.def;
+  const weapon = weaponRoll(attacker.weaponId, attacker.weaponEnh, rng);
+  const raw = powerOf(attacker) + weapon + b.atk - protOf(attacker, defender) - b.def;
   let dmg = Math.max(1, raw);
   const crit = rng() < 0.08;
   if (crit) dmg = Math.max(1, Math.floor(dmg * 1.5));
@@ -40,7 +41,8 @@ export function previewDamage(
   defTile: TerrainId,
 ): number {
   const b = terrainBonus(attacker, defender, attTile, defTile);
-  const raw = powerOf(attacker) + b.atk - protOf(attacker, defender) - b.def;
+  const weapon = weaponPreview(attacker.weaponId, attacker.weaponEnh);
+  const raw = powerOf(attacker) + weapon + b.atk - protOf(attacker, defender) - b.def;
   return Math.max(1, raw);
 }
 

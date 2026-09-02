@@ -1,4 +1,4 @@
-import type { Bag, ClassDef, ClassId, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit } from "./types";
+import type { Bag, ClassDef, ClassId, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -595,6 +595,149 @@ export const POTION_PRICE: Record<PotionId, number> = {
 
 /** Preço modesto da Gazua na Estalagem (Brue). */
 export const LOCKPICK_PRICE = 6;
+
+// ---------------------------------------------------------------- Weapons
+// Damage dice ladder shared by every weapon pool, 1D4 (weakest) up to 2D12 (strongest).
+// Each weapon picks one rung; price scales with it. Enhancement (+1..+5, at the Ferreiro)
+// stacks flat on top and is tracked per hero save, not here.
+const WEAPON_RUNGS: { dice: number; faces: number; bonus: number; price: number }[] = [
+  { dice: 1, faces: 4, bonus: 0, price: 30 },
+  { dice: 1, faces: 6, bonus: 0, price: 45 },
+  { dice: 1, faces: 8, bonus: 0, price: 65 },
+  { dice: 1, faces: 10, bonus: 1, price: 90 },
+  { dice: 1, faces: 12, bonus: 1, price: 120 },
+  { dice: 2, faces: 6, bonus: 1, price: 155 },
+  { dice: 2, faces: 8, bonus: 2, price: 195 },
+  { dice: 2, faces: 10, bonus: 2, price: 240 },
+  { dice: 2, faces: 12, bonus: 2, price: 300 },
+];
+
+function wpn(id: string, name: string, usableBy: ClassId[], rung: number): WeaponDef {
+  const r = WEAPON_RUNGS[rung - 1]!;
+  return { id, name, usableBy, dice: r.dice, faces: r.faces, bonus: r.bonus, price: r.price };
+}
+
+const ARCANE_MAGE_TRIO: ClassId[] = ["mage", "elementalist", "warlock"];
+const ARCANE_CONJURER_TRIO: ClassId[] = ["conjurer", "sorcerer", "necromancer"];
+// Both arcane trios pool together: any arcane caster can wield any arcane staff, per design.
+const ARCANE_ALL: ClassId[] = [...ARCANE_MAGE_TRIO, ...ARCANE_CONJURER_TRIO];
+const HEAL_TRIO: ClassId[] = ["healer", "bishop", "cleric"];
+const WARRIOR_TRIO: ClassId[] = ["swordsman", "paladin", "heavyKnight"];
+const ARCHER_TRIO: ClassId[] = ["archer", "ranger", "assassin"];
+const LANCER_TRIO: ClassId[] = ["lancer", "sentinel", "templar"];
+
+export const WEAPONS: Record<string, WeaponDef> = {
+  // Mago Negro / Elementalista / Bruxo — cajados arcanos, pool compartilhado
+  "cajado-de-osso": wpn("cajado-de-osso", "Cajado de Osso", ARCANE_ALL, 1),
+  "cajado-abissal": wpn("cajado-abissal", "Cajado Abissal", ARCANE_ALL, 2),
+  "cajado-de-ebano": wpn("cajado-de-ebano", "Cajado de Ébano", ARCANE_ALL, 3),
+  "cajado-igneo": wpn("cajado-igneo", "Cajado Ígneo", ARCANE_ALL, 4),
+  "bastao-do-pacto": wpn("bastao-do-pacto", "Bastão do Pacto", ARCANE_ALL, 5),
+  "cajado-tempestuoso": wpn("cajado-tempestuoso", "Cajado Tempestuoso", ARCANE_ALL, 6),
+  "cetro-da-corrupcao": wpn("cetro-da-corrupcao", "Cetro da Corrupção", ARCANE_ALL, 7),
+  "cajado-terrano": wpn("cajado-terrano", "Cajado Terrano", ARCANE_ALL, 8),
+  "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9),
+
+  // Conjurador / Arcanista / Necromante — cajados arcanos, pool compartilhado
+  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1),
+  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2),
+  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3),
+  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4),
+  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5),
+  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6),
+  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7),
+  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8),
+  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9),
+
+  // Curandeiro / Bispo / Clérigo — cajados de cura, pool compartilhado
+  "cajado-da-renovacao": wpn("cajado-da-renovacao", "Cajado da Renovação", HEAL_TRIO, 1),
+  "cajado-da-graca": wpn("cajado-da-graca", "Cajado da Graça", HEAL_TRIO, 3),
+  "cetro-da-luz": wpn("cetro-da-luz", "Cetro da Luz", HEAL_TRIO, 4),
+  "bastao-da-purificacao": wpn("bastao-da-purificacao", "Bastão da Purificação", HEAL_TRIO, 5),
+  "cajado-do-bispo": wpn("cajado-do-bispo", "Cajado do Bispo", HEAL_TRIO, 6),
+  "cajado-da-fe": wpn("cajado-da-fe", "Cajado da Fé", HEAL_TRIO, 8),
+  "cajado-da-justica": wpn("cajado-da-justica", "Cajado da Justiça", HEAL_TRIO, 9),
+
+  // Guerreiro / Paladino / Cavaleiro Pesado — espada/machado/maça, pool compartilhado.
+  // Martelos também servem para o Clérigo ("não derrama sangue").
+  "espada-larga": wpn("espada-larga", "Espada Larga", WARRIOR_TRIO, 1),
+  "espadao": wpn("espadao", "Espadão", WARRIOR_TRIO, 2),
+  "machado-de-guerra": wpn("machado-de-guerra", "Machado de Guerra", WARRIOR_TRIO, 3),
+  "espada-da-lealdade": wpn("espada-da-lealdade", "Espada da Lealdade", WARRIOR_TRIO, 4),
+  "espadao-pesado": wpn("espadao-pesado", "Espadão Pesado", WARRIOR_TRIO, 5),
+  "lamina-sagrada": wpn("lamina-sagrada", "Lâmina Sagrada", WARRIOR_TRIO, 6),
+  "martelo-de-guerra": wpn("martelo-de-guerra", "Martelo de Guerra", [...WARRIOR_TRIO, "cleric"], 7),
+  "martelo-da-justica": wpn("martelo-da-justica", "Martelo da Justiça", [...WARRIOR_TRIO, "cleric"], 8),
+  "lanca-pesada": wpn("lanca-pesada", "Lança Pesada", WARRIOR_TRIO, 9),
+
+  // Arqueira / Patrulheiro / Assassina — arco/besta/adaga, pool compartilhado
+  "arco-composto": wpn("arco-composto", "Arco Composto", ARCHER_TRIO, 1),
+  "arco-longo": wpn("arco-longo", "Arco Longo", ARCHER_TRIO, 2),
+  "arco-elfico": wpn("arco-elfico", "Arco Élfico", ARCHER_TRIO, 3),
+  "arco-do-cacador": wpn("arco-do-cacador", "Arco do Caçador", ARCHER_TRIO, 4),
+  "adaga-sombria": wpn("adaga-sombria", "Adaga Sombria", ARCHER_TRIO, 5),
+  "besta-leve": wpn("besta-leve", "Besta Leve", ARCHER_TRIO, 6),
+  "katar": wpn("katar", "Katar", ARCHER_TRIO, 7),
+  "lanca-de-caca": wpn("lanca-de-caca", "Lança de Caça", ARCHER_TRIO, 8),
+  "adaga-de-veneno": wpn("adaga-de-veneno", "Adaga de Veneno", ARCHER_TRIO, 9),
+
+  // Lanceiro / Sentinela / Templário — lança e lança-e-escudo, exclusivo dessa linha
+  "lanca": wpn("lanca", "Lança", LANCER_TRIO, 1),
+  "partisan": wpn("partisan", "Partisan", LANCER_TRIO, 2),
+  "guisarme": wpn("guisarme", "Guisarme", LANCER_TRIO, 3),
+  "lanca-de-defesa": wpn("lanca-de-defesa", "Lança de Defesa", LANCER_TRIO, 4),
+  "espada-e-escudo": wpn("espada-e-escudo", "Espada e Escudo", LANCER_TRIO, 5),
+  "maca-e-escudo-sentinel": wpn("maca-e-escudo-sentinel", "Maça e Escudo", LANCER_TRIO, 6),
+  "maca-e-escudo-templar": wpn("maca-e-escudo-templar", "Maça e Escudo", LANCER_TRIO, 7),
+  "lanca-e-escudo-sentinel": wpn("lanca-e-escudo-sentinel", "Lança e Escudo", LANCER_TRIO, 8),
+  "lanca-e-escudo-templar": wpn("lanca-e-escudo-templar", "Lança e Escudo", LANCER_TRIO, 9),
+};
+
+export function weaponIcon(id: string): string {
+  return `/game/icons/weapons/${id}.png`;
+}
+
+export function weaponsForClass(classId: ClassId): WeaponDef[] {
+  return Object.values(WEAPONS).filter((w) => w.usableBy.includes(classId));
+}
+
+export function weaponPower(w: WeaponDef): number {
+  return (w.dice * (w.faces + 1)) / 2 + w.bonus;
+}
+
+/** Cheapest/weakest weapon a class can use — auto-equipped for free until the player picks another. */
+export function starterWeaponFor(classId: ClassId): string | null {
+  const list = weaponsForClass(classId);
+  if (list.length === 0) return null;
+  return list.reduce((a, b) => (weaponPower(a) <= weaponPower(b) ? a : b)).id;
+}
+
+export function weaponRoll(weaponId: string | null | undefined, enh: number, rng: () => number): number {
+  if (!weaponId) return 0;
+  const w = WEAPONS[weaponId];
+  if (!w) return 0;
+  return rollDice(w.dice, w.faces, w.bonus, rng) + enh;
+}
+
+export function weaponPreview(weaponId: string | null | undefined, enh: number): number {
+  if (!weaponId) return 0;
+  const w = WEAPONS[weaponId];
+  if (!w) return 0;
+  return Math.round(weaponPower(w) + enh);
+}
+
+export function weaponDiceLabel(weaponId: string): string {
+  const w = WEAPONS[weaponId];
+  return w ? diceFormula(w.dice, w.faces, w.bonus) : "";
+}
+
+/** Ember cost of the Ferreiro's enhancement ranks +1..+5 (index 0 = cost of the first rank). */
+export const WEAPON_ENH_COST = [40, 70, 110, 160, 220];
+export const WEAPON_MAX_ENH = WEAPON_ENH_COST.length;
+
+export function weaponEnhCost(nextRank: number): number {
+  return WEAPON_ENH_COST[nextRank - 1] ?? Infinity;
+}
 
 export const EMBER_DROP: Partial<Record<ClassId, number>> = {
   soldier: 2,

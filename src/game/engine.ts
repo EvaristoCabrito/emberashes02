@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
@@ -191,6 +191,8 @@ function pub(u: Unit): UnitPublic {
     xp: u.xp,
     bag: { ...u.bag },
     spells: { ...u.spells },
+    weaponId: u.weaponId,
+    weaponEnh: u.weaponEnh,
     size: u.size,
     diseased: u.diseased,
   };
@@ -203,6 +205,9 @@ interface Roster {
   bags?: Record<string, Bag>;
   /** Hero name → promoted ClassId chosen at PROMOTE_LEVEL, overriding the mission spawn's base class. */
   promotions?: Record<string, ClassId>;
+  /** Hero name → equipped weapon + enhancement, resolved from save.equipped/save.weapons. Falls
+   * back to that class's free starter weapon when a hero has no entry yet. */
+  weapons?: Record<string, { id: string; enh: number }>;
   /** Enemy name → level override, for Map Editor balance-testing. Falls back to the
    * mission's uniform enemyLevelFor(index) when a name has no entry. */
   enemyLevels?: Record<string, number>;
@@ -215,6 +220,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
   const st = statsFor(classId, level);
   const hpCap = roster?.hp[spawn.name];
   const hp = hpCap != null && hpCap > 0 ? Math.min(st.hp, hpCap) : st.hp;
+  const weapon = side === "player" ? (roster?.weapons?.[spawn.name] ?? { id: starterWeaponFor(classId), enh: 0 }) : null;
   return {
     id: `${side}-${spawn.name}-${i}`,
     name: spawn.name,
@@ -259,6 +265,8 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
       tier9: side === "player" ? tierUses(cls.id, 9, level) : 0,
       tier10: side === "player" ? tierUses(cls.id, 10, level) : 0,
     },
+    weaponId: weapon?.id ?? null,
+    weaponEnh: weapon?.enh ?? 0,
     size: cls.size,
     footprintW: cls.footprintW,
     footprintH: cls.footprintH,
@@ -302,6 +310,8 @@ export class BattleEngine {
   banner: string | null = null;
   /** Ember found in chests opened mid-battle; folded into the save's Ember total on victory. */
   lootEmber = 0;
+  /** Weapon ids found in chests opened mid-battle; folded into the save's weapon stash on victory. */
+  lootWeapons: string[] = [];
   tip: string | null;
   private lastTipSeen: string | null = null;
   private tipSetAt = 0;
@@ -1794,7 +1804,14 @@ export class BattleEngine {
     if (wasChest) {
       const gain = 3 + Math.floor(this.rng() * 6);
       this.lootEmber += gain;
-      this.tip = `${u.name} arrombou o baú · +${gain} Ember.`;
+      if (this.rng() < 0.35) {
+        const ids = Object.keys(WEAPONS);
+        const weaponId = ids[Math.floor(this.rng() * ids.length)]!;
+        this.lootWeapons.push(weaponId);
+        this.tip = `${u.name} arrombou o baú · +${gain} Ember · achou ${WEAPONS[weaponId]!.name}.`;
+      } else {
+        this.tip = `${u.name} arrombou o baú · +${gain} Ember.`;
+      }
     } else {
       this.tip = `${u.name} arrombou a porta.`;
     }

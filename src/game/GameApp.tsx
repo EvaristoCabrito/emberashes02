@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, weaponEnhCost, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -208,6 +208,7 @@ export function GameApp() {
   const [muted, setMutedUi] = useState(() => (typeof window === "undefined" ? false : loadBank().muted));
   const muteReady = useRef(false);
   const [lastGrowth, setLastGrowth] = useState<GrowthLine[] | null>(null);
+  const [lastLoot, setLastLoot] = useState<string[]>([]);
   const [pendingPromotions, setPendingPromotions] = useState<{ name: string; options: [ClassId, ClassId] }[]>([]);
   const [testMode, setTestMode] = useState(false);
   const awardedRef = useRef<string | null>(null);
@@ -269,6 +270,7 @@ export function GameApp() {
   const enterFromSave = (rec: SaveData) => {
     setTestMode(false);
     setLastGrowth(null);
+    setLastLoot([]);
     if (rec.pendingMission && missionById(rec.pendingMission)) {
       setMissionId(rec.pendingMission);
       setScreen("briefing");
@@ -312,7 +314,10 @@ export function GameApp() {
         persistCurrent(snapshot);
       }
       const promotions = testMode ? {} : save.promotions;
-      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, enemyLevels }, Date.now() % 100000);
+      const weapons = testMode
+        ? undefined
+        : Object.fromEntries(Object.entries(save.equipped).map(([hero, id]) => [hero, { id, enh: save.weapons[id] ?? 0 }]));
+      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, enemyLevels }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -406,6 +411,31 @@ export function GameApp() {
       const loot = engine.units
         .filter((x) => x.side === "enemy" && !x.alive)
         .reduce((n, u) => n + emberForKill(u.classId), 0);
+      const weapons = { ...save.weapons };
+      const found: string[] = [];
+      let salvage = 0;
+      const weaponPool = Object.keys(WEAPONS);
+      const dropWeapon = () => {
+        const fresh = weaponPool.filter((wid) => weapons[wid] == null);
+        const pool = fresh.length > 0 ? fresh : weaponPool;
+        const id = pool[Math.floor(Math.random() * pool.length)]!;
+        if (weapons[id] == null) {
+          weapons[id] = 0;
+          found.push(WEAPONS[id]!.name);
+        } else {
+          salvage += 20;
+        }
+      };
+      for (const u of engine.units) {
+        if (u.side === "enemy" && !u.alive && Math.random() < 0.15) dropWeapon();
+      }
+      for (const id of engine.lootWeapons) {
+        if (weapons[id] == null) {
+          weapons[id] = 0;
+          found.push(WEAPONS[id]!.name);
+        }
+      }
+      setLastLoot(found);
       persistCurrent({
         ...save,
         completed,
@@ -413,7 +443,8 @@ export function GameApp() {
         bags,
         levels,
         xp,
-        ember: (save.ember ?? 0) + loot + engine.lootEmber,
+        weapons,
+        ember: (save.ember ?? 0) + loot + engine.lootEmber + salvage,
         emberSeeded: true,
         muted,
         pendingMission: null,
@@ -540,6 +571,7 @@ export function GameApp() {
             bootAudio();
             setTestMode(true);
             setLastGrowth(null);
+            setLastLoot([]);
             setMissionId(null);
             setScreen("testMenu");
           }}
@@ -583,11 +615,51 @@ export function GameApp() {
           bags={save.bags}
           ember={save.ember ?? 0}
           muted={muted}
+          weapons={save.weapons}
+          equipped={save.equipped}
+          heroClass={Object.fromEntries(DEFAULT_HEROES.map((h) => [h.name, save.promotions[h.name] ?? h.classId]))}
           onMute={() => {
             unlockAudio();
             setMutedUi((v) => !v);
           }}
           onLeave={() => setScreen("campaign")}
+          onBuyWeapon={(hero: string, weaponId: string) => {
+            const rec = activeSave(bank);
+            const w = WEAPONS[weaponId];
+            if (!w || rec.weapons[weaponId] != null) return false;
+            const held = rec.ember ?? 0;
+            if (held < w.price) return false;
+            persistCurrent({
+              ...rec,
+              ember: held - w.price,
+              emberSeeded: true,
+              weapons: { ...rec.weapons, [weaponId]: 0 },
+              equipped: { ...rec.equipped, [hero]: weaponId },
+              pendingMission: null,
+            });
+            return true;
+          }}
+          onEquipWeapon={(hero: string, weaponId: string) => {
+            const rec = activeSave(bank);
+            if (rec.weapons[weaponId] == null) return;
+            persistCurrent({ ...rec, equipped: { ...rec.equipped, [hero]: weaponId }, pendingMission: null });
+          }}
+          onUpgradeWeapon={(weaponId: string) => {
+            const rec = activeSave(bank);
+            const enh = rec.weapons[weaponId] ?? 0;
+            if (enh >= WEAPON_MAX_ENH) return false;
+            const cost = weaponEnhCost(enh + 1);
+            const held = rec.ember ?? 0;
+            if (held < cost) return false;
+            persistCurrent({
+              ...rec,
+              ember: held - cost,
+              emberSeeded: true,
+              weapons: { ...rec.weapons, [weaponId]: enh + 1 },
+              pendingMission: null,
+            });
+            return true;
+          }}
           onPay={(hero: string, cart: Record<PotionId, number>, lockpicks: number) => {
             const rec = activeSave(bank);
             let cost = 0;
@@ -671,6 +743,7 @@ export function GameApp() {
           body="O campo ficou em silêncio."
           turn={hud.turn}
           growth={lastGrowth}
+          loot={lastLoot}
           art={briefArt(mission.id)}
           innOpen={!customMission && innUnlocked(save.completed) && mission.index <= 11}
           onInn={() => {
@@ -745,6 +818,7 @@ export function GameApp() {
               setSlotMode(null);
               setOverwrite(null);
               setLastGrowth(null);
+              setLastLoot([]);
               setMissionId(null);
               setEngine(null);
               setScreen("boot");
@@ -2282,6 +2356,7 @@ function ResultScreen({
   hasNext,
   innOpen,
   retry,
+  loot,
 }: {
   win: boolean;
   title: string;
@@ -2297,6 +2372,7 @@ function ResultScreen({
   hasNext: boolean;
   innOpen?: boolean;
   retry?: boolean;
+  loot?: string[];
 }) {
   return (
     <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
@@ -2312,6 +2388,7 @@ function ResultScreen({
         </p>
         <h1 className="font-display text-4xl sm:text-5xl mt-2 mb-2">{title}</h1>
         <p className="text-lg text-muted mb-6">{body}</p>
+        {loot && loot.length > 0 && <p className="text-sm text-accent mb-4">Achado no campo: {loot.join(", ")}</p>}
         {growth && growth.length > 0 && (
           <ul className="mb-6 space-y-2 max-w-lg">
             {growth.map((g) => (
