@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, FIREBALL, LIGHTNING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, STAR_LEVEL, STARS_TO_LEVEL, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, fireballFormula, lightningFormula, missionById, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, usesStarXp } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -96,7 +96,9 @@ const ALL_POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
 const HOTBAR_KEY = "ember-hotbar-v1";
 
 function classSpells(classId: ClassId): SpellKind[] {
-  switch (classId) {
+  // Promoted classes keep everything the base class already granted (hybrid, nothing
+  // lost at PROMOTE_LEVEL) — prestige-only spells get their own case here once designed.
+  switch (PROMOTED_BASE[classId] ?? classId) {
     case "swordsman":
       return ["doubleStrike", "cleave"];
     case "mage":

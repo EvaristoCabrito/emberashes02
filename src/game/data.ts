@@ -863,6 +863,13 @@ export const PROMOTIONS: Partial<Record<ClassId, [ClassId, ClassId]>> = {
   lancer: ["sentinel", "templar"],
 };
 
+/** Reverse of PROMOTIONS: promoted ClassId → its base ClassId. Lets anything keyed on
+ * the base class (spell lists today; combat stats/sprites later) resolve for a promoted
+ * unit too, so promotion only adds — it never drops what the base class already granted. */
+export const PROMOTED_BASE: Partial<Record<ClassId, ClassId>> = Object.fromEntries(
+  Object.entries(PROMOTIONS).flatMap(([base, options]) => options!.map((o) => [o, base])),
+) as Partial<Record<ClassId, ClassId>>;
+
 export function tierUses(classId: ClassId, tier: SpellTier, level: number): number {
   const table = PROMOTED_TABLE[classId];
   if (table) {
