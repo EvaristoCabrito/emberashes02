@@ -335,7 +335,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   // Classes promovidas (promoção no nível 15) — stats de combate, arte e nome definitivo
   // ainda são provisórios (copiados 1:1 da classe base, sprite reaproveitado). Só a
-  // progressão de magia (tierUses / PROMOTED_TABLE mais abaixo) já é a de verdade.
+  // progressão de magia (tierUses / CLASS_TIER_TABLE mais abaixo) já é a de verdade.
   elementalist: {
     id: "elementalist",
     name: "Elementalist",
@@ -748,12 +748,6 @@ export type SpellTier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 type TierSpeed = "full" | "half" | "slow";
 
 const TIER_SPEED: Partial<Record<ClassId, TierSpeed>> = {
-  mage: "full",
-  conjurer: "full",
-  healer: "full",
-  swordsman: "slow",
-  archer: "half",
-  lancer: "slow",
   rogue: "slow",
 };
 
@@ -761,10 +755,10 @@ const TIER_SPEED: Partial<Record<ClassId, TierSpeed>> = {
 const TIER_SPEED_STEP: Record<TierSpeed, number> = { full: 3, half: 4, slow: 5 };
 
 /**
- * Explicit level×tier slot tables for the promoted classes (promotion at level 15).
- * These don't follow the TIER_SPEED_STEP formula above — they're the exact numbers
- * validated by hand: "quarto" (6 tiers), "meio" (8 tiers) and "pleno"/maxed (10 tiers),
- * every tier reaching 5 slots by level 30, total never dropping between levels.
+ * Explicit level×tier slot tables. These don't follow the TIER_SPEED_STEP formula
+ * above — they're the exact numbers validated by hand: "quarto" (6 tiers), "meio"
+ * (8 tiers) and "pleno"/maxed (10 tiers), every tier reaching 5 slots by level 30,
+ * total never dropping between levels.
  */
 const QUARTER_TABLE: number[][] = [
   [1, 0, 0, 0, 0, 0, 0, 0],
@@ -865,17 +859,23 @@ const FULL_TABLE: number[][] = [
   [5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
 ];
 
-/** Promotion (level 15) doesn't change the slot table — it only unlocks the promoted
- * class's spell list on top of the base class's (hybrid, nothing lost). Each promoted
- * class reads ONE fixed table for levels 1-30:
- *   Black Mage  — Elementalist ALTA (pleno) · Warlock MEIA
- *   Conjurer    — Sorcerer ALTA (pleno)     · Necromancer MEIA
- *   Healer      — Bishop ALTA (pleno)       · Cleric MEIA
- *   Warrior     — Paladin MEIA              · Heavy Knight QUARTA
- *   Archer      — Ranger QUARTA             · Assassin MEIA
- *   Lancer      — Sentinel QUARTA           · Templar MEIA
+/** Every class's slot table, base and promoted alike. Promotion (level 15) doesn't
+ * change the slot table on its own — it only unlocks the promoted class's spell list
+ * on top of the base class's (hybrid, nothing lost). Base tier and each promotion:
+ *   Black Mage  ALTA  — Elementalist ALTA (pleno) · Warlock MEIA
+ *   Conjurer    ALTA  — Sorcerer ALTA (pleno)     · Necromancer MEIA
+ *   Healer      ALTA  — Bishop ALTA (pleno)       · Cleric MEIA
+ *   Warrior     QUARTA — Paladin MEIA              · Heavy Knight QUARTA
+ *   Archer      MEIA  — Ranger QUARTA             · Assassin MEIA
+ *   Lancer      QUARTA — Sentinel QUARTA           · Templar MEIA
  */
-const PROMOTED_TABLE: Partial<Record<ClassId, number[][]>> = {
+const CLASS_TIER_TABLE: Partial<Record<ClassId, number[][]>> = {
+  mage: FULL_TABLE,
+  conjurer: FULL_TABLE,
+  healer: FULL_TABLE,
+  swordsman: QUARTER_TABLE,
+  archer: HALF_TABLE,
+  lancer: QUARTER_TABLE,
   elementalist: FULL_TABLE,
   warlock: HALF_TABLE,
   sorcerer: FULL_TABLE,
@@ -911,7 +911,7 @@ export const PROMOTED_BASE: Partial<Record<ClassId, ClassId>> = Object.fromEntri
 ) as Partial<Record<ClassId, ClassId>>;
 
 export function tierUses(classId: ClassId, tier: SpellTier, level: number): number {
-  const table = PROMOTED_TABLE[classId];
+  const table = CLASS_TIER_TABLE[classId];
   if (table) {
     const row = table[Math.max(0, Math.min(29, level - 1))]!;
     return row[tier - 1] ?? 0;
