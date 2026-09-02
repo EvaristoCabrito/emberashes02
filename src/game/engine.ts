@@ -483,7 +483,7 @@ export class BattleEngine {
       if (!u.alive && u.fade > 0) u.fade = Math.max(0, u.fade - cap * 2.4);
       if (u.alive) {
         const haste =
-          u.classId === "wardog" ? 1.4 : u.size >= 4 ? 0.58 : u.classId === "mage" || u.classId === "sorcerer" ? 0.8 : 1;
+          u.classId === "wardog" ? 1.4 : u.size >= 4 ? 0.58 : u.classId === "mage" || u.classId === "cultist" ? 0.8 : 1;
         u.bob += cap * haste;
       }
     }
@@ -2140,7 +2140,7 @@ export class BattleEngine {
     const base =
       u.classId === "horror" || u.classId === "troll"
         ? 2.0
-        : u.sprite === "kael" || u.classId === "mage" || u.classId === "sorcerer" || u.classId === "healer"
+        : u.sprite === "kael" || u.classId === "mage" || u.classId === "cultist" || u.classId === "healer"
           ? 1.7
           : u.classId === "captain"
             ? 1.75

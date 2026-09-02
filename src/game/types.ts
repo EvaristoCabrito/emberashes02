@@ -30,7 +30,7 @@ export type ClassId =
   | "soldier"
   | "brigand"
   | "captain"
-  | "sorcerer"
+  | "cultist"
   | "horror"
   | "pikeman"
   | "wardog"
@@ -45,7 +45,7 @@ export type ClassId =
   // spell-slot progression only. Combat stats, real art and the promotion quest come later.
   | "elementalist"
   | "warlock"
-  | "conjurerSorcerer"
+  | "sorcerer"
   | "necromancer"
   | "cleric"
   | "bishop"
