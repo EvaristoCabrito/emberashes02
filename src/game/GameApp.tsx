@@ -214,6 +214,7 @@ export function GameApp() {
   const [lastLoot, setLastLoot] = useState<string[]>([]);
   const [pendingPromotions, setPendingPromotions] = useState<{ name: string; options: [ClassId, ClassId] }[]>([]);
   const [testMode, setTestMode] = useState(false);
+  const [testEmber, setTestEmber] = useState(TEST_EMBER);
   const awardedRef = useRef<string | null>(null);
   const combatStartRef = useRef<SaveData | null>(null);
   const [slotMode, setSlotMode] = useState<"new" | "continue" | "save" | "load" | null>(null);
@@ -565,6 +566,7 @@ export function GameApp() {
           onTest={() => {
             bootAudio();
             setTestMode(true);
+            setTestEmber(TEST_EMBER);
             setLastGrowth(null);
             setLastLoot([]);
             setMissionId(null);
@@ -595,7 +597,7 @@ export function GameApp() {
         <CampaignScreen
           completed={save.completed}
           test={testMode}
-          ember={testMode ? TEST_EMBER : (save.ember ?? 0)}
+          ember={testMode ? testEmber : (save.ember ?? 0)}
           onBack={() => setScreen("title")}
           onPick={openMission}
         />
@@ -608,12 +610,12 @@ export function GameApp() {
       {screen === "inn" && (
         <InnScreen
           bags={save.bags}
-          ember={testMode ? TEST_EMBER : (save.ember ?? 0)}
+          ember={testMode ? testEmber : (save.ember ?? 0)}
           muted={muted}
           weapons={save.weapons}
           equipped={save.equipped}
           heroClass={Object.fromEntries(DEFAULT_HEROES.map((h) => [h.name, save.promotions[h.name] ?? h.classId]))}
-          save={testMode ? { ...save, ember: TEST_EMBER } : save}
+          save={testMode ? { ...save, ember: testEmber } : save}
           onMute={() => {
             unlockAudio();
             setMutedUi((v) => !v);
@@ -623,14 +625,14 @@ export function GameApp() {
             const rec = activeSave(bank);
             const w = WEAPONS[weaponId];
             if (!w || rec.weapons[weaponId] != null) return false;
-            const held = testMode ? TEST_EMBER : (rec.ember ?? 0);
+            const held = testMode ? testEmber : (rec.ember ?? 0);
             if (held < w.price) return false;
+            if (testMode) setTestEmber(held - w.price);
             persistCurrent({
               ...rec,
               ember: testMode ? rec.ember ?? 0 : held - w.price,
               emberSeeded: true,
               weapons: { ...rec.weapons, [weaponId]: 0 },
-              equipped: { ...rec.equipped, [hero]: weaponId },
               pendingMission: null,
             });
             return true;
@@ -645,8 +647,9 @@ export function GameApp() {
             const enh = rec.weapons[weaponId] ?? 0;
             if (enh >= WEAPON_MAX_ENH) return false;
             const cost = weaponEnhCost(enh + 1);
-            const held = testMode ? TEST_EMBER : (rec.ember ?? 0);
+            const held = testMode ? testEmber : (rec.ember ?? 0);
             if (held < cost) return false;
+            if (testMode) setTestEmber(held - cost);
             persistCurrent({
               ...rec,
               ember: testMode ? rec.ember ?? 0 : held - cost,
@@ -672,8 +675,9 @@ export function GameApp() {
               cost += LOCKPICK_PRICE * lockpicks;
               bag.lockpick = (bag.lockpick ?? 0) + lockpicks;
             }
-            const held = testMode ? TEST_EMBER : (rec.ember ?? 0);
+            const held = testMode ? testEmber : (rec.ember ?? 0);
             if (cost <= 0 || held < cost) return false;
+            if (testMode) setTestEmber(held - cost);
             persistCurrent({
               ...rec,
               ember: testMode ? rec.ember ?? 0 : held - cost,

@@ -348,7 +348,7 @@ function SmithPanel({
       setNote("Vargan recusou. Falta Ember.");
       return;
     }
-    setNote(`${WEAPONS[weaponId]!.name} comprada e equipada.`);
+    setNote(`${WEAPONS[weaponId]!.name} comprada. Equipe no saco quando quiser.`);
   };
 
   const equip = (weaponId: string) => {
