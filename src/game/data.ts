@@ -15,6 +15,8 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
   highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
   chest: { id: "chest", name: "Baú trancado", moveCost: 99, def: 0, atk: 0, passable: false },
   door: { id: "door", name: "Porta trancada", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
+  /** Pure void — a building block for closed/indoor maps: apaga o terreno e nem se atravessa, nem se vê através. */
+  void: { id: "void", name: "Vazio", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
 };
 
 // Footprint "tamanho tipo N" catalog: standard, reusable creature footprint shapes, named by
@@ -732,7 +734,7 @@ export function weaponDiceLabel(weaponId: string): string {
 }
 
 /** Ember cost of the Ferreiro's enhancement ranks +1..+5 (index 0 = cost of the first rank). */
-export const WEAPON_ENH_COST = [40, 70, 110, 160, 220];
+export const WEAPON_ENH_COST = [25, 50, 80, 150, 300];
 export const WEAPON_MAX_ENH = WEAPON_ENH_COST.length;
 
 export function weaponEnhCost(nextRank: number): number {
@@ -1191,6 +1193,7 @@ const CHAR: Record<string, TerrainId> = {
   s: "highruin",
   k: "chest",
   o: "door",
+  v: "void",
 };
 
 export function parseLayout(layout: string[]): TerrainId[] {
@@ -1218,6 +1221,7 @@ export const TILE_CHAR: Record<TerrainId, string> = {
   highruin: "s",
   chest: "k",
   door: "o",
+  void: "v",
 };
 
 export function isRangedWeapon(unit: { maxRange: number; mag: number }): boolean {
@@ -1239,6 +1243,7 @@ export function terrainNote(id: TerrainId): string | undefined {
   if (t.id === "barricade") return "não se atravessa · 3 hexes · de trás você atira · quem está atrás não é acertado";
   if (t.id === "chest") return "trancado · precisa de Gazua para abrir · pode conter Ember";
   if (t.id === "door") return "trancada · precisa de Gazua para abrir";
+  if (t.id === "void") return "vazio · não se atravessa, não se vê através · apaga o terreno pra fechar áreas indoor";
   return undefined;
 }
 

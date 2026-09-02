@@ -22,7 +22,7 @@ export interface Spells {
   tier10: number;
 }
 
-export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin" | "chest" | "door";
+export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin" | "chest" | "door" | "void";
 export type Side = "player" | "enemy";
 export type ClassId =
   | "swordsman"

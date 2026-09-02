@@ -958,7 +958,7 @@ function TitleScreen({
       <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-xl mx-auto w-full">
         <p className="text-sm tracking-[0.28em] uppercase text-muted mb-3">Táticas em cinzas</p>
         <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight leading-none mb-4">Ember</h1>
-        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.2333</p>
+        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.25</p>
         <p className="text-muted text-base leading-relaxed mb-8 max-w-md">
           Três sobreviventes. Um tabuleiro de guerra. Cada casa conta.
         </p>
@@ -1261,6 +1261,7 @@ const TERRAIN_SWATCH: Record<TerrainId, string> = {
   highruin: "#5f584c",
   chest: "#7a5c2e",
   door: "#4a3524",
+  void: "#050505",
 };
 
 function MapEditorScreen({
@@ -1551,7 +1552,10 @@ function MapEditorScreen({
           </p>
         )}
 
-        <div className="overflow-auto resize shrink-0 border border-border rounded-md p-2 bg-bg/40 h-[60vh] min-h-[320px] min-w-[280px]">
+        <div
+          className="overflow-auto resize shrink-0 border border-border rounded-md p-2 bg-bg/40 h-[60vh] min-h-[320px] min-w-[280px] [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-bg/60 [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full"
+          style={{ scrollbarWidth: "auto", scrollbarColor: "var(--color-border, #5a5a5a) transparent" }}
+        >
           <div
             className="grid gap-px w-max"
             style={{ gridTemplateColumns: `repeat(${draft.cols}, 22px)` }}
