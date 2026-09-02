@@ -402,7 +402,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   cleric: {
     id: "cleric",
-    name: "Cleric",
+    name: "Clérigo",
     role: "Promovido — Curandeiro",
     hp: 26,
     atk: 4,
