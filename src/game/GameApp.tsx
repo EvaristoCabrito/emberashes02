@@ -1474,7 +1474,7 @@ function MapEditorScreen({
           </p>
         )}
 
-        <div className="overflow-auto border border-border rounded-md p-2 bg-bg/40">
+        <div className="overflow-auto resize shrink-0 border border-border rounded-md p-2 bg-bg/40 h-[60vh] min-h-[320px] min-w-[280px]">
           <div
             className="grid gap-px w-max"
             style={{ gridTemplateColumns: `repeat(${draft.cols}, 22px)` }}
