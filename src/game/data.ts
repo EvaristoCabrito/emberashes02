@@ -13,6 +13,8 @@ export const TERRAIN: Record<TerrainId, TerrainDef> = {
   barricade: { id: "barricade", name: "Barricada", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
   highwood: { id: "highwood", name: "Tronco morto", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
   highruin: { id: "highruin", name: "Casa abandonada", moveCost: 2, def: 1, atk: 2, passable: true, height: 1 },
+  chest: { id: "chest", name: "Baú trancado", moveCost: 99, def: 0, atk: 0, passable: false },
+  door: { id: "door", name: "Porta trancada", moveCost: 99, def: 0, atk: 0, passable: false, blocksShot: true },
 };
 
 // Footprint "tamanho tipo N" catalog: standard, reusable creature footprint shapes, named by
@@ -580,8 +582,8 @@ export const POTIONS: Record<PotionId, PotionDef> = {
   disease: { id: "disease", name: "Poção De Curar Doenças", dice: 0, faces: 0, bonus: 0, effect: "disease" },
 };
 
-export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1 };
-export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0 };
+export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1, lockpick: 0 };
+export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
 export const BAG_MAX = 9;
 
 export const POTION_PRICE: Record<PotionId, number> = {
@@ -590,6 +592,9 @@ export const POTION_PRICE: Record<PotionId, number> = {
   potent: 14,
   disease: 10,
 };
+
+/** Preço modesto da Gazua na Estalagem (Brue). */
+export const LOCKPICK_PRICE = 6;
 
 export const EMBER_DROP: Partial<Record<ClassId, number>> = {
   soldier: 2,
@@ -1013,6 +1018,8 @@ const CHAR: Record<string, TerrainId> = {
   b: "barricade",
   d: "highwood",
   s: "highruin",
+  k: "chest",
+  o: "door",
 };
 
 export function parseLayout(layout: string[]): TerrainId[] {
@@ -1038,6 +1045,8 @@ export const TILE_CHAR: Record<TerrainId, string> = {
   barricade: "b",
   highwood: "d",
   highruin: "s",
+  chest: "k",
+  door: "o",
 };
 
 export function isRangedWeapon(unit: { maxRange: number; mag: number }): boolean {
@@ -1057,6 +1066,8 @@ export function terrainNote(id: TerrainId): string | undefined {
   const t = TERRAIN[id];
   if (t.height) return `${t.name} · +2 dano · arqueira +1 alcance`;
   if (t.id === "barricade") return "não se atravessa · 3 hexes · de trás você atira · quem está atrás não é acertado";
+  if (t.id === "chest") return "trancado · precisa de Gazua para abrir · pode conter Ember";
+  if (t.id === "door") return "trancada · precisa de Gazua para abrir";
   return undefined;
 }
 

@@ -1,6 +1,6 @@
 import type { GameArt, SpriteId, TerrainId } from "./types";
 
-const TILES: TerrainId[] = ["plains", "woods", "ruins", "water", "ember", "hill", "flame", "column", "nave", "barricade", "highwood", "highruin"];
+const TILES: TerrainId[] = ["plains", "woods", "ruins", "water", "ember", "hill", "flame", "column", "nave", "barricade", "highwood", "highruin", "chest", "door"];
 const SPRITES: SpriteId[] = ["kael", "nira", "voss", "salazar", "soldier", "brigand", "captain", "sorcerer", "horror", "pikeman", "wardog", "troll"];
 
 function loadImage(src: string): Promise<HTMLImageElement> {

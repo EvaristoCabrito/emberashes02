@@ -38,6 +38,7 @@ function cloneBags(src?: Record<string, Bag>): Record<string, Bag> {
       weak: clampInt(b.weak ?? (b as { high?: number }).high, 0, 9),
       potent: clampInt(b.potent, 0, 9),
       disease: clampInt(b.disease, 0, 9),
+      lockpick: clampInt(b.lockpick, 0, 9),
     };
   }
   return base;

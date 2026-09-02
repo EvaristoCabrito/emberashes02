@@ -5,6 +5,8 @@ export interface Bag {
   weak: number;
   potent: number;
   disease: number;
+  /** Gazuas: abrem baús e portas trancadas no mapa (não são poção, contam à parte). */
+  lockpick: number;
 }
 
 export interface Spells {
@@ -20,7 +22,7 @@ export interface Spells {
   tier10: number;
 }
 
-export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin";
+export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin" | "chest" | "door";
 export type Side = "player" | "enemy";
 export type ClassId =
   | "swordsman"
@@ -231,6 +233,7 @@ export interface HudSnapshot {
   terrain: TerrainHover | null;
   mode: InputMode;
   canAttack: boolean;
+  canLockpick: boolean;
   forecast: Forecast | null;
   turn: number;
   objective: string;

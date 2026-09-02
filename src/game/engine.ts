@@ -300,6 +300,8 @@ export class BattleEngine {
   private lastClickCell: Point | null = null;
   result: "victory" | "defeat" | null = null;
   banner: string | null = null;
+  /** Ember found in chests opened mid-battle; folded into the save's Ember total on victory. */
+  lootEmber = 0;
   tip: string | null;
   private lastTipSeen: string | null = null;
   private tipSetAt = 0;
@@ -406,6 +408,7 @@ export class BattleEngine {
       !selected.acted &&
       (this.attackFrom.size > 0 ||
         this.units.some((u) => u.alive && u.side !== selected.side && canHitFrom(selected, selected, u, this.tiles, this.cols)));
+    const canLockpick = !!selected && !selected.acted && selected.bag.lockpick > 0 && !!this.adjacentLock(selected);
     return {
       phase: this.phase,
       banner: this.banner,
@@ -424,6 +427,7 @@ export class BattleEngine {
         : null,
       mode: this.mode,
       canAttack,
+      canLockpick,
       forecast,
       turn: this.turn,
       objective: this.mission.objective,
@@ -471,8 +475,8 @@ export class BattleEngine {
     return out;
   }
 
-  remainingBags(): Record<string, { mid: number; weak: number; potent: number; disease: number }> {
-    const out: Record<string, { mid: number; weak: number; potent: number; disease: number }> = {};
+  remainingBags(): Record<string, Bag> {
+    const out: Record<string, Bag> = {};
     for (const u of this.units) {
       if (u.side !== "player") continue;
       out[u.name] = { ...u.bag };
@@ -1745,6 +1749,55 @@ export class BattleEngine {
       frame: 0,
     });
     this.tip = `${potionLabel(kind)} · +${gained} HP`;
+    this.finishAction(u);
+    sfxPlay.ui();
+  }
+
+  /** First adjacent locked chest/door around a unit's own tile, or null if none. */
+  private adjacentLock(u: Unit): Point | null {
+    for (const p of hexNeighbors(u.x, u.y)) {
+      if (!inBounds(p.x, p.y, this.cols, this.rows)) continue;
+      const t = tileAt(this.tiles, this.cols, p.x, p.y);
+      if (t === "chest" || t === "door") return p;
+    }
+    return null;
+  }
+
+  /** "Arrombar": spends a Gazua to open an adjacent locked chest/door. */
+  useLockpick(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.side !== "player" || !u.alive || u.acted) return;
+    if (this.mode !== "awaitAction" && this.mode !== "selected" && this.mode !== "awaitAttack" && this.mode !== "awaitSpell")
+      return;
+    if (this.phase !== "player" || this.result) return;
+    if (u.bag.lockpick <= 0) return;
+    const target = this.adjacentLock(u);
+    if (!target) return;
+    const i = target.y * this.cols + target.x;
+    const wasChest = this.tiles[i] === "chest";
+    this.tiles[i] = "plains";
+    u.bag.lockpick -= 1;
+    u.x = Math.round(u.drawX);
+    u.y = Math.round(u.drawY);
+    this.emitParticle({
+      x: target.x,
+      y: target.y,
+      vx: 0,
+      vy: -0.2,
+      life: 0,
+      max: 0.45,
+      size: 1,
+      color: "#d8b862",
+      kind: "impact",
+      frame: 0,
+    });
+    if (wasChest) {
+      const gain = 3 + Math.floor(this.rng() * 6);
+      this.lootEmber += gain;
+      this.tip = `${u.name} arrombou o baú · +${gain} Ember.`;
+    } else {
+      this.tip = `${u.name} arrombou a porta.`;
+    }
     this.finishAction(u);
     sfxPlay.ui();
   }

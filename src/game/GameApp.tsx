@@ -5,7 +5,7 @@ import { loadGameArt } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, BAG_MAX, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -31,6 +31,7 @@ function hudBlank(): HudSnapshot {
     terrain: null,
     mode: "idle",
     canAttack: false,
+    canLockpick: false,
     forecast: null,
     turn: 1,
     objective: "",
@@ -412,7 +413,7 @@ export function GameApp() {
         bags,
         levels,
         xp,
-        ember: (save.ember ?? 0) + loot,
+        ember: (save.ember ?? 0) + loot + engine.lootEmber,
         emberSeeded: true,
         muted,
         pendingMission: null,
@@ -587,7 +588,7 @@ export function GameApp() {
             setMutedUi((v) => !v);
           }}
           onLeave={() => setScreen("campaign")}
-          onPay={(hero: string, cart: Record<PotionId, number>) => {
+          onPay={(hero: string, cart: Record<PotionId, number>, lockpicks: number) => {
             const rec = activeSave(bank);
             let cost = 0;
             const bag = { ...(rec.bags[hero] ?? startingBags()[hero]) };
@@ -597,6 +598,11 @@ export function GameApp() {
               if ((bag[kind] ?? 0) + qty > BAG_MAX) return false;
               cost += POTION_PRICE[kind] * qty;
               bag[kind] = (bag[kind] ?? 0) + qty;
+            }
+            if (lockpicks > 0) {
+              if ((bag.lockpick ?? 0) + lockpicks > BAG_MAX) return false;
+              cost += LOCKPICK_PRICE * lockpicks;
+              bag.lockpick = (bag.lockpick ?? 0) + lockpicks;
             }
             const held = rec.ember ?? 0;
             if (cost <= 0 || held < cost) return false;
@@ -1176,6 +1182,8 @@ const TERRAIN_SWATCH: Record<TerrainId, string> = {
   barricade: "#5a4630",
   highwood: "#4a3f2a",
   highruin: "#5f584c",
+  chest: "#7a5c2e",
+  door: "#4a3524",
 };
 
 function MapEditorScreen({
@@ -1909,6 +1917,11 @@ function BattleScreen({
           {hud.mode === "awaitSpell" && (
             <Button size="sm" disabled={!hud.spellReady || hud.busy} onClick={() => engine.confirmSpell()}>
               Lançar
+            </Button>
+          )}
+          {hud.canLockpick && (
+            <Button size="sm" variant="quiet" disabled={!showAct || hud.busy} onClick={() => engine.useLockpick()}>
+              Arrombar
             </Button>
           )}
           <Button size="sm" variant="quiet" disabled={!showAct || hud.busy} onClick={() => engine.wait()}>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, POTION_PRICE, potionLabel } from "./data";
+import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, potionLabel } from "./data";
 import type { Bag, PotionId } from "./types";
 
 const NPCS = [
@@ -55,19 +55,20 @@ export function InnScreen({
   muted: boolean;
   onMute: () => void;
   onLeave: () => void;
-  onPay: (hero: string, cart: Record<PotionId, number>) => boolean;
+  onPay: (hero: string, cart: Record<PotionId, number>, lockpicks: number) => boolean;
 }) {
   const [npc, setNpc] = useState<(typeof NPCS)[number]>(NPCS[0]);
   const [hero, setHero] = useState<string>("Kael");
   const [cart, setCart] = useState<Record<PotionId, number>>({ ...EMPTY_CART });
+  const [lockpickQty, setLockpickQty] = useState(0);
   const [note, setNote] = useState<string | null>(null);
-  const bag = bags[hero] ?? { mid: 0, weak: 0, potent: 0, disease: 0 };
+  const bag = bags[hero] ?? { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
 
   const total = useMemo(
-    () => POTION_ORDER.reduce((n, kind) => n + cart[kind] * POTION_PRICE[kind], 0),
-    [cart],
+    () => POTION_ORDER.reduce((n, kind) => n + cart[kind] * POTION_PRICE[kind], 0) + lockpickQty * LOCKPICK_PRICE,
+    [cart, lockpickQty],
   );
-  const items = POTION_ORDER.reduce((n, kind) => n + cart[kind], 0);
+  const items = POTION_ORDER.reduce((n, kind) => n + cart[kind], 0) + lockpickQty;
   const remain = ember - total;
 
   const add = (kind: PotionId, delta: number) => {
@@ -80,6 +81,15 @@ export function InnScreen({
     });
   };
 
+  const addLockpick = (delta: number) => {
+    setNote(null);
+    setLockpickQty((prev) => {
+      const next = Math.max(0, prev + delta);
+      const cap = Math.max(0, BAG_MAX - (bag.lockpick ?? 0));
+      return Math.min(next, cap);
+    });
+  };
+
   const pay = () => {
     if (items <= 0) {
       setNote("Nada no copo.");
@@ -89,12 +99,13 @@ export function InnScreen({
       setNote(`Faltam ${-remain} Ember.`);
       return;
     }
-    const ok = onPay(hero, cart);
+    const ok = onPay(hero, cart, lockpickQty);
     if (!ok) {
       setNote("Brue recusou. Ember ou espaço.");
       return;
     }
     setCart({ ...EMPTY_CART });
+    setLockpickQty(0);
     setNote("Pago. Os frascos foram para o saco.");
   };
 
@@ -150,6 +161,7 @@ export function InnScreen({
                   onClick={() => {
                     setHero(name);
                     setCart({ ...EMPTY_CART });
+                    setLockpickQty(0);
                     setNote(null);
                   }}
                 >
@@ -186,6 +198,27 @@ export function InnScreen({
                   </div>
                 );
               })}
+              <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                <img src="/game/icons/lockpick.png" alt="" className="size-6 rounded-sm object-cover" />
+                <span className="flex-1 text-sm min-w-0">
+                  Gazua
+                  <span className="block text-[11px] text-muted tabular-nums">
+                    saco ×{bag.lockpick ?? 0} · {LOCKPICK_PRICE} Ember
+                  </span>
+                </span>
+                <button type="button" className="size-8 grid place-items-center rounded-md border border-border" onClick={() => addLockpick(-1)} disabled={lockpickQty <= 0}>
+                  −
+                </button>
+                <span className="w-6 text-center text-sm tabular-nums">{lockpickQty}</span>
+                <button
+                  type="button"
+                  className="size-8 grid place-items-center rounded-md border border-border"
+                  onClick={() => addLockpick(1)}
+                  disabled={(bag.lockpick ?? 0) + lockpickQty >= BAG_MAX}
+                >
+                  +
+                </button>
+              </div>
             </div>
             <p className={`text-sm tabular-nums ${remain < 0 ? "text-danger" : "text-muted"}`}>
               Conta {total} Ember · restam {remain}
