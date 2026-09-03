@@ -256,34 +256,34 @@ function getTrack(theme: Theme): HTMLAudioElement | null {
   if (typeof Audio === "undefined") return null;
   if (theme === "intro") return menuElement();
   if (theme === "temple") {
-    if (!templeEl) templeEl = attachTrack(new Audio("/game/temple.mp3"), 0.42);
+    if (!templeEl) templeEl = attachTrack(new Audio("/game/music/temple.mp3"), 0.42);
     return templeEl;
   }
   if (theme === "aldeia") {
-    if (!aldeiaEl) aldeiaEl = attachTrack(new Audio("/game/aldeia.mp3?v=2"), 0.4);
+    if (!aldeiaEl) aldeiaEl = attachTrack(new Audio("/game/music/aldeia.mp3?v=2"), 0.4);
     return aldeiaEl;
   }
   if (theme === "siege") {
-    if (!siegeEl) siegeEl = attachTrack(new Audio("/game/siege.mp3"), 0.4);
+    if (!siegeEl) siegeEl = attachTrack(new Audio("/game/music/siege.mp3"), 0.4);
     return siegeEl;
   }
   if (theme === "inn") {
-    if (!innEl) innEl = attachTrack(new Audio("/game/inn.mp3"), 0.4);
+    if (!innEl) innEl = attachTrack(new Audio("/game/music/inn.mp3"), 0.4);
     return innEl;
   }
   if (theme === "hill") {
-    if (!hillEl) hillEl = attachTrack(new Audio("/game/hill.mp3"), 0.4);
+    if (!hillEl) hillEl = attachTrack(new Audio("/game/music/hill.mp3"), 0.4);
     return hillEl;
   }
   if (theme === "portao") {
-    if (!portaoEl) portaoEl = attachTrack(new Audio("/game/portao.mp3"), 0.4);
+    if (!portaoEl) portaoEl = attachTrack(new Audio("/game/music/portao.mp3"), 0.4);
     return portaoEl;
   }
   if (theme === "early") {
-    if (!earlyEl) earlyEl = attachTrack(new Audio("/game/early.mp3"), 0.4);
+    if (!earlyEl) earlyEl = attachTrack(new Audio("/game/music/early.mp3"), 0.4);
     return earlyEl;
   }
-  if (!battleEl) battleEl = attachTrack(new Audio("/game/music.mp3"), 0.4);
+  if (!battleEl) battleEl = attachTrack(new Audio("/game/music/music.mp3"), 0.4);
   return battleEl;
 }
 
@@ -292,14 +292,14 @@ function menuElement(): HTMLAudioElement | null {
   if (typeof document !== "undefined") {
     document.querySelectorAll("audio").forEach((node) => {
       if (node === introEl) return;
-      if (node.id === "ember-intro" || /\/game\/intro\.(wav|mp3)/.test(node.src)) {
+      if (node.id === "ember-intro" || /\/game\/music\/intro\.(wav|mp3)/.test(node.src)) {
         node.pause();
         node.remove();
       }
     });
   }
   if (introEl) return introEl;
-  const node = new Audio("/game/intro.wav");
+  const node = new Audio("/game/music/intro.wav");
   node.id = "ember-intro";
   node.loop = true;
   node.preload = "auto";

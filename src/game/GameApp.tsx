@@ -88,18 +88,18 @@ function locationStatus(loc: WorldLocation, completed: string[], test: boolean):
 }
 
 const BRIEF_ART: Record<string, string> = {
-  vau: "/game/brief-vau.jpg",
-  bosque: "/game/brief-bosque.jpg?v=2",
-  aldeia: "/game/brief-aldeia.jpg",
-  muralha: "/game/brief-muralha.jpg",
-  fortaleza: "/game/brief-fortaleza.jpg",
-  templo: "/game/brief-templo.jpg",
-  cripta: "/game/brief-cripta.jpg",
-  estalagem: "/game/brief-estalagem.jpg",
-  colina: "/game/brief-colina.jpg",
-  passagem: "/game/brief-passagem.jpg?v=2",
-  vertente: "/game/brief-vertente.jpg?v=2",
-  portao: "/game/brief-portao.jpg",
+  vau: "/game/assets/brief-vau.jpg",
+  bosque: "/game/assets/brief-bosque.jpg?v=2",
+  aldeia: "/game/assets/brief-aldeia.jpg",
+  muralha: "/game/assets/brief-muralha.jpg",
+  fortaleza: "/game/assets/brief-fortaleza.jpg",
+  templo: "/game/assets/brief-templo.jpg",
+  cripta: "/game/assets/brief-cripta.jpg",
+  estalagem: "/game/assets/brief-estalagem.jpg",
+  colina: "/game/assets/brief-colina.jpg",
+  passagem: "/game/assets/brief-passagem.jpg?v=2",
+  vertente: "/game/assets/brief-vertente.jpg?v=2",
+  portao: "/game/assets/brief-portao.jpg",
 };
 
 function briefArt(id: string): string | null {

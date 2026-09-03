@@ -2110,7 +2110,7 @@ export function missionById(id: string): Mission | undefined {
 }
 
 /** Campaign world map markers, positioned (percent x/y, 0-100) against the real map art
- * at public/game/world-map.jpg, pinned to that art's own labels per direct instruction:
+ * at public/game/assets/world-map.jpg, pinned to that art's own labels per direct instruction:
  * Stone Bridge (missions 1-2), the first of the two "Ruins" (missions 4-6), the Inn
  * (mission 8), Cemetery (the rest of the early/mid missions not otherwise placed: Aldeia
  * Queimada, Cripta de Cinzas, Colina Morta, Passagem Antiga), and the Fortified Temple

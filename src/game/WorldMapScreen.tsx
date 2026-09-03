@@ -130,7 +130,7 @@ export function WorldMapScreen({
         <div className="relative inline-block m-2" style={{ width: artOk ? `${ZOOM_STOPS[zoomIdx]}%` : undefined }}>
           {artOk ? (
             <img
-              src="/game/world-map.jpg"
+              src="/game/assets/world-map.jpg"
               alt=""
               className="block w-full h-auto rounded-lg select-none"
               draggable={false}

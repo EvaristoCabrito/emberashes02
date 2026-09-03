@@ -224,7 +224,7 @@ export function BackpackScreen({
       }}
     >
       <div className="relative w-full max-w-md max-h-[88dvh] overflow-y-auto border border-border rounded-xl p-5">
-        <img src="/game/backpack-bg.jpg" alt="" className="absolute inset-0 h-full w-full object-cover rounded-xl blur-[5px] scale-110 -z-10" />
+        <img src="/game/assets/backpack-bg.jpg" alt="" className="absolute inset-0 h-full w-full object-cover rounded-xl blur-[5px] scale-110 -z-10" />
         <div className="absolute inset-0 bg-bg/55 rounded-xl -z-10" />
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>

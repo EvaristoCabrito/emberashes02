@@ -74,7 +74,7 @@
 }
 
 .title-hero {
-  background-image: url("/game/title-bg.jpg");
+  background-image: url("/game/assets/title-bg.jpg");
   background-size: cover;
   background-position: center 42%;
 }
