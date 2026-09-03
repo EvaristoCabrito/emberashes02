@@ -5,10 +5,11 @@ import type { Mission, WorldLocation } from "./types";
 
 export type LocationStatus = "locked" | "available" | "done";
 
-/** Three zoom stops, as a percent width of the scroll viewport — bigger than "fit the
- * whole map on screen" even at the lowest stop, so the map reads clearly on a phone and
- * panning/scrolling is the normal way to explore it, not an edge case. */
-const ZOOM_STOPS = [130, 190, 260];
+/** Three zoom stops, as a percent width of the scroll viewport, ascending from most
+ * zoomed-out to most zoomed-in. The map opens at the LAST (biggest) stop — that's as
+ * close as it should ever get — and the zoom control only zooms OUT from there to show
+ * more of the surrounding map, never further in. */
+const ZOOM_STOPS = [90, 110, 130];
 
 /** Campaign world map: one marker per WorldLocation, positioned by its x/y percent over
  * the map art. A single-mission location jumps straight to its briefing on click; a
@@ -51,7 +52,7 @@ export function WorldMapScreen({
   const [open, setOpen] = useState<WorldLocation | null>(null);
   const [artOk, setArtOk] = useState(true);
   const [flashId, setFlashId] = useState<string | null>(null);
-  const [zoomIdx, setZoomIdx] = useState(0);
+  const [zoomIdx, setZoomIdx] = useState(ZOOM_STOPS.length - 1);
   const [dragging, setDragging] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   // Mouse click-and-hold panning (touch already pans natively via the browser's own
