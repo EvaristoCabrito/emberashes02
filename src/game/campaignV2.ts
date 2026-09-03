@@ -223,7 +223,35 @@ function stripFunkyTerrain(mission: Mission): Mission {
 
   const cap = totalWr > 0 ? Math.min(8, Math.max(2, Math.floor(totalWr / 6))) : 0;
   const placedTrees = placeInClusters(woodClusters, TREE_DECOS, cap);
-  placeInClusters(ruinClusters, RUIN_DECOS, Math.max(0, cap - placedTrees) + (placedTrees < cap ? 2 : 0));
+  const placedRuins = placeInClusters(ruinClusters, RUIN_DECOS, Math.max(0, cap - placedTrees) + (placedTrees < cap ? 2 : 0));
+
+  // A map with no wood/ruin clutter to begin with (e.g. "A Passagem Antiga") got zero
+  // decorations above — cap is 0 when there's nothing to convert. Top it up straight onto
+  // open ground so every V2 map ends up dressed, not just the ones that already had funky
+  // tiles to work with.
+  if (placedTrees + placedRuins < 3) {
+    const openGround: Cell[] = [];
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const k = `${x},${y}`;
+        if (grid[y][x] === "." && !spawnSet.has(k) && !blockedExtra.has(k)) openGround.push([x, y]);
+      }
+    }
+    const rng = mulberry32(seedFromId(`${mission.id}-deco`));
+    for (let i = openGround.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [openGround[i], openGround[j]] = [openGround[j], openGround[i]];
+    }
+    const pool = [...TREE_DECOS, ...RUIN_DECOS];
+    let placed = 0;
+    const budget = 4;
+    for (const anchor of openGround) {
+      if (placed >= budget) break;
+      const offset = placed % pool.length;
+      const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
+      if (tryPlaceOne(anchor, rotated)) placed += 1;
+    }
+  }
 
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
