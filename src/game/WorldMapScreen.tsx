@@ -91,12 +91,12 @@ export function WorldMapScreen({
                     }
                     if (missions[0]) onPick(missions[0].id);
                   }}
-                  className="group absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1"
+                  className="group absolute -translate-x-1/2 -translate-y-1/2"
                   style={{ left: `${loc.x}%`, top: `${loc.y}%` }}
                   aria-label={st === "locked" ? `${loc.name} (bloqueado)` : loc.name}
                 >
                   <span
-                    className={`size-9 rounded-full border-2 grid place-items-center bg-bg/80 transition-transform group-hover:scale-110 ${
+                    className={`relative size-9 rounded-full border-2 grid place-items-center bg-bg/80 transition-transform group-hover:scale-110 ${
                       st === "locked"
                         ? `border-border opacity-50 ${loc.id === flashId ? "locked-flash" : ""}`
                         : st === "done"
@@ -113,14 +113,11 @@ export function WorldMapScreen({
                     ) : (
                       <MapPin className="size-4 text-accent" />
                     )}
-                  </span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-sm text-[11px] leading-tight whitespace-nowrap bg-bg/80 border border-border ${
-                      st === "locked" ? "text-muted" : "text-fg/90"
-                    }`}
-                  >
-                    {loc.name}
-                    {multi && <span className="text-muted"> · {missions.length}</span>}
+                    {multi && (
+                      <span className="absolute -top-1.5 -right-1.5 size-4 rounded-full bg-bg border border-border text-[10px] leading-none grid place-items-center text-fg/90">
+                        {missions.length}
+                      </span>
+                    )}
                   </span>
                 </button>
               );
