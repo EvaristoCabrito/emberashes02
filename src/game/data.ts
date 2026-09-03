@@ -884,28 +884,65 @@ export const EQUIPMENT_SLOTS: { id: EquipSlot; label: string }[] = [
 ];
 
 export const EQUIPMENT: Record<string, EquipmentDef> = {
-  broquel: {
-    id: "broquel",
-    name: "Broquel",
-    slot: "offHand",
-    kind: "shield",
-    usableBy: ["swordsman", "heavyKnight", "paladin"],
-    def: 1,
-    price: 60,
-  },
-  "adaga-secundaria": {
-    id: "adaga-secundaria",
-    name: "Adaga Secundária",
-    slot: "offHand",
-    kind: "weapon",
-    usableBy: ["archer", "assassin", "rogue"],
-    dice: 1,
-    faces: 4,
-    bonus: 0,
-    minRange: 1,
-    maxRange: 1,
-    price: 70,
-  },
+  // ---- offHand: shields (Shield Bash), the dmgMul ladder climbs from a real penalty to
+  // none at all on the strongest ("it will scale all the way to no penalty").
+  broquel: { id: "broquel", name: "Broquel", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 1, dmgMul: 0.5, price: 60 },
+  "shield-buckler": { id: "shield-buckler", name: "Broquel de Aço", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 1, dmgMul: 0.6, price: 90 },
+  "shield-round": { id: "shield-round", name: "Escudo Redondo", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 2, dmgMul: 0.7, price: 150 },
+  "shield-heater": { id: "shield-heater", name: "Escudo em Coração", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 2, dmgMul: 0.8, price: 220 },
+  "shield-kite": { id: "shield-kite", name: "Escudo em Pipa", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 3, dmgMul: 0.9, price: 320 },
+  "shield-tower": { id: "shield-tower", name: "Escudo Torre", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 4, dmgMul: 1, price: 450 },
+  // ---- offHand: light weapon (off-hand attack, no Shield Bash)
+  "adaga-secundaria": { id: "adaga-secundaria", name: "Adaga Secundária", slot: "offHand", kind: "weapon", usableBy: ["archer", "assassin", "rogue"], dice: 1, faces: 4, bonus: 0, minRange: 1, maxRange: 1, price: 70 },
+
+  // ---- head
+  hood: { id: "hood", name: "Capuz", slot: "head", res: 1, price: 40 },
+  cowl: { id: "cowl", name: "Cogula Reforçada", slot: "head", def: 1, res: 1, price: 55 },
+  barbute: { id: "barbute", name: "Barbuta", slot: "head", def: 2, price: 90 },
+  sallet: { id: "sallet", name: "Elmo Salade", slot: "head", def: 3, price: 140 },
+  "heavy-war-helmet": { id: "heavy-war-helmet", name: "Elmo de Guerra Pesado", slot: "head", def: 4, price: 200 },
+  "great-helm": { id: "great-helm", name: "Elmo de Grande Porte", slot: "head", def: 5, price: 260 },
+
+  // ---- legs
+  "studded-leather-pants": { id: "studded-leather-pants", name: "Calças de Couro Cravejado", slot: "legs", def: 1, mov: 1, price: 60 },
+  "chainmail-leggings": { id: "chainmail-leggings", name: "Grevas de Malha", slot: "legs", def: 2, price: 110 },
+  "plate-greaves": { id: "plate-greaves", name: "Grevas de Placas", slot: "legs", def: 3, price: 170 },
+  "plate-legs": { id: "plate-legs", name: "Perneiras de Placas Completas", slot: "legs", def: 4, mov: -1, price: 230 },
+
+  // ---- feet
+  "worn-leather-boots": { id: "worn-leather-boots", name: "Botas de Couro Gastas", slot: "feet", mov: 1, price: 35 },
+  "worn-mud-boots": { id: "worn-mud-boots", name: "Botas Enlameadas", slot: "feet", def: 1, price: 45 },
+  "buckled-leather-boots": { id: "buckled-leather-boots", name: "Botas de Fivela", slot: "feet", def: 1, mov: 1, price: 70 },
+  "steel-sabatons": { id: "steel-sabatons", name: "Solerets de Aço", slot: "feet", def: 2, price: 110 },
+
+  // ---- hands
+  "chainmail-gloves": { id: "chainmail-gloves", name: "Luvas de Malha", slot: "hands", def: 1, mag: 1, price: 65 },
+  "studded-gauntlets": { id: "studded-gauntlets", name: "Manoplas Cravejadas", slot: "hands", atk: 1, price: 90 },
+  "plate-gauntlets": { id: "plate-gauntlets", name: "Manoplas de Placas", slot: "hands", atk: 1, def: 2, price: 150 },
+  "spiked-gauntlet": { id: "spiked-gauntlet", name: "Manopla Cravada Brutal", slot: "hands", atk: 3, def: 1, price: 220 },
+
+  // ---- back (cloak)
+  "ornamental-cloak-clasp": { id: "ornamental-cloak-clasp", name: "Fivela de Capa Ornamentada", slot: "back", mov: 1, res: 1, price: 90 },
+
+  // ---- waist
+  "plain-leather-belt": { id: "plain-leather-belt", name: "Cinto de Couro Simples", slot: "waist", hp: 2, price: 30 },
+  "heavy-iron-buckle": { id: "heavy-iron-buckle", name: "Fivela de Ferro Pesada", slot: "waist", def: 1, price: 45 },
+  "small-leather-pouch": { id: "small-leather-pouch", name: "Bolsa de Couro Pequena", slot: "waist", hp: 3, price: 50 },
+  "double-buckle-belt": { id: "double-buckle-belt", name: "Cinto de Fivela Dupla", slot: "waist", def: 1, hp: 2, price: 70 },
+  "ornate-dagger-belt": { id: "ornate-dagger-belt", name: "Cinturão Ornamentado com Bainha", slot: "waist", atk: 1, price: 90 },
+  "utility-pouch-belt": { id: "utility-pouch-belt", name: "Cinturão de Utilidades", slot: "waist", atk: 1, hp: 2, price: 120 },
+
+  // ---- neck (holy/arcane trinkets)
+  amulet: { id: "amulet", name: "Amuleto de Cordão de Couro", slot: "neck", mag: 1, price: 70 },
+  "weathered-medallion": { id: "weathered-medallion", name: "Medalhão Desgastado", slot: "neck", res: 2, price: 80 },
+  "heavy-metal-pendant": { id: "heavy-metal-pendant", name: "Pingente de Metal Pesado", slot: "neck", def: 1, res: 1, price: 100 },
+
+  // ---- rings (magic items, ring1/ring2 share this pool — see offHandBlocked usage note)
+  "plain-iron-ring": { id: "plain-iron-ring", name: "Anel de Ferro Simples", slot: "ring1", hp: 3, price: 40 },
+  "silver-signet-ring": { id: "silver-signet-ring", name: "Anel de Sinete de Prata", slot: "ring1", atk: 1, price: 90 },
+  "heavy-steel-ring": { id: "heavy-steel-ring", name: "Anel de Aço Pesado", slot: "ring1", def: 1, res: 1, price: 150 },
+  "blackened-iron-ring": { id: "blackened-iron-ring", name: "Anel de Ferro Enegrecido", slot: "ring1", mag: 2, price: 220 },
+  "ancient-gold-ring": { id: "ancient-gold-ring", name: "Anel de Ouro Ancestral", slot: "ring1", atk: 1, mag: 1, def: 1, price: 320 },
 };
 
 /** Whether a class's main-hand weapon choice blocks the offHand slot — true when it's a
@@ -913,6 +950,18 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
 export function offHandBlocked(mainHandWeaponId: string | null): boolean {
   const w = mainHandWeaponId ? WEAPONS[mainHandWeaponId] : null;
   return !!w?.twoHanded;
+}
+
+/** Short "+N STAT" summary line for a passive-stat EquipmentDef, classic-RPG-tooltip style. */
+export function equipmentStatSummary(it: EquipmentDef): string {
+  const parts: string[] = [];
+  if (it.hp) parts.push(`${it.hp > 0 ? "+" : ""}${it.hp} HP`);
+  if (it.atk) parts.push(`${it.atk > 0 ? "+" : ""}${it.atk} AT`);
+  if (it.mag) parts.push(`${it.mag > 0 ? "+" : ""}${it.mag} MAG`);
+  if (it.def) parts.push(`${it.def > 0 ? "+" : ""}${it.def} DF`);
+  if (it.res) parts.push(`${it.res > 0 ? "+" : ""}${it.res} RES`);
+  if (it.mov) parts.push(`${it.mov > 0 ? "+" : ""}${it.mov} Mov`);
+  return parts.join(" · ");
 }
 
 export function equipmentIcon(id: string): string {

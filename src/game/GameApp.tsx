@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, weightedWeaponPick, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, weightedWeaponPick, type SpellTier } from "./data";
 import { MISSIONS_V2 } from "./campaignV2";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
@@ -2456,7 +2456,11 @@ function BattleScreen({
               variant="quiet"
               disabled={!showAct || hud.busy || hud.mode === "awaitSpell"}
               onClick={() => engine.startOffHand()}
-              title={hud.offHandKind === "shield" ? "75% do dano normal · 70% de chance de atordoar por 1 turno" : "Ataca com a arma da mão secundária"}
+              title={
+                hud.offHandKind === "shield"
+                  ? `${Math.round((EQUIPMENT[unit?.offHandId ?? ""]?.dmgMul ?? 0.75) * 100)}% do dano normal · 70% de chance de atordoar por 1 turno`
+                  : "Ataca com a arma da mão secundária"
+              }
             >
               {hud.offHandKind === "shield" ? "Investida de Escudo" : "Mão Secundária"}
             </Button>

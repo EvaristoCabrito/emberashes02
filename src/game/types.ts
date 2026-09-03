@@ -307,15 +307,20 @@ export interface EquipmentDef {
   mov?: number;
   price?: number;
   /** offHand-slot items only: "weapon" grants an off-hand attack command (using this
-   * item's own dice/range below); "shield" grants Shield Bash instead (75% weapon damage,
-   * 70% chance to stun for the target's next turn). Both show as the command menu's first
-   * option, and both are blocked while the main hand holds a WeaponDef.twoHanded weapon. */
+   * item's own dice/range below); "shield" grants Shield Bash instead (this shield's own
+   * dmgMul, 70% chance to stun for the target's next turn). Both show as the command menu's
+   * first option, and both are blocked while the main hand holds a WeaponDef.twoHanded
+   * weapon. */
   kind?: "weapon" | "shield";
   dice?: number;
   faces?: number;
   bonus?: number;
   minRange?: number;
   maxRange?: number;
+  /** Shield Bash's damage multiplier for this specific shield — stronger shields close the
+   * gap toward 1 (no penalty at all on the best ones), instead of one flat rate for every
+   * shield. */
+  dmgMul?: number;
 }
 
 export interface Forecast {

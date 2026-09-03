@@ -2233,7 +2233,7 @@ export class BattleEngine {
     }
     this.mode = "locked";
     if (item.kind === "shield") {
-      this.queue.push({ type: "combat", att: unit.id, def: foe.id, dmgMul: 0.75, stunChance: 0.7 });
+      this.queue.push({ type: "combat", att: unit.id, def: foe.id, dmgMul: item.dmgMul ?? 0.75, stunChance: 0.7 });
     } else {
       this.queue.push({
         type: "combat",

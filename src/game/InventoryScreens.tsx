@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, equipmentIcon, heroRecruited, offHandBlocked, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
+import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, equipmentIcon, equipmentStatSummary, heroRecruited, offHandBlocked, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
 import type { ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
 const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
@@ -149,8 +149,11 @@ export function PaperDollScreen({
               <p className="text-sm text-muted">Arma principal de duas mãos — sem mão livre para a secundária.</p>
             ) : (
               (() => {
+                // Rings share one pool — every ring is authored under "ring1", but either
+                // finger slot can wear any of them.
+                const slotKey = picker === "ring2" ? "ring1" : picker;
                 const options = Object.values(EQUIPMENT).filter(
-                  (it) => it.slot === picker && (!it.usableBy || it.usableBy.includes(classId)),
+                  (it) => it.slot === slotKey && (!it.usableBy || it.usableBy.includes(classId)),
                 );
                 return options.length > 0 ? (
                   <div className="flex flex-col gap-1.5">
@@ -171,7 +174,11 @@ export function PaperDollScreen({
                           <span className="flex-1 text-sm min-w-0">
                             {it.name}
                             <span className="block text-[11px] text-muted">
-                              {it.kind === "shield" ? "Investida de Escudo · 75% dano · 70% atordoa" : it.kind === "weapon" ? `${it.dice}D${it.faces} · Mão secundária` : ""}
+                              {it.kind === "shield"
+                                ? `Investida de Escudo · ${Math.round((it.dmgMul ?? 0.75) * 100)}% dano · 70% atordoa`
+                                : it.kind === "weapon"
+                                  ? `${it.dice}D${it.faces} · Mão secundária`
+                                  : equipmentStatSummary(it)}
                             </span>
                           </span>
                           {equipped && <span className="text-[11px] text-muted shrink-0">Equipado</span>}
