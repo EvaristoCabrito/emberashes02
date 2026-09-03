@@ -27,7 +27,7 @@ export async function loadGameArt(): Promise<GameArt> {
   const tiles = {} as Record<TerrainId, HTMLImageElement>;
   await Promise.all(
     TILES.map(async (id) => {
-      tiles[id] = await loadImage(`/game/tiles/${id}.png?v=4`);
+      tiles[id] = await loadImage(`/game/tiles/${id}.png?v=5`);
     }),
   );
   const sprites = {} as Record<SpriteId, HTMLImageElement[]>;
