@@ -27,6 +27,7 @@ export function BattleCanvas({
     let running = true;
     let dragging = false;
     let dragged = false;
+    let mouseDown = false;
     let lastX = 0;
     let lastY = 0;
     const held = new Set<string>();
@@ -111,7 +112,19 @@ export function BattleCanvas({
       if (e.pointerType === "mouse" && e.button !== 0) return;
       const p = pos(e);
       if (e.pointerType === "mouse") {
-        engine.pointerDown(p.x, p.y, "click");
+        if (engine.getHud().mode === "awaitSpell") {
+          engine.pointerDown(p.x, p.y, "click");
+          return;
+        }
+        // Deferred to pointerup, same as touch: a held-and-dragged mouse pans the
+        // camera (see onMove/onUp) instead of immediately acting on the down-press.
+        mouseDown = true;
+        dragging = true;
+        dragged = false;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        canvas.setPointerCapture(e.pointerId);
+        canvas.style.cursor = "grabbing";
         return;
       }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -148,6 +161,17 @@ export function BattleCanvas({
       }
       const p = pos(e);
       const spell = engine.getHud().mode === "awaitSpell";
+      if (e.pointerType === "mouse" && mouseDown) {
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
+        if (dragged) {
+          engine.panBy(-dx, -dy);
+          lastX = e.clientX;
+          lastY = e.clientY;
+        }
+        return;
+      }
       if (dragging && e.pointerType !== "mouse" && !spell) {
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
@@ -167,7 +191,18 @@ export function BattleCanvas({
       }
     };
     const onUp = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") return;
+      if (e.pointerType === "mouse") {
+        canvas.style.cursor = "";
+        if (!mouseDown) return;
+        mouseDown = false;
+        dragging = false;
+        if (!dragged && !paused) {
+          const p = pos(e);
+          engine.pointerDown(p.x, p.y, "click");
+        }
+        dragged = false;
+        return;
+      }
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinchDist = 0;
       if (pinched) {

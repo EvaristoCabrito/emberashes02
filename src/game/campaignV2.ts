@@ -99,11 +99,32 @@ function seedFromId(id: string): number {
   return h >>> 0;
 }
 
+function chebyshev(a: Cell, b: Cell): number {
+  return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
+}
+
+function minDist(cell: Cell, pts: Cell[]): number {
+  return pts.length ? Math.min(...pts.map((p) => chebyshev(cell, p))) : Infinity;
+}
+
 /** Sprinkles a handful of lockable chests ("here and there", not blanket coverage) onto
- * open ground, spaced apart and never where they'd cut off a spawn — same BFS check as
- * decoration placement, since a chest is impassable terrain until picked. */
-function placeChests(grid: string[][], cols: number, rows: number, spawns: Cell[], spawnSet: Set<string>, blockedExtra: Set<string>, seed: number): void {
+ * open ground — spaced apart, never where they'd cut off a spawn (same BFS check as
+ * decoration placement, since a chest is impassable terrain until picked), and biased
+ * toward enemy territory: candidates are ranked by (distance from the nearest player
+ * spawn) minus (distance from the nearest enemy spawn), so a chest is worth fighting
+ * through the enemy line for, not a freebie sitting next to the party's own spawn. */
+function placeChests(
+  grid: string[][],
+  cols: number,
+  rows: number,
+  playerSpawns: Cell[],
+  enemySpawns: Cell[],
+  spawnSet: Set<string>,
+  blockedExtra: Set<string>,
+  seed: number,
+): void {
   const rng = mulberry32(seed);
+  const spawns = [...playerSpawns, ...enemySpawns];
   const candidates: Cell[] = [];
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
@@ -112,13 +133,22 @@ function placeChests(grid: string[][], cols: number, rows: number, spawns: Cell[
       candidates.push([x, y]);
     }
   }
-  for (let i = candidates.length - 1; i > 0; i--) {
+  // Highest score = farthest from the party, closest to the enemy. Sort descending, then
+  // only shuffle within that ranking's top half so results stay biased toward enemy
+  // territory but aren't always the single most extreme cell on the map.
+  candidates.sort((a, b) => {
+    const scoreA = minDist(a, playerSpawns) - minDist(a, enemySpawns);
+    const scoreB = minDist(b, playerSpawns) - minDist(b, enemySpawns);
+    return scoreB - scoreA;
+  });
+  const pool = candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)));
+  for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   const budget = Math.min(3, Math.max(1, Math.floor((cols * rows) / 150)));
   const placed: Cell[] = [];
-  for (const [cx, cy] of candidates) {
+  for (const [cx, cy] of pool) {
     if (placed.length >= budget) break;
     if (placed.some(([px, py]) => Math.max(Math.abs(px - cx), Math.abs(py - cy)) < 3)) continue;
     const candidate = new Set(blockedExtra);
@@ -134,10 +164,9 @@ function placeChests(grid: string[][], cols: number, rows: number, spawns: Cell[
 function stripFunkyTerrain(mission: Mission): Mission {
   const { cols, rows } = mission;
   const grid: string[][] = mission.layout.map((row) => row.split(""));
-  const spawns: Cell[] = [
-    ...mission.playerSpawns.map((s): Cell => [s.x, s.y]),
-    ...mission.enemySpawns.map((s): Cell => [s.x, s.y]),
-  ];
+  const playerSpawns: Cell[] = mission.playerSpawns.map((s): Cell => [s.x, s.y]);
+  const enemySpawns: Cell[] = mission.enemySpawns.map((s): Cell => [s.x, s.y]);
+  const spawns: Cell[] = [...playerSpawns, ...enemySpawns];
   const spawnSet = new Set(spawns.map(([x, y]) => `${x},${y}`));
 
   const woodClusters = floodClusters(grid, cols, rows, new Set(["w"])).sort((a, b) => b.length - a.length);
@@ -202,7 +231,7 @@ function stripFunkyTerrain(mission: Mission): Mission {
     }
   }
 
-  placeChests(grid, cols, rows, spawns, spawnSet, blockedExtra, seedFromId(mission.id));
+  placeChests(grid, cols, rows, playerSpawns, enemySpawns, spawnSet, blockedExtra, seedFromId(mission.id));
 
   return {
     ...mission,

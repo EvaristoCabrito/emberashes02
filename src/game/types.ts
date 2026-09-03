@@ -371,6 +371,8 @@ export interface HudSnapshot {
   spellKind: SpellKind | null;
   /** This round's turn order (both sides mixed), lowest initiative first. */
   turnQueue: { id: string; name: string; side: Side; acted: boolean; active: boolean }[];
+  /** Rolling combat log — attacks, spells, heals, kills, loot — newest last. */
+  log: string[];
 }
 
 export interface WalkDirs {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronLeft, Lock, MapPin, X, ZoomIn, ZoomOut } from "lucide-react";
 import { missionsForLocation } from "./data";
 import type { Mission, WorldLocation } from "./types";
@@ -38,7 +38,14 @@ export function WorldMapScreen({
   const [artOk, setArtOk] = useState(true);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [zoomIdx, setZoomIdx] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  // Mouse click-and-hold panning (touch already pans natively via the browser's own
+  // scroll gesture). Tracked in a ref, not state, so dragging doesn't re-render every
+  // pointermove — only the small "moved past the click threshold" flag matters for
+  // deciding whether to swallow the click that follows (so dragging over a location
+  // marker doesn't also fire its onClick).
+  const dragRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number; moved: boolean } | null>(null);
 
   // Re-center the view on every zoom change (and on first mount) so zooming in never stalls
   // the player at whatever corner they happened to be scrolled to.
@@ -48,6 +55,40 @@ export function WorldMapScreen({
     el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
     el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
   }, [zoomIdx]);
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "touch") return; // native touch scroll already handles this
+    const el = viewportRef.current;
+    if (!el) return;
+    dragRef.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, moved: false };
+    setDragging(true);
+    el.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    const el = viewportRef.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+    el.scrollLeft = d.scrollLeft - dx;
+    el.scrollTop = d.scrollTop - dy;
+  };
+  const endDrag = () => {
+    // Keep the ref (with its .moved flag) alive past pointerup — the click event that
+    // follows a drag fires just after, and onClickCapture below needs to see it. The next
+    // pointerdown always overwrites it with a fresh object either way.
+    setDragging(false);
+  };
+  // Swallow the click a drag ends on (capture phase, before it reaches a location marker's
+  // own onClick) so panning across a marker never also "clicks" it.
+  const onClickCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (dragRef.current?.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragRef.current = null;
+    }
+  };
 
   return (
     <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
@@ -77,8 +118,14 @@ export function WorldMapScreen({
        * percent-based marker coordinates land correctly at any zoom level. */}
       <div
         ref={viewportRef}
-        className="relative z-10 flex-1 min-h-0 overflow-auto overscroll-contain touch-pan-x touch-pan-y"
+        className={`relative z-10 flex-1 min-h-0 overflow-auto overscroll-contain touch-pan-x touch-pan-y select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
         style={{ WebkitOverflowScrolling: "touch" }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onPointerLeave={endDrag}
+        onClickCapture={onClickCapture}
       >
         <div className="relative inline-block m-2" style={{ width: artOk ? `${ZOOM_STOPS[zoomIdx]}%` : undefined }}>
           {artOk ? (

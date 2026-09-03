@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -348,8 +348,13 @@ export class BattleEngine {
   banner: string | null = null;
   /** Ember found in chests opened mid-battle; folded into the save's Ember total on victory. */
   lootEmber = 0;
-  /** Weapon ids found in chests opened mid-battle; folded into the save's weapon stash on victory. */
+  /** Weapon ids found in chests or off an enemy kill mid-battle; folded into the save's
+   * weapon stash on victory. */
   lootWeapons: string[] = [];
+  /** Rolling combat log — attacks, spells, heals, kills, and loot, newest last. Capped so
+   * a long battle doesn't grow it without bound; read via getHud() for the in-battle log
+   * view. */
+  log: string[] = [];
   tip: string | null;
   private lastTipSeen: string | null = null;
   private tipSetAt = 0;
@@ -515,6 +520,7 @@ export class BattleEngine {
           .filter((u): u is Unit => !!u && u.alive)
           .map((u) => ({ id: u.id, name: u.name, side: u.side, acted: u.moved, active: u.id === active?.id }));
       })(),
+      log: this.log,
     };
   }
 
@@ -792,9 +798,9 @@ export class BattleEngine {
           this.gainExp(actor, target.level, hit.dmg, killBonus);
         }
         this.spawnHit(target, hit.dmg, hit.crit);
+        this.pushLog(`${actor.name} atacou ${target.name}: ${hit.dmg} dano${hit.crit ? " (crítico)" : ""}`);
         if (target.hp <= 0) {
-          target.alive = false;
-          sfxPlay.death();
+          this.markDead(target);
         } else {
           sfxPlay.hit();
           if (a.stage === "hit") this.maybeInflictDisease(actor, target);
@@ -898,9 +904,9 @@ export class BattleEngine {
           this.gainExp(att, foe.level, dmg, killBonus);
         }
         this.spawnHit(foe, dmg, crit);
+        this.pushLog(`${att.name} atingiu ${foe.name} com magia: ${dmg} dano${crit ? " (crítico)" : ""}`);
         if (foe.hp <= 0) {
-          foe.alive = false;
-          sfxPlay.death();
+          this.markDead(foe);
         } else {
           sfxPlay.hit();
           if (a.echo) foe.shock = { ...a.echo };
@@ -951,6 +957,7 @@ export class BattleEngine {
         frame: 0,
       });
       this.tip = `${CURES[a.kind].name} · +${gained} HP`;
+      this.pushLog(`${att.name} curou ${target.name}: +${gained} HP`);
       sfxPlay.ui();
     }
     if (a.t >= 0.5) this.finishCombat(att);
@@ -1008,6 +1015,25 @@ export class BattleEngine {
    * landed hit counts on its own. Side-eligibility (don't gain XP for friendly fire) is the
    * caller's job, since the same helper also grants XP for healing your own side.
    */
+  private pushLog(line: string): void {
+    this.log.push(line);
+    if (this.log.length > 200) this.log.shift();
+  }
+
+  /** Single choke point for a unit's death: sfx, the log line, and — for an enemy — the
+   * kill-drop roll, so every death path (melee, counter, spell, lightning echo, tile
+   * hazard) behaves identically instead of four separate copies of the same logic. */
+  private markDead(u: Unit): void {
+    u.alive = false;
+    sfxPlay.death();
+    this.pushLog(`${u.name} foi derrotado.`);
+    if (u.side === "enemy" && this.rng() < 0.15) {
+      const id = weightedWeaponPick(this.rng);
+      this.lootWeapons.push(id);
+      this.pushLog(`Loot: ${WEAPONS[id]?.name ?? id}`);
+    }
+  }
+
   private gainExp(attacker: Unit, targetLevel: number, amount: number, multiplier = 1): void {
     if (amount <= 0 || attacker.side !== "player" || !attacker.alive) return;
     if (attacker.level >= MAX_LEVEL) return;
@@ -1178,10 +1204,10 @@ export class BattleEngine {
       u.flash = 1;
       this.spawnHit(u, dmg, false);
       this.tip = `Relâmpago · ${diceFormula(echo.dice, echo.faces, echo.bonus)} − RES`;
+      this.pushLog(`Eco de relâmpago em ${u.name}: ${dmg} dano`);
       sfxPlay.hit();
       if (u.hp <= 0) {
-        u.alive = false;
-        sfxPlay.death();
+        this.markDead(u);
       }
     }
     if (u.alive) this.applyTileHazard(u, { x: u.x, y: u.y });
@@ -1197,10 +1223,10 @@ export class BattleEngine {
     unit.hp = Math.max(0, unit.hp - dmg);
     unit.flash = 1;
     this.spawnHit(unit, dmg, false);
+    this.pushLog(`${terr.name} feriu ${unit.name}: ${dmg} dano`);
     sfxPlay.hit();
     if (unit.hp <= 0) {
-      unit.alive = false;
-      sfxPlay.death();
+      this.markDead(unit);
       this.onNextIdle = null;
     }
   }
@@ -1918,8 +1944,10 @@ export class BattleEngine {
         }
       }
       this.tip = found.length > 0 ? `${u.name} arrombou o baú · +${gain} Ember · achou ${found.join(", ")}.` : `${u.name} arrombou o baú · +${gain} Ember.`;
+      this.pushLog(this.tip);
     } else {
       this.tip = `${u.name} arrombou a porta.`;
+      this.pushLog(this.tip);
     }
     this.finishAction(u);
     sfxPlay.ui();
@@ -2155,6 +2183,14 @@ export class BattleEngine {
           return;
         }
       }
+      // Clicking the enemy already under inspection again closes it, same as clicking empty
+      // ground deselects a selected hero, instead of just re-inspecting a no-op.
+      if (this.inspectedId === here.id && !selected) {
+        this.inspectedId = null;
+        this.threat = [];
+        this.tip = null;
+        return;
+      }
       this.inspect(here);
       return;
     }
@@ -2166,6 +2202,11 @@ export class BattleEngine {
     }
     if (selected && this.mode === "awaitAction" && !here) {
       this.deselect();
+    }
+    if (!here && this.inspectedId && !selected) {
+      this.inspectedId = null;
+      this.threat = [];
+      this.tip = null;
     }
   }
 

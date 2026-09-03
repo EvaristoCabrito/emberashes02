@@ -51,6 +51,7 @@ function hudBlank(): HudSnapshot {
     spellReady: false,
     spellKind: null,
     turnQueue: [],
+    log: [],
   };
 }
 
@@ -2256,6 +2257,8 @@ function BattleScreen({
   onQuit: () => void;
 }) {
   const [showStatus, setShowStatus] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const logRef = useRef<HTMLDivElement | null>(null);
   const [invView, setInvView] = useState<"doll" | "pack" | null>(null);
   const [hotbars, setHotbars] = useState<Record<string, (SlotAction | null)[]>>({});
   const [editingSlots, setEditingSlots] = useState(false);
@@ -2263,6 +2266,9 @@ function BattleScreen({
   useEffect(() => {
     setHotbars(loadHotbars());
   }, []);
+  useEffect(() => {
+    if (showLog && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [showLog, hud.log.length]);
   const unit: UnitPublic | null = hud.selected ?? hud.pendingFoe ?? hud.inspected;
   const foe = hud.pendingFoe ?? (hud.inspected && hud.inspected.side === "enemy" && hud.selected ? hud.inspected : null);
   const showAct = hud.mode === "awaitAction" || hud.mode === "awaitAttack" || hud.mode === "selected" || hud.mode === "awaitSpell";
@@ -2412,38 +2418,59 @@ function BattleScreen({
                   }
                 />
               </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium truncate">
-                    {unit.name} · Nv {unit.level}
-                    {unit.side === "player" && (
-                      <span className="text-xs text-muted font-normal ml-1 align-middle tabular-nums">
-                        {unit.level >= MAX_LEVEL ? "· NÍVEL MÁX." : `· ${unit.xp}/${EXP_TO_LEVEL} XP`}
-                      </span>
+              <button
+                type="button"
+                onClick={() => setShowLog((v) => !v)}
+                className="min-w-0 flex-1 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                title={showLog ? "Ver status" : "Ver log de combate"}
+              >
+                {showLog ? (
+                  <div ref={logRef} className="h-16 sm:h-20 overflow-y-auto pr-1">
+                    {hud.log.length === 0 ? (
+                      <p className="text-[11px] text-muted">Nada aconteceu ainda.</p>
+                    ) : (
+                      hud.log.map((line, i) => (
+                        <p key={i} className="text-[11px] text-muted leading-snug">
+                          {line}
+                        </p>
+                      ))
                     )}
-                  </p>
-                  <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>
-                    {unit.className}
-                    {unit.diseased && <span className="text-danger"> · Doente</span>}
-                  </p>
-                </div>
-                <div className="mt-0.5 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 rounded-full bg-border overflow-hidden">
-                    <div
-                      className={`hp-fill h-full ${unit.side === "enemy" ? "bg-danger" : "bg-accent"}`}
-                      style={{ width: `${Math.max(0, (unit.hp / unit.maxHp) * 100)}%` }}
-                    />
                   </div>
-                  <p className="text-xs tabular-nums text-fg shrink-0">
-                    {unit.hp}/{unit.maxHp}
-                  </p>
-                </div>
-                <p className="text-[11px] tabular-nums text-muted leading-snug">
-                  {hud.forecast && foe
-                    ? `${hud.forecast.dmgOut} em ${foe.name}${hud.forecast.canCounter ? ` · contra ${hud.forecast.dmgBack}` : " · sem contra"}${hud.forecast.kill ? " · abate" : ""}`
-                    : sheetLine(unit)}
-                </p>
-              </div>
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm font-medium truncate">
+                        {unit.name} · Nv {unit.level}
+                        {unit.side === "player" && (
+                          <span className="text-xs text-muted font-normal ml-1 align-middle tabular-nums">
+                            {unit.level >= MAX_LEVEL ? "· NÍVEL MÁX." : `· ${unit.xp}/${EXP_TO_LEVEL} XP`}
+                          </span>
+                        )}
+                      </p>
+                      <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>
+                        {unit.className}
+                        {unit.diseased && <span className="text-danger"> · Doente</span>}
+                      </p>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 rounded-full bg-border overflow-hidden">
+                        <div
+                          className={`hp-fill h-full ${unit.side === "enemy" ? "bg-danger" : "bg-accent"}`}
+                          style={{ width: `${Math.max(0, (unit.hp / unit.maxHp) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs tabular-nums text-fg shrink-0">
+                        {unit.hp}/{unit.maxHp}
+                      </p>
+                    </div>
+                    <p className="text-[11px] tabular-nums text-muted leading-snug">
+                      {hud.forecast && foe
+                        ? `${hud.forecast.dmgOut} em ${foe.name}${hud.forecast.canCounter ? ` · contra ${hud.forecast.dmgBack}` : " · sem contra"}${hud.forecast.kill ? " · abate" : ""}`
+                        : sheetLine(unit)}
+                    </p>
+                  </>
+                )}
+              </button>
             </>
           ) : (
             <p className="text-xs text-muted">{hud.phase === "enemy" ? "O inimigo age…" : "Toque numa aliada ou num inimigo."}</p>
