@@ -1,4 +1,4 @@
-import type { Bag, ClassDef, ClassId, DecorationDef, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef, WorldLocation } from "./types";
+import type { Bag, ClassDef, ClassId, DecorationDef, DecorationPlacement, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef, WorldLocation } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -2103,39 +2103,52 @@ function stampTactics(m: Mission): Mission {
   return { ...m, layout };
 }
 
-/** Alternates which "column" art variant renders per pillar so a hall full of them (the
- * crypt, the carved cavern) doesn't read as the exact same marble-pillar sprite copy-
- * pasted everywhere. Grouped by the pillar's original pre-expansion 2x2 block (not per
- * rendered hex) so one logical pillar stays visually consistent across all 4 of its hexes
- * instead of being split down the middle. Column tiles elsewhere (e.g. the temple) are
- * untouched — this only applies to the two missions dense enough with them to notice. */
-const VARY_COLUMNS_FOR = new Set(["cripta", "passagem"]);
-function varyColumns(mission: Mission): Mission {
-  if (!VARY_COLUMNS_FOR.has(mission.id)) return mission;
-  const variants = new Array(mission.cols * mission.rows).fill(0);
-  // Assign a fresh alternating 0/1 per distinct block in raster-scan order — NOT a parity
-  // formula on the block's own coordinates, since in both these missions every pillar's
-  // raw x AND y happen to be odd, which cancels out any x+y or x*y parity check to a
-  // constant (caught by checking the actual output: every "variant" came out 0).
-  const blockVariant = new Map<string, number>();
+const ROCK_IDS = ["mountain-ridge", "spike-rocks", "broken-cliff-wall"];
+
+/** Replaces every "column" tile (a marble pillar rendered on its own patch of grass —
+ * looks absurd indoors, and doubly so on a plains/cave map that has no grass anywhere
+ * else) with rock-formation decorations instead, on every mission that uses columns at
+ * all, not just the worst offenders. Runs after expandMaps() specifically because a raw
+ * mission's single hex always doubles into a horizontally-adjacent PAIR of the same tile
+ * (expandMaps does `ch + ch` per character) — so working at the expanded grid means every
+ * column, however isolated it looked in the original hand-authored layout, already has a
+ * same-row neighbor to pair with here. That's what makes plain adjacent-pair matching
+ * enough: no leftover singles to fall back on, no footprint mismatch to design around.
+ * (An earlier pass tried placing decorations directly on the raw pre-expansion missions —
+ * their coordinates don't survive expandMaps(), which scales spawns but not decorations,
+ * so anything placed that way renders in the wrong spot. Doing it here, post-expansion,
+ * on real rendered coordinates, sidesteps that entirely.) */
+function rockifyColumns(mission: Mission): Mission {
+  if (mission.hub) return mission;
+  const grid = mission.layout.map((row) => row.split(""));
+  const fallbackFloor = mission.layout.some((row) => row.includes("n")) ? "n" : ".";
+  const decorations: DecorationPlacement[] = [...(mission.decorations ?? [])];
+  const claimed = new Set<string>();
   let next = 0;
   for (let y = 0; y < mission.rows; y++) {
-    for (let x = 0; x < mission.cols; x++) {
-      if (mission.layout[y]![x] !== "c") continue;
-      const key = `${Math.floor(x / 2)},${Math.floor(y / 2)}`;
-      let variant = blockVariant.get(key);
-      if (variant === undefined) {
-        variant = next % 2;
-        blockVariant.set(key, variant);
-        next += 1;
-      }
-      variants[y * mission.cols + x] = variant;
+    for (let x = 0; x < mission.cols - 1; x++) {
+      const key = `${x},${y}`;
+      if (grid[y]![x] !== "c" || claimed.has(key)) continue;
+      const rightKey = `${x + 1},${y}`;
+      if (grid[y]![x + 1] !== "c" || claimed.has(rightKey)) continue;
+      claimed.add(key);
+      claimed.add(rightKey);
+      decorations.push({ id: ROCK_IDS[next % ROCK_IDS.length]!, x, y });
+      next += 1;
     }
   }
-  return { ...mission, tileVariants: variants };
+  // Defensive fallback only — the doubling guarantee above means this should never fire,
+  // but an unpaired column left as-is would still be the exact sprite we're trying to
+  // get rid of, so any survivor becomes plain floor instead.
+  for (let y = 0; y < mission.rows; y++) {
+    for (let x = 0; x < mission.cols; x++) {
+      if (grid[y]![x] === "c" && !claimed.has(`${x},${y}`)) grid[y]![x] = fallbackFloor;
+    }
+  }
+  return { ...mission, layout: grid.map((row) => row.join("")), decorations };
 }
 
-export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(varyColumns);
+export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(rockifyColumns);
 
 export function missionById(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
