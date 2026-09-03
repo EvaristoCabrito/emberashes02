@@ -57,7 +57,7 @@ export type ClassId =
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
 export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "doubleStrike" | "cleave" | "cureDisease";
-export type ScreenId = "boot" | "title" | "campaign" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
+export type ScreenId = "boot" | "title" | "campaign" | "campaignV2" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitSpell" | "locked";
 

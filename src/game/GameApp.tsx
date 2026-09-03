@@ -7,6 +7,7 @@ import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { MISSIONS_V2 } from "./campaignV2";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -274,6 +275,9 @@ export function GameApp() {
   }, []);
 
   const [customMission, setCustomMission] = useState<Mission | null>(null);
+  // Where a playtested customMission should return to after battle — the Map Editor's own
+  // "Testar", or the Campanha V2 preview list. null clears alongside customMission.
+  const [customOrigin, setCustomOrigin] = useState<"editor" | "campaignV2" | null>(null);
   const mission = customMission && customMission.id === missionId ? customMission : missionId ? resolveMission(missionId) : undefined;
   const hasProgress = hasAnySave(bank);
 
@@ -309,7 +313,10 @@ export function GameApp() {
       // otherwise a stale customMission from an earlier Map Editor session can collide
       // with a real campaign mission of the same id (missionToDraft now targets the real
       // id for versioning) and reroute a normal victory back into the editor.
-      if (!override) setCustomMission(null);
+      if (!override) {
+        setCustomMission(null);
+        setCustomOrigin(null);
+      }
       const m = override ?? resolveMission(id);
       if (!m) return;
       const levels: Record<string, number> = testMode
@@ -489,6 +496,7 @@ export function GameApp() {
   const openMission = (id: string) => {
     bootAudio();
     setCustomMission(null);
+    setCustomOrigin(null);
     setMissionId(id);
     setScreen("briefing");
   };
@@ -604,6 +612,7 @@ export function GameApp() {
           onBack={() => setScreen("title")}
           onDebug={() => setScreen("campaign")}
           onMapEditor={() => setScreen("mapEditor")}
+          onCampaignV2={() => setScreen("campaignV2")}
         />
       )}
 
@@ -612,7 +621,26 @@ export function GameApp() {
           onBack={() => setScreen("testMenu")}
           onPlaytest={(m, playerLevels, enemyLevels) => {
             setCustomMission(m);
+            setCustomOrigin("editor");
             startBattle(m.id, {}, m, playerLevels, enemyLevels);
+          }}
+        />
+      )}
+
+      {screen === "campaignV2" && (
+        <CampaignScreen
+          missions={MISSIONS_V2}
+          completed={[]}
+          test
+          ember={testEmber}
+          onBack={() => setScreen("testMenu")}
+          onPick={(id) => {
+            const m = MISSIONS_V2.find((x) => x.id === id);
+            if (!m) return;
+            setCustomMission(m);
+            setCustomOrigin("campaignV2");
+            const levels = Object.fromEntries(m.playerSpawns.map((s) => [s.name, m.index + 1]));
+            startBattle(m.id, {}, m, levels, {});
           }}
         />
       )}
@@ -814,12 +842,14 @@ export function GameApp() {
           onMap={() => {
             if (customMission) {
               setCustomMission(null);
-              setScreen("mapEditor");
+              const origin = customOrigin;
+              setCustomOrigin(null);
+              setScreen(origin === "campaignV2" ? "campaignV2" : "mapEditor");
               return;
             }
             setScreen(testMode ? "campaign" : "worldMap");
           }}
-          mapLabel={customMission ? "Voltar ao editor" : undefined}
+          mapLabel={customMission ? (customOrigin === "campaignV2" ? "Voltar à Campanha V2" : "Voltar ao editor") : undefined}
           onTitle={() => setScreen("title")}
           onNext={() => {
             if (customMission) return;
@@ -851,11 +881,13 @@ export function GameApp() {
             customMission
               ? () => {
                   setCustomMission(null);
-                  setScreen("mapEditor");
+                  const origin = customOrigin;
+                  setCustomOrigin(null);
+                  setScreen(origin === "campaignV2" ? "campaignV2" : "mapEditor");
                 }
               : undefined
           }
-          mapLabel={customMission ? "Voltar ao editor" : undefined}
+          mapLabel={customMission ? (customOrigin === "campaignV2" ? "Voltar à Campanha V2" : "Voltar ao editor") : undefined}
           hasNext
           retry
         />
@@ -1154,7 +1186,17 @@ function HelpModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TestMenuScreen({ onBack, onDebug, onMapEditor }: { onBack: () => void; onDebug: () => void; onMapEditor: () => void }) {
+function TestMenuScreen({
+  onBack,
+  onDebug,
+  onMapEditor,
+  onCampaignV2,
+}: {
+  onBack: () => void;
+  onDebug: () => void;
+  onMapEditor: () => void;
+  onCampaignV2: () => void;
+}) {
   return (
     <section className="h-dvh min-h-0 flex flex-col bg-bg">
       <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 border-b border-border">
@@ -1182,6 +1224,14 @@ function TestMenuScreen({ onBack, onDebug, onMapEditor }: { onBack: () => void; 
         >
           <p className="font-display text-2xl leading-tight">Map Editor</p>
           <p className="text-sm text-muted mt-1">Pinta terreno, posiciona spawns, testa na hora e exporta pra colar no jogo.</p>
+        </button>
+        <button
+          type="button"
+          onClick={onCampaignV2}
+          className="text-left rounded-xl border border-border bg-bg/40 px-5 py-4 hover:border-accent"
+        >
+          <p className="font-display text-2xl leading-tight">Campanha V2</p>
+          <p className="text-sm text-muted mt-1">Mesmas 11 missões, sem bosque/ruínas de hex único — decorações no lugar. Alto, chama e brasa iguais.</p>
         </button>
       </div>
     </section>
@@ -2022,7 +2072,6 @@ function MapEditorScreen({
         <Button
           size="lg"
           className="w-full"
-          disabled={draft.playerSpawns.length === 0}
           onClick={() => {
             const playerLevels = Object.fromEntries(draft.playerSpawns.map((s) => [s.name, s.level]));
             const enemyLevels = Object.fromEntries(draft.enemySpawns.map((s) => [s.name, s.level]));
@@ -2061,12 +2110,14 @@ function MapEditorScreen({
 }
 
 function CampaignScreen({
+  missions = MISSIONS,
   completed,
   test,
   ember,
   onBack,
   onPick,
 }: {
+  missions?: Mission[];
   completed: string[];
   test: boolean;
   ember: number;
@@ -2086,7 +2137,7 @@ function CampaignScreen({
         <p className="text-sm tabular-nums text-muted border border-border rounded-md px-2 py-1">Ember {ember}</p>
       </header>
       <ol className="flex-1 min-h-0 overflow-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex flex-col gap-2">
-        {MISSIONS.map((m) => {
+        {missions.map((m) => {
           const lock = lockedMission(m.id, completed, test);
           const done = completed.includes(m.id);
           const openInn = !!m.hub && !lock;
