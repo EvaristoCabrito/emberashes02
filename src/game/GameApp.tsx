@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Pencil, RotateCcw, Swords, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loadGameArt, TILE_VARIANT_COUNT } from "./assets";
@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -21,7 +21,7 @@ import {
   writeSlot,
   selectSlot,
 } from "./save";
-import type { ClassId, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition } from "./types";
+import type { ClassId, DecorationPlacement, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition } from "./types";
 
 function hudBlank(): HudSnapshot {
   return {
@@ -1184,6 +1184,7 @@ interface MapDraft {
   /** Art variant per tile (same indexing as tiles) — which numbered version (01, 02, ...)
    * paints there. Defaults to 0 (the "01" file, safe for existing missions). */
   tileVariants: number[];
+  decorations: DecorationPlacement[];
   playerSpawns: DraftSpawn[];
   enemySpawns: DraftSpawn[];
 }
@@ -1206,6 +1207,7 @@ function blankDraft(): MapDraft {
     rows: EDITOR_ROWS_DEFAULT,
     tiles: Array.from({ length: EDITOR_COLS_DEFAULT * EDITOR_ROWS_DEFAULT }, () => "plains" as TerrainId),
     tileVariants: Array.from({ length: EDITOR_COLS_DEFAULT * EDITOR_ROWS_DEFAULT }, () => 0),
+    decorations: [],
     playerSpawns: [],
     enemySpawns: [],
   };
@@ -1231,6 +1233,7 @@ function missionToDraft(m: Mission): MapDraft {
     rows: m.rows,
     tiles: parseLayout(m.layout),
     tileVariants: Array.from({ length: n }, (_, i) => variants[i] ?? 0),
+    decorations: m.decorations ?? [],
     playerSpawns: m.playerSpawns.map((s) => ({ ...s, level: DEFAULT_TEST_LEVEL })),
     enemySpawns: m.enemySpawns.map((s) => ({ ...s, level: enemyLevelFor(m.index) })),
   };
@@ -1308,6 +1311,7 @@ function draftToMission(d: MapDraft): Mission {
     rows: d.rows,
     layout,
     tileVariants: d.tileVariants.some((v) => v) ? d.tileVariants : undefined,
+    decorations: d.decorations.length > 0 ? d.decorations : undefined,
     playerSpawns: d.playerSpawns.map(({ level: _level, ...s }) => s),
     enemySpawns: d.enemySpawns.map(({ level: _level, ...s }) => s),
     hub: d.hub || undefined,
@@ -1369,7 +1373,8 @@ function MapEditorScreen({
   const [draft, setDraft] = useState<MapDraft>(() => blankDraft());
   const [brush, setBrush] = useState<TerrainId>("plains");
   const [variant, setVariant] = useState(0);
-  const [mode, setMode] = useState<"paint" | "player" | "enemy">("paint");
+  const [decoBrush, setDecoBrush] = useState<string>(Object.keys(DECORATIONS)[0]!);
+  const [mode, setMode] = useState<"paint" | "player" | "enemy" | "decoration">("paint");
   const [gridStyle, setGridStyle] = useState<"hex" | "square">("hex");
   const [exportText, setExportText] = useState<string | null>(null);
   const [copyOk, setCopyOk] = useState(false);
@@ -1377,6 +1382,16 @@ function MapEditorScreen({
 
   const versions = versionStore[draft.id] ?? [];
   const activeSerial = activeVersions[draft.id];
+
+  const decoLookup = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of draft.decorations) {
+      const def = DECORATIONS[p.id];
+      if (!def) continue;
+      for (const f of def.footprint) m.set(`${p.x + f.dx},${p.y + f.dy}`, def.name);
+    }
+    return m;
+  }, [draft.decorations]);
 
   const setTile = (i: number, t: TerrainId) => {
     setDraft((d) => {
@@ -1408,9 +1423,33 @@ function MapEditorScreen({
     });
   };
 
+  const toggleDecoration = (x: number, y: number) => {
+    setDraft((d) => {
+      const covered = decorationCells(d.decorations);
+      // clicking any hex a decoration already covers removes that whole placement,
+      // regardless of which cell of its footprint was clicked
+      const hit = d.decorations.find((p) => {
+        const def = DECORATIONS[p.id];
+        return def?.footprint.some((f) => p.x + f.dx === x && p.y + f.dy === y);
+      });
+      if (hit) return { ...d, decorations: d.decorations.filter((p) => p !== hit) };
+      const def = DECORATIONS[decoBrush];
+      if (!def) return d;
+      // refuse to place if any covered cell is out of bounds or already taken
+      for (const f of def.footprint) {
+        const cx = x + f.dx;
+        const cy = y + f.dy;
+        if (cx < 0 || cy < 0 || cx >= d.cols || cy >= d.rows) return d;
+        if (covered.has(`${cx},${cy}`)) return d;
+      }
+      return { ...d, decorations: [...d.decorations, { id: decoBrush, x, y }] };
+    });
+  };
+
   const onCellClick = (x: number, y: number) => {
     const i = y * draft.cols + x;
     if (mode === "paint") setTile(i, brush);
+    else if (mode === "decoration") toggleDecoration(x, y);
     else toggleSpawn(x, y);
   };
 
@@ -1428,12 +1467,18 @@ function MapEditorScreen({
         }
       }
       const inBounds = (s: Spawn) => s.x < cols && s.y < rows;
+      const decorations = d.decorations.filter((p) => {
+        const def = DECORATIONS[p.id];
+        if (!def) return false;
+        return def.footprint.every((f) => p.x + f.dx >= 0 && p.y + f.dy >= 0 && p.x + f.dx < cols && p.y + f.dy < rows);
+      });
       return {
         ...d,
         cols,
         rows,
         tiles,
         tileVariants,
+        decorations,
         playerSpawns: d.playerSpawns.filter(inBounds),
         enemySpawns: d.enemySpawns.filter(inBounds),
       };
@@ -1663,14 +1708,14 @@ function MapEditorScreen({
             ))}
           </div>
           <div className="flex rounded-md border border-border overflow-hidden text-xs">
-            {(["paint", "player", "enemy"] as const).map((m) => (
+            {(["paint", "decoration", "player", "enemy"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
                 className={`px-2.5 py-1.5 ${mode === m ? "bg-accent text-bg" : "bg-bg text-muted"}`}
               >
-                {m === "paint" ? "Terreno" : m === "player" ? "Herói" : "Inimigo"}
+                {m === "paint" ? "Terreno" : m === "decoration" ? "Decoração" : m === "player" ? "Herói" : "Inimigo"}
               </button>
             ))}
           </div>
@@ -1720,7 +1765,29 @@ function MapEditorScreen({
             )}
           </div>
         )}
-        {mode !== "paint" && (
+        {mode === "decoration" && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted">
+              Clique na casa âncora pra colocar; clique em qualquer casa que a decoração cubra pra remover. Toda casa
+              coberta fica intransponível e bloqueia visão/tiro, não importa o terreno por baixo.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.values(DECORATIONS).map((dec) => (
+                <button
+                  key={dec.id}
+                  type="button"
+                  title={`${dec.name} · ${dec.footprint.length} hexes`}
+                  onClick={() => setDecoBrush(dec.id)}
+                  className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border ${decoBrush === dec.id ? "border-accent" : "border-border"}`}
+                >
+                  <img src={decorationImage(dec.id)} alt="" className="size-6 rounded-sm object-cover bg-bg" />
+                  {dec.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(mode === "player" || mode === "enemy") && (
           <p className="text-xs text-muted">
             Clique numa casa vazia pra adicionar {mode === "player" ? "um herói" : "um inimigo"}; clique numa casa ocupada
             (do mesmo lado) pra remover. Edite nome/classe na lista abaixo.
@@ -1741,16 +1808,17 @@ function MapEditorScreen({
                 const y = Math.floor(i / draft.cols);
                 const p = draft.playerSpawns.find((s) => s.x === x && s.y === y);
                 const e = draft.enemySpawns.find((s) => s.x === x && s.y === y);
+                const deco = decoLookup.get(`${x},${y}`);
                 return (
                   <button
                     key={i}
                     type="button"
-                    title={p ? p.name : e ? e.name : terrainHint(t)}
+                    title={p ? p.name : e ? e.name : deco ?? terrainHint(t)}
                     onClick={() => onCellClick(x, y)}
-                    className="size-[22px] grid place-items-center text-[9px] font-bold"
+                    className={`size-[22px] grid place-items-center text-[9px] font-bold ${deco ? "outline outline-2 outline-offset-[-2px] outline-amber-400/80" : ""}`}
                     style={{ background: TERRAIN_SWATCH[t] }}
                   >
-                    {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : null}
+                    {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : deco ? <span className="text-amber-300">D</span> : null}
                   </button>
                 );
               })}
@@ -1770,15 +1838,16 @@ function MapEditorScreen({
                     const y = Math.floor(i / draft.cols);
                     const p = draft.playerSpawns.find((s) => s.x === x && s.y === y);
                     const e = draft.enemySpawns.find((s) => s.x === x && s.y === y);
+                    const deco = decoLookup.get(`${x},${y}`);
                     const cx = HR * SQRT3 * (x + 0.5 * (y & 1) + 0.5);
                     const cy = HR * (1.5 * y + 1);
                     return (
                       <button
                         key={i}
                         type="button"
-                        title={p ? p.name : e ? e.name : terrainHint(t)}
+                        title={p ? p.name : e ? e.name : deco ?? terrainHint(t)}
                         onClick={() => onCellClick(x, y)}
-                        className="absolute grid place-items-center text-[8px] font-bold border border-black/20"
+                        className={`absolute grid place-items-center text-[8px] font-bold border ${deco ? "border-amber-400" : "border-black/20"}`}
                         style={{
                           left: cx - hexW / 2,
                           top: cy - HR,
@@ -1788,7 +1857,7 @@ function MapEditorScreen({
                           clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
                         }}
                       >
-                        {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : null}
+                        {p ? <span className="text-sky-300">P</span> : e ? <span className="text-red-400">E</span> : deco ? <span className="text-amber-300">D</span> : null}
                       </button>
                     );
                   })}
@@ -1797,6 +1866,27 @@ function MapEditorScreen({
             })()
           )}
         </div>
+
+        {draft.decorations.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs uppercase tracking-wide text-muted">Decorações ({draft.decorations.length})</p>
+            {draft.decorations.map((p, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs bg-bg border border-border rounded-md px-2 py-1">
+                <img src={decorationImage(p.id)} alt="" className="size-6 rounded-sm object-cover" />
+                <span className="flex-1 min-w-0 truncate">{DECORATIONS[p.id]?.name ?? p.id}</span>
+                <span className="text-muted tabular-nums">{p.x},{p.y}</span>
+                <button
+                  type="button"
+                  onClick={() => setDraft((d) => ({ ...d, decorations: d.decorations.filter((_, idx) => idx !== i) }))}
+                  className="text-danger px-1"
+                  aria-label="Remover"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {(["playerSpawns", "enemySpawns"] as const).map((side) => (
           <div key={side} className="flex flex-col gap-1.5">

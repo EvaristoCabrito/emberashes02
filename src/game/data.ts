@@ -1,4 +1,4 @@
-import type { Bag, ClassDef, ClassId, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef } from "./types";
+import type { Bag, ClassDef, ClassId, DecorationDef, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -43,6 +43,46 @@ const FOOTPRINT_TYPE_8 = [
   { dx: 1, dy: -2 },
   { dx: 0, dy: -3 },
 ];
+
+const DECO_PAIR = [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }];
+const DECO_TRIO = [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }];
+
+// Multi-hex terrain props: rendered as one image over their whole footprint instead of
+// clipped per hex (see DecorationDef). Cropped from LargeHexes1-3.jpg.
+export const DECORATIONS: Record<string, DecorationDef> = {
+  "mountain-ridge": { id: "mountain-ridge", name: "Cordilheira", footprint: DECO_PAIR },
+  "spike-rocks": { id: "spike-rocks", name: "Agulhas de Pedra", footprint: DECO_PAIR },
+  "dead-tree-large": { id: "dead-tree-large", name: "Árvore Morta Grande", footprint: DECO_PAIR },
+  "dense-forest": { id: "dense-forest", name: "Bosque Denso", footprint: DECO_PAIR },
+  "broken-cliff-wall": { id: "broken-cliff-wall", name: "Muralha Rochosa Partida", footprint: DECO_PAIR },
+  "boulder-cluster": { id: "boulder-cluster", name: "Amontoado de Pedras", footprint: DECO_TRIO },
+  "ruined-cottage": { id: "ruined-cottage", name: "Casa em Ruínas", footprint: DECO_PAIR },
+  "broken-tower": { id: "broken-tower", name: "Torre Derrubada", footprint: DECO_PAIR },
+  "ruined-chapel": { id: "ruined-chapel", name: "Capela em Ruínas", footprint: DECO_PAIR },
+  "abandoned-mansion": { id: "abandoned-mansion", name: "Mansão Abandonada", footprint: DECO_TRIO },
+  "stone-bridge": { id: "stone-bridge", name: "Ponte de Pedra", footprint: DECO_PAIR },
+  "broken-wall-segment": { id: "broken-wall-segment", name: "Muralha em Ruínas", footprint: DECO_PAIR },
+  gatehouse: { id: "gatehouse", name: "Portão Fortificado", footprint: DECO_PAIR },
+  watchtower: { id: "watchtower", name: "Torre de Vigia", footprint: DECO_PAIR },
+  "ancient-shrine": { id: "ancient-shrine", name: "Santuário Antigo", footprint: DECO_PAIR },
+};
+
+export function decorationImage(id: string): string {
+  return `/game/decorations/${id}.png`;
+}
+
+/** Every hex a placed decoration's footprint covers — impassable and blocks line of
+ * sight, independent of the terrain tile underneath (per user: "half covered is not a
+ * walking path"). */
+export function decorationCells(placements: { id: string; x: number; y: number }[]): Set<string> {
+  const out = new Set<string>();
+  for (const p of placements) {
+    const def = DECORATIONS[p.id];
+    if (!def) continue;
+    for (const { dx, dy } of def.footprint) out.add(`${p.x + dx},${p.y + dy}`);
+  }
+  return out;
+}
 
 export const CLASSES: Record<ClassId, ClassDef> = {
   swordsman: {

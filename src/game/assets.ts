@@ -1,3 +1,4 @@
+import { DECORATIONS, decorationImage } from "./data";
 import type { GameArt, SpriteId, TerrainId } from "./types";
 
 // Number of art variants available per terrain, e.g. plains01.png/plains02.png. Index 0
@@ -52,6 +53,12 @@ export async function loadGameArt(): Promise<GameArt> {
       tiles[id] = await Promise.all(Array.from({ length: n }, (_, i) => loadImage(`/game/tiles/${id}${String(i + 1).padStart(2, "0")}.png?v=6`)));
     }),
   );
+  const decorations = {} as Record<string, HTMLImageElement>;
+  await Promise.all(
+    Object.keys(DECORATIONS).map(async (id) => {
+      decorations[id] = await loadImage(decorationImage(id));
+    }),
+  );
   const sprites = {} as Record<SpriteId, HTMLImageElement[]>;
   const attacks: Partial<Record<SpriteId, HTMLImageElement[]>> = {};
   await Promise.all(
@@ -77,5 +84,5 @@ export async function loadGameArt(): Promise<GameArt> {
       side: await loadImage("/game/sprites/kael/walk-side.png"),
     },
   };
-  return { tiles, sprites, attacks, idles, walkDirs, impact };
+  return { tiles, decorations, sprites, attacks, idles, walkDirs, impact };
 }

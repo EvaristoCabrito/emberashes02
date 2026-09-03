@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
 import {
@@ -31,6 +31,7 @@ import { sfxPlay } from "./audio";
 import type {
   Bag,
   ClassId,
+  DecorationPlacement,
   Forecast,
   GameArt,
   HealId,
@@ -291,6 +292,7 @@ export class BattleEngine {
   readonly tiles: TerrainId[];
   /** Art variant index per tile, same indexing as tiles. Undefined/missing = variant 0. */
   readonly tileVariants: number[];
+  readonly decorations: DecorationPlacement[];
   readonly cols: number;
   readonly rows: number;
   units: Unit[] = [];
@@ -351,6 +353,16 @@ export class BattleEngine {
     this.rows = mission.rows;
     this.tiles = parseLayout(mission.layout);
     this.tileVariants = mission.tileVariants ?? [];
+    this.decorations = mission.decorations ?? [];
+    // Every hex a decoration's footprint covers is impassable and blocks line of sight,
+    // regardless of the terrain painted under it — "column" already has exactly those
+    // properties, so reusing it here needs no new passability/LOS plumbing anywhere else.
+    for (const cellKey of decorationCells(this.decorations)) {
+      const [xs, ys] = cellKey.split(",");
+      const x = Number(xs);
+      const y = Number(ys);
+      if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) this.tiles[y * this.cols + x] = "column";
+    }
     this.rng = mulberry32(seed + mission.index * 97);
     this.units = [
       ...mission.playerSpawns.map((s, i) => spawnUnit(s, "player", i, roster)),
@@ -2234,6 +2246,39 @@ export class BattleEngine {
     ctx.closePath();
   }
 
+  /** Multi-hex terrain props draw as one image over their whole footprint's bounding box,
+   * not hex-clipped like regular tiles — they don't need to fill the exact hex shape. */
+  private drawDecorations(ctx: CanvasRenderingContext2D, tile: number, cssW: number, cssH: number): void {
+    const SQRT3 = Math.sqrt(3);
+    for (const p of this.decorations) {
+      const def = DECORATIONS[p.id];
+      const img = this.art.decorations[p.id];
+      if (!def || !img) continue;
+      let minDx = 0;
+      let maxDx = 0;
+      let minDy = 0;
+      let maxDy = 0;
+      let sumCx = 0;
+      let sumCy = 0;
+      for (const { dx, dy } of def.footprint) {
+        minDx = Math.min(minDx, dx);
+        maxDx = Math.max(maxDx, dx);
+        minDy = Math.min(minDy, dy);
+        maxDy = Math.max(maxDy, dy);
+        const c = this.hexCenter(p.x + dx, p.y + dy);
+        sumCx += c.cx;
+        sumCy += c.cy;
+      }
+      const n = def.footprint.length;
+      const cx = sumCx / n;
+      const cy = sumCy / n;
+      if (cx < -tile * 4 || cy < -tile * 4 || cx > cssW + tile * 4 || cy > cssH + tile * 4) continue;
+      const w = tile * SQRT3 * (maxDx - minDx + 1.7);
+      const h = tile * (1.5 * (maxDy - minDy) + 2.3);
+      ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+    }
+  }
+
   private drawBarricadeMark(ctx: CanvasRenderingContext2D, cx: number, cy: number, tile: number): void {
     ctx.save();
     ctx.fillStyle = "rgba(58, 32, 18, 0.38)";
@@ -2432,6 +2477,8 @@ export class BattleEngine {
         if (id === "barricade") this.drawBarricadeMark(ctx, cx, cy, tile);
       }
     }
+
+    this.drawDecorations(ctx, tile, cssW, cssH);
 
     const active = this.activeTurnUnit();
     if (active) {

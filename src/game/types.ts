@@ -117,6 +117,25 @@ export interface Spawn {
 
 export type WinCondition = "rout" | "boss";
 
+/** A multi-hex terrain prop (mountain, ruin, bridge, ...): rendered as a single image
+ * spanning several hexes rather than clipped to one, drawn on top of the regular tile
+ * grid so it doesn't need to fill each hex's exact shape. Every hex in its footprint is
+ * impassable and blocks line of sight, independent of whatever terrain tile is under it. */
+export interface DecorationDef {
+  id: string;
+  name: string;
+  /** Hex offsets from the anchor cell (dx/dy in board coordinates, same convention as
+   * Unit.footprintOffsets — {dx:1,dy:0} is always the same-row neighbor). */
+  footprint: { dx: number; dy: number }[];
+}
+
+/** A decoration placed on a mission's map, anchored at (x,y). */
+export interface DecorationPlacement {
+  id: string;
+  x: number;
+  y: number;
+}
+
 export interface Mission {
   id: string;
   index: number;
@@ -135,6 +154,9 @@ export interface Mission {
    * Missing/undefined index or omitted array entirely means variant 0 (the default) —
    * existing missions never set this and keep rendering exactly as before. */
   tileVariants?: number[];
+  /** Multi-hex terrain props (mountains, ruins, bridges, ...) placed on this map.
+   * Omitted/empty on every existing mission — purely additive. */
+  decorations?: DecorationPlacement[];
 }
 
 export interface Unit {
@@ -322,6 +344,8 @@ export interface GameArt {
   /** Every art variant for a terrain type, e.g. tiles.plains[0]/[1] — index 0 is the
    * default (what existing missions render with when a tile doesn't name a variant). */
   tiles: Record<TerrainId, HTMLImageElement[]>;
+  /** Multi-hex decoration art, keyed by DecorationDef.id. */
+  decorations: Record<string, HTMLImageElement>;
   sprites: Record<SpriteId, HTMLImageElement[]>;
   attacks: Partial<Record<SpriteId, HTMLImageElement[]>>;
   idles: Partial<Record<SpriteId, HTMLImageElement[]>>;
