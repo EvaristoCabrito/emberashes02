@@ -91,6 +91,8 @@ export function BattleCanvas({
         hud.selected?.bag.disease,
         hud.tip,
         hud.zoom,
+        hud.speedMode,
+        hud.winAvailable,
         hud.spellReady,
         hud.turnQueue.find((q) => q.active)?.id,
         hud.turnQueue.map((q) => (q.acted ? "1" : "0")).join(""),

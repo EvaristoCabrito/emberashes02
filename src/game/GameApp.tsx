@@ -44,7 +44,9 @@ function hudBlank(): HudSnapshot {
     enemyAlive: 0,
     busy: false,
     result: null,
+    winAvailable: false,
     zoom: 1,
+    speedMode: "normal",
     tip: null,
     inspected: null,
     pendingFoe: null,
@@ -2274,6 +2276,17 @@ function BattleScreen({
   const [hotbars, setHotbars] = useState<Record<string, (SlotAction | null)[]>>({});
   const [editingSlots, setEditingSlots] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
+  // Dismissing the "encerrar missão?" popup only hides THAT popup — the "Encerrar missão"
+  // button in the footer stays available the whole time the field is clear (see hud.winAvailable),
+  // so dismissing never strands the player without a way to finish when they're ready.
+  // Resets whenever the field freshly clears again (a trap/trigger spawn dealt with),
+  // rather than staying dismissed for the rest of the battle.
+  const [winPopupDismissed, setWinPopupDismissed] = useState(false);
+  const wasWinAvailable = useRef(false);
+  useEffect(() => {
+    if (hud.winAvailable && !wasWinAvailable.current) setWinPopupDismissed(false);
+    wasWinAvailable.current = hud.winAvailable;
+  }, [hud.winAvailable]);
   useEffect(() => {
     setHotbars(loadHotbars());
   }, []);
@@ -2402,9 +2415,24 @@ function BattleScreen({
             </div>
           </div>
         )}
-        {hud.tip && (
+        {hud.tip && !(hud.winAvailable && !winPopupDismissed) && (
           <div className="pointer-events-none absolute inset-x-2 bottom-2">
             <p className="bg-surface/90 border border-border rounded-md px-2 py-1 text-xs text-muted text-center">{hud.tip}</p>
+          </div>
+        )}
+        {hud.winAvailable && !hud.result && !winPopupDismissed && (
+          <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center">
+            <div className="pointer-events-auto bg-surface/95 border border-accent rounded-md px-3 py-2 flex items-center gap-3 flex-wrap justify-center">
+              <p className="text-sm">Todos os inimigos caíram. Encerrar a missão?</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => engine.confirmFinish()}>
+                  Encerrar missão
+                </Button>
+                <Button size="sm" variant="quiet" onClick={() => setWinPopupDismissed(true)}>
+                  Continuar explorando
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -2564,7 +2592,12 @@ function BattleScreen({
               </button>
             </div>
           )}
-          <Button size="sm" variant="ghost" className="ml-auto" disabled={hud.phase !== "player" || !!hud.result} onClick={() => engine.endTurn()}>
+          {hud.winAvailable && !hud.result && (
+            <Button size="sm" className="ml-auto" onClick={() => engine.confirmFinish()}>
+              Encerrar missão
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className={hud.winAvailable && !hud.result ? "" : "ml-auto"} disabled={hud.phase !== "player" || !!hud.result} onClick={() => engine.endTurn()}>
             Fim do turno
           </Button>
         </div>
@@ -2579,6 +2612,19 @@ function BattleScreen({
               {(["Distante", "Longe", "Médio", "Perto"] as const).map((label, i) => (
                 <Button key={label} size="sm" variant={hud.zoom === i ? undefined : "quiet"} onClick={() => engine.setZoom(i)}>
                   {label}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Velocidade</p>
+            <div className="grid grid-cols-2 gap-1 mb-4">
+              {(["normal", "fast"] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  size="sm"
+                  variant={hud.speedMode === mode ? undefined : "quiet"}
+                  onClick={() => engine.setSpeed(mode)}
+                >
+                  {mode === "normal" ? "Normal" : "Rápida"}
                 </Button>
               ))}
             </div>

@@ -348,6 +348,11 @@ export class BattleEngine {
   private lastClickAt = 0;
   private lastClickCell: Point | null = null;
   result: "victory" | "defeat" | null = null;
+  /** True once every enemy the win condition cares about is dead — the battle CAN end, but
+   * doesn't until the player confirms (see confirmFinish). Lets them keep playing to loot
+   * remaining chests, and flips back to false on its own if a trap/trigger spawns a fresh
+   * enemy after the field first looked clear. */
+  winAvailable = false;
   banner: string | null = null;
   /** Ember found in chests opened mid-battle; folded into the save's Ember total on victory. */
   lootEmber = 0;
@@ -371,6 +376,11 @@ export class BattleEngine {
   trauma = 0;
   hitstop = 0;
   zoom = 1;
+  /** How long a unit takes to glide across one hex — "normal" is the default, readable
+   * pace; "fast" is the old, snappier speed for players who prefer it. Toggled from the
+   * pause menu, applies to the very next step (mid-step changes aren't jarring since a
+   * step is at most a quarter second). */
+  speedMode: "normal" | "fast" = "normal";
   camX = 0;
   camY = 0;
   private viewW = 1;
@@ -513,7 +523,9 @@ export class BattleEngine {
       enemyAlive: this.units.filter((u) => u.side === "enemy" && u.alive).length,
       busy: this.mode === "locked" || !!this.active || this.queue.length > 0,
       result: this.result,
+      winAvailable: this.winAvailable,
       zoom: this.zoom,
+      speedMode: this.speedMode,
       tip: this.tip,
       inspected: inspected ? pub(inspected) : pendingFoe ? pub(pendingFoe) : null,
       pendingFoe: pendingFoe ? pub(pendingFoe) : null,
@@ -726,7 +738,7 @@ export class BattleEngine {
       if (to.x !== from.x) unit.facing = to.x > from.x ? 1 : -1;
       unit.walkPose = to.y < from.y ? "back" : to.y > from.y ? "front" : "side";
       a.t += dt;
-      const dur = 0.12;
+      const dur = this.speedMode === "fast" ? 0.12 : 0.22;
       const k = easeOut(Math.min(1, a.t / dur));
       unit.drawX = from.x + (to.x - from.x) * k;
       unit.drawY = from.y + (to.y - from.y) * k;
@@ -1337,8 +1349,22 @@ export class BattleEngine {
     const bossAlive = this.units.some((u) => u.side === "enemy" && u.alive && u.classId === "captain");
     const anyEnemy = this.units.some((u) => u.side === "enemy" && u.alive);
     const won = this.mission.win === "boss" ? !bossAlive : !anyEnemy;
-    if (won) this.result = "victory";
-    else if (!p) this.result = "defeat";
+    // Victory doesn't end the battle by itself anymore — it just makes ending it an option
+    // (see winAvailable/confirmFinish) so the player can keep taking normal turns to loot
+    // remaining chests, with a click-whenever-ready control staying available the whole
+    // time rather than a one-shot prompt they could dismiss and then have no way back to.
+    // If a trap/trigger spawns a fresh enemy after the field first looked clear, this goes
+    // back to false on its own until they're dealt with too. Defeat has no such choice:
+    // with no player units left there's nothing left to do.
+    this.winAvailable = won;
+    if (!p) this.result = "defeat";
+  }
+
+  /** Player-confirmed "yes, end the mission now" — only takes effect while winAvailable
+   * (the field is actually clear); a beat too late (a fresh spawn just made it false again)
+   * is simply ignored rather than ending the battle out from under a live fight. */
+  confirmFinish(): void {
+    if (this.winAvailable && !this.result) this.result = "victory";
   }
 
   /** First not-yet-acted unit in this round's initiative order, or null if everyone has gone. */
@@ -2356,6 +2382,11 @@ export class BattleEngine {
     this.emit();
   }
 
+  setSpeed(mode: "normal" | "fast"): void {
+    this.speedMode = mode;
+    this.emit();
+  }
+
   cycleZoom(dir: number): void {
     this.setZoom(this.zoom + (dir < 0 ? -1 : 1));
   }
@@ -2705,12 +2736,12 @@ export class BattleEngine {
       }
     };
 
-    if (this.mode === "idle" && this.threat.length) overlay(this.threat, "rgba(163,90,74,0.34)");
+    if (this.mode === "idle" && this.threat.length) overlay(this.threat, "rgba(163,90,74,0.44)");
 
     if (this.mode === "awaitSpell") {
       const selected = this.units.find((u) => u.id === this.selectedId);
       if (selected && this.spellKind === "fireball") {
-        overlay(fireballRangeTiles(selected, this.cols, this.rows), "rgba(196,90,50,0.22)");
+        overlay(fireballRangeTiles(selected, this.cols, this.rows), "rgba(196,90,50,0.3)");
         const cell = this.hover ?? this.spellAim;
         if (cell && manhattan(selected, cell) <= FIREBALL.range) {
           overlay(fireballTiles(fireballOrigin(cell, this.cols, this.rows), this.cols, this.rows), "rgba(196,90,50,0.5)");
@@ -2724,40 +2755,40 @@ export class BattleEngine {
             if (d >= selected.minRange && d <= max) reach.push({ x, y });
           }
         }
-        overlay(reach, "rgba(90,120,70,0.22)");
+        overlay(reach, "rgba(90,120,70,0.3)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(140,170,80,0.55)");
       } else if (selected && this.spellKind === "piercing") {
-        overlay(allAxisRays(selected, this.cols, this.rows), "rgba(120,90,50,0.2)");
+        overlay(allAxisRays(selected, this.cols, this.rows), "rgba(120,90,50,0.28)");
         const cell = this.hover ?? this.spellAim;
         const line = cell ? this.piercingRay(selected, cell) : null;
         if (line) overlay(line, "rgba(196,120,50,0.55)");
       } else if (selected && this.spellKind === "doubleStrike") {
-        overlay(this.healRangeTiles(selected, selected.maxRange), "rgba(160,90,50,0.22)");
+        overlay(this.healRangeTiles(selected, selected.maxRange), "rgba(160,90,50,0.3)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(196,90,50,0.55)");
       } else if (selected && this.spellKind === "cleave") {
-        overlay(hexNeighbors(selected.x, selected.y), "rgba(160,90,50,0.22)");
+        overlay(hexNeighbors(selected.x, selected.y), "rgba(160,90,50,0.3)");
         const cell = this.hover ?? this.spellAim;
         const arc = cell ? cleaveHexes(selected, cell, CLEAVE.hexes, this.cols, this.rows) : [];
         if (arc.length) overlay(arc, "rgba(196,90,50,0.55)");
       } else if (selected && this.spellKind === "lightning") {
-        overlay(this.healRangeTiles(selected, LIGHTNING.range), "rgba(80,120,170,0.22)");
+        overlay(this.healRangeTiles(selected, LIGHTNING.range), "rgba(80,120,170,0.3)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(120,170,220,0.55)");
       } else if (selected && this.isHeal(this.spellKind)) {
-        overlay(this.healRangeTiles(selected, CURES[this.spellKind].range), "rgba(90,140,100,0.28)");
+        overlay(this.healRangeTiles(selected, CURES[this.spellKind].range), "rgba(90,140,100,0.34)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.validHealTarget(selected, cell)) overlay([cell], "rgba(120,180,120,0.55)");
       } else if (selected && this.spellKind === "cureDisease") {
-        overlay(this.healRangeTiles(selected, CURE_DISEASE.range), "rgba(90,140,100,0.28)");
+        overlay(this.healRangeTiles(selected, CURE_DISEASE.range), "rgba(90,140,100,0.34)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.validCureDiseaseTarget(selected, cell)) overlay([cell], "rgba(120,180,120,0.55)");
       }
     }
 
     if (this.mode === "selected" || this.mode === "awaitAttack" || this.mode === "awaitAction") {
-      if (this.mode === "selected") overlay(this.reach.values(), "rgba(61,106,138,0.38)");
+      if (this.mode === "selected") overlay(this.reach.values(), "rgba(61,106,138,0.5)");
       const selected = this.units.find((u) => u.id === this.selectedId);
       const atkTiles: Point[] = [];
       for (const foe of this.units) {
@@ -2767,7 +2798,7 @@ export class BattleEngine {
           atkTiles.push(...footprint(foe));
         }
       }
-      overlay(atkTiles, "rgba(163,90,74,0.45)");
+      overlay(atkTiles, "rgba(163,90,74,0.55)");
       if (this.pendingFoeId) {
         const foe = this.units.find((u) => u.id === this.pendingFoeId);
         if (foe) overlay(footprint(foe), "rgba(181,74,50,0.55)");

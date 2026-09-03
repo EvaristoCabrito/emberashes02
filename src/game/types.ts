@@ -363,7 +363,9 @@ export interface HudSnapshot {
   enemyAlive: number;
   busy: boolean;
   result: "victory" | "defeat" | null;
+  winAvailable: boolean;
   zoom: number;
+  speedMode: "normal" | "fast";
   tip: string | null;
   inspected: UnitPublic | null;
   pendingFoe: UnitPublic | null;
