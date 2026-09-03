@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponsForClass, potionLabel } from "./data";
+import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponSellValue, weaponsForClass, potionLabel } from "./data";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import type { Bag, ClassId, PotionId, SaveData } from "./types";
 
@@ -57,6 +57,7 @@ export function InnScreen({
   onBuyWeapon,
   onEquipWeapon,
   onUpgradeWeapon,
+  onSellWeapon,
 }: {
   bags: Record<string, Bag>;
   ember: number;
@@ -71,6 +72,7 @@ export function InnScreen({
   onBuyWeapon: (hero: string, weaponId: string) => boolean;
   onEquipWeapon: (hero: string, weaponId: string) => void;
   onUpgradeWeapon: (weaponId: string) => boolean;
+  onSellWeapon: (weaponId: string) => number | false;
 }) {
   const [view, setView] = useState<"npc" | "smith">("npc");
   const [npc, setNpc] = useState<(typeof NPCS)[number]>(NPCS[0]);
@@ -140,6 +142,7 @@ export function InnScreen({
         onBuyWeapon={onBuyWeapon}
         onEquipWeapon={onEquipWeapon}
         onUpgradeWeapon={onUpgradeWeapon}
+        onSellWeapon={onSellWeapon}
       />
     );
   }
@@ -317,6 +320,7 @@ function SmithPanel({
   onBuyWeapon,
   onEquipWeapon,
   onUpgradeWeapon,
+  onSellWeapon,
 }: {
   ember: number;
   muted: boolean;
@@ -329,6 +333,7 @@ function SmithPanel({
   onBuyWeapon: (hero: string, weaponId: string) => boolean;
   onEquipWeapon: (hero: string, weaponId: string) => void;
   onUpgradeWeapon: (weaponId: string) => boolean;
+  onSellWeapon: (weaponId: string) => number | false;
 }) {
   const [hero, setHero] = useState<string>("Kael");
   const [note, setNote] = useState<string | null>(null);
@@ -364,6 +369,13 @@ function SmithPanel({
       return;
     }
     setNote(`${equippedWeapon?.name} aprimorada.`);
+  };
+
+  const sell = (weaponId: string) => {
+    setNote(null);
+    const value = onSellWeapon(weaponId);
+    if (value === false) return;
+    setNote(`${WEAPONS[weaponId]!.name} vendida por ${value} Ember.`);
   };
 
   const nextEnhCost = equippedEnh < WEAPON_MAX_ENH ? weaponEnhCost(equippedEnh + 1) : null;
@@ -427,9 +439,14 @@ function SmithPanel({
                   {weaponDiceLabel(equippedWeapon.id)} {equippedEnh > 0 ? `+ ${equippedEnh} aprimoro` : ""}
                 </span>
               </span>
-              <Button size="sm" disabled={nextEnhCost == null || ember < nextEnhCost} onClick={upgrade}>
-                {nextEnhCost == null ? "Máx." : `+1 · ${nextEnhCost} Ember`}
-              </Button>
+              <div className="flex flex-col gap-1">
+                <Button size="sm" disabled={nextEnhCost == null || ember < nextEnhCost} onClick={upgrade}>
+                  {nextEnhCost == null ? "Máx." : `+1 · ${nextEnhCost} Ember`}
+                </Button>
+                <Button size="sm" variant="quiet" onClick={() => sell(equippedWeapon.id)}>
+                  Vender · {weaponSellValue(equippedWeapon.id, equippedEnh)} Ember
+                </Button>
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted">Nenhuma arma equipada ainda.</p>
@@ -448,6 +465,9 @@ function SmithPanel({
                     </span>
                     <Button size="sm" variant="quiet" onClick={() => equip(w.id)}>
                       Equipar
+                    </Button>
+                    <Button size="sm" variant="quiet" onClick={() => sell(w.id)}>
+                      Vender · {weaponSellValue(w.id, weapons[w.id] ?? 0)} Ember
                     </Button>
                   </div>
                 ))}

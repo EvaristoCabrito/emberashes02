@@ -603,16 +603,18 @@ export const LOCKPICK_PRICE = 6;
 // Damage dice ladder shared by every weapon pool, 1D4 (weakest) up to 2D12 (strongest).
 // Each weapon picks one rung; price scales with it. Enhancement (+1..+5, at the Ferreiro)
 // stacks flat on top and is tracked per hero save, not here.
+// The "+" bonus is exclusive to the Ferreiro's enhancement system (see WEAPON_ENH_COST) —
+// base weapon rungs are pure dice, no flat bonus baked in.
 const WEAPON_RUNGS: { dice: number; faces: number; bonus: number; price: number }[] = [
   { dice: 1, faces: 4, bonus: 0, price: 30 },
   { dice: 1, faces: 6, bonus: 0, price: 45 },
   { dice: 1, faces: 8, bonus: 0, price: 65 },
-  { dice: 1, faces: 10, bonus: 1, price: 90 },
-  { dice: 1, faces: 12, bonus: 1, price: 120 },
-  { dice: 2, faces: 6, bonus: 1, price: 155 },
-  { dice: 2, faces: 8, bonus: 2, price: 195 },
-  { dice: 2, faces: 10, bonus: 2, price: 240 },
-  { dice: 2, faces: 12, bonus: 2, price: 300 },
+  { dice: 1, faces: 10, bonus: 0, price: 90 },
+  { dice: 1, faces: 12, bonus: 0, price: 120 },
+  { dice: 2, faces: 6, bonus: 0, price: 155 },
+  { dice: 2, faces: 8, bonus: 0, price: 195 },
+  { dice: 2, faces: 10, bonus: 0, price: 240 },
+  { dice: 2, faces: 12, bonus: 0, price: 300 },
 ];
 
 function wpn(id: string, name: string, usableBy: ClassId[], rung: number): WeaponDef {
@@ -737,6 +739,14 @@ export function weaponDiceLabel(weaponId: string): string {
 /** Ember cost of the Ferreiro's enhancement ranks +1..+5 (index 0 = cost of the first rank). */
 export const WEAPON_ENH_COST = [25, 50, 80, 150, 300];
 export const WEAPON_MAX_ENH = WEAPON_ENH_COST.length;
+
+/** Sell price: half of the weapon's base price plus half of every enhancement Ember sunk into it. */
+export function weaponSellValue(weaponId: string, enh: number): number {
+  const w = WEAPONS[weaponId];
+  if (!w) return 0;
+  const enhSpent = WEAPON_ENH_COST.slice(0, enh).reduce((a, b) => a + b, 0);
+  return Math.floor((w.price + enhSpent) / 2);
+}
 
 export function weaponEnhCost(nextRank: number): number {
   return WEAPON_ENH_COST[nextRank - 1] ?? Infinity;

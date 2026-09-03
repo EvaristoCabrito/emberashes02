@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, weaponEnhCost, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -658,6 +658,29 @@ export function GameApp() {
               pendingMission: null,
             });
             return true;
+          }}
+          onSellWeapon={(weaponId: string) => {
+            const rec = activeSave(bank);
+            const enh = rec.weapons[weaponId];
+            if (enh == null) return false;
+            const value = weaponSellValue(weaponId, enh);
+            const held = testMode ? testEmber : (rec.ember ?? 0);
+            if (testMode) setTestEmber(held + value);
+            const weapons = { ...rec.weapons };
+            delete weapons[weaponId];
+            const equipped = { ...rec.equipped };
+            for (const hero of Object.keys(equipped)) {
+              if (equipped[hero] === weaponId) delete equipped[hero];
+            }
+            persistCurrent({
+              ...rec,
+              ember: testMode ? rec.ember ?? 0 : held + value,
+              emberSeeded: true,
+              weapons,
+              equipped,
+              pendingMission: null,
+            });
+            return value;
           }}
           onPay={(hero: string, cart: Record<PotionId, number>, lockpicks: number) => {
             const rec = activeSave(bank);
