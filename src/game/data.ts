@@ -1,4 +1,4 @@
-import type { Bag, ClassDef, ClassId, DecorationDef, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef } from "./types";
+import type { Bag, ClassDef, ClassId, DecorationDef, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef, WorldLocation } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -1979,6 +1979,46 @@ export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS);
 
 export function missionById(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
+}
+
+/** Campaign world map markers, positioned (percent x/y, 0-100) against the real map art
+ * at public/game/world-map.jpg. Coordinates for stonebridge/ruins/estalagem/vertente are
+ * pinned to that art's own labels ("Stone Bridge", the first of its two "Ruins", "Inn",
+ * "Fortified Temple Complex") per direct instruction. aldeia/cripta/colina/passagem/portao
+ * are still provisional path points — not tied to any specific painted landmark yet —
+ * pending the same kind of placement call for the rest of the map's named spots (Village,
+ * Farm, the second Ruins, Dungeon, Cemetery, Frozen Swamp, Forest). Locations with no
+ * missionIds yet (e.g. Misty Cave, reserved for a future troll encounter arc) render
+ * permanently locked until missions are written for them — "we'll open up more as we make
+ * more missions." */
+export const WORLD_LOCATIONS: WorldLocation[] = [
+  { id: "stonebridge", name: "Stone Bridge", x: 14, y: 71, missionIds: ["vau", "bosque"] },
+  { id: "aldeia", name: "Aldeia Queimada", x: 26, y: 64, missionIds: ["aldeia"] },
+  { id: "ruins", name: "Ruins", x: 8, y: 56, missionIds: ["muralha", "fortaleza", "templo"] },
+  { id: "cripta", name: "Cripta de Cinzas", x: 28, y: 48, missionIds: ["cripta"] },
+  { id: "estalagem", name: "Inn", x: 48, y: 39, missionIds: ["estalagem"] },
+  { id: "colina", name: "A Colina Morta", x: 58, y: 30, missionIds: ["colina"] },
+  { id: "passagem", name: "A Passagem Antiga", x: 72, y: 12, missionIds: ["passagem"] },
+  { id: "vertente", name: "Fortified Temple Complex", x: 78, y: 7, missionIds: ["vertente"] },
+  { id: "portao", name: "A Entrada do Templo", x: 88, y: 4, missionIds: ["portao"] },
+  // Named on the map, not yet assigned to any mission — visible on the map (permanently
+  // locked) as a preview of the world until content is written for them.
+  { id: "village", name: "Village", x: 17, y: 27, missionIds: [] },
+  { id: "farm", name: "Farm", x: 89, y: 46, missionIds: [] },
+  { id: "ruins2", name: "Ruins", x: 12, y: 43, missionIds: [] },
+  { id: "dungeon", name: "Dungeon", x: 60, y: 64, missionIds: [] },
+  { id: "cemetery", name: "Cemetery", x: 46, y: 69, missionIds: [] },
+  { id: "frozen-swamp", name: "Frozen Swamp", x: 20, y: 86, missionIds: [] },
+  { id: "forest", name: "Forest", x: 85, y: 79, missionIds: [] },
+  { id: "misty-cave", name: "Misty Cave", x: 63, y: 19, missionIds: [] },
+];
+
+export function locationForMission(missionId: string): WorldLocation | undefined {
+  return WORLD_LOCATIONS.find((l) => l.missionIds.includes(missionId));
+}
+
+export function missionsForLocation(loc: WorldLocation): Mission[] {
+  return loc.missionIds.map((id) => missionById(id)).filter((m): m is Mission => !!m);
 }
 
 /** Mission index at which a hero first appears as a player spawn — computed from

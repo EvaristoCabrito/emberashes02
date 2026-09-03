@@ -6,8 +6,9 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
+import { WorldMapScreen } from "./WorldMapScreen";
 import {
   activeSave,
   emptySave,
@@ -21,7 +22,7 @@ import {
   writeSlot,
   selectSlot,
 } from "./save";
-import type { ClassId, DecorationPlacement, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition } from "./types";
+import type { ClassId, DecorationPlacement, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition, WorldLocation } from "./types";
 
 function hudBlank(): HudSnapshot {
   return {
@@ -64,6 +65,23 @@ function lockedMission(id: string, completed: string[], test: boolean): boolean 
   if (m.index === 0) return false;
   const prev = MISSIONS.find((x) => x.index === m.index - 1);
   return prev ? !completed.includes(prev.id) : false;
+}
+
+/** Per-mission status for the world map's location chapter list — "done" once completed,
+ * else whatever lockedMission says, so chapters within a multi-mission location open one
+ * at a time in the same order the flat campaign list already enforces. */
+function missionStatus(id: string, completed: string[], test: boolean): "locked" | "available" | "done" {
+  if (completed.includes(id)) return "done";
+  return lockedMission(id, completed, test) ? "locked" : "available";
+}
+
+/** A world map location is "done" once every mission it covers is completed, "available"
+ * once its next not-yet-completed mission is reachable, else "locked". */
+function locationStatus(loc: WorldLocation, completed: string[], test: boolean): "locked" | "available" | "done" {
+  const missions = missionsForLocation(loc);
+  const next = missions.find((m) => !completed.includes(m.id));
+  if (!next) return missions.length > 0 ? "done" : "locked";
+  return missionStatus(next.id, completed, test) === "locked" ? "locked" : "available";
 }
 
 const BRIEF_ART: Record<string, string> = {
@@ -281,7 +299,7 @@ export function GameApp() {
       return;
     }
     setMissionId(null);
-    setScreen("campaign");
+    setScreen("worldMap");
   };
 
   const startBattle = useCallback(
@@ -537,7 +555,7 @@ export function GameApp() {
 
   const leaveBoot = useCallback(() => {
     playMenuMusic();
-    setScreen("campaign");
+    setScreen("worldMap");
   }, []);
 
   return (
@@ -604,13 +622,26 @@ export function GameApp() {
           completed={save.completed}
           test={testMode}
           ember={testMode ? testEmber : (save.ember ?? 0)}
-          onBack={() => setScreen("title")}
+          onBack={() => (testMode ? setScreen("title") : setScreen("worldMap"))}
           onPick={openMission}
         />
       )}
 
+      {screen === "worldMap" && (
+        <WorldMapScreen
+          locations={WORLD_LOCATIONS}
+          status={(loc) => locationStatus(loc, save.completed, testMode)}
+          missionStatus={(id) => missionStatus(id, save.completed, testMode)}
+          ember={testMode ? testEmber : (save.ember ?? 0)}
+          test={testMode}
+          onBack={() => setScreen("title")}
+          onPick={openMission}
+          onOpenList={() => setScreen("campaign")}
+        />
+      )}
+
       {screen === "briefing" && mission && (
-        <BriefingScreen mission={mission} onBack={() => setScreen("campaign")} onStart={beginMission} />
+        <BriefingScreen mission={mission} onBack={() => setScreen(testMode ? "campaign" : "worldMap")} onStart={beginMission} />
       )}
 
       {screen === "inn" && (
@@ -626,7 +657,7 @@ export function GameApp() {
             unlockAudio();
             setMutedUi((v) => !v);
           }}
-          onLeave={() => setScreen("campaign")}
+          onLeave={() => setScreen(testMode ? "campaign" : "worldMap")}
           onBuyWeapon={(hero: string, weaponId: string) => {
             const rec = activeSave(bank);
             const w = WEAPONS[weaponId];
@@ -761,7 +792,7 @@ export function GameApp() {
             setPaused(false);
             setSlotMode(null);
             setEngine(null);
-            setScreen("campaign");
+            setScreen(testMode ? "campaign" : "worldMap");
           }}
         />
       )}
@@ -786,7 +817,7 @@ export function GameApp() {
               setScreen("mapEditor");
               return;
             }
-            setScreen("campaign");
+            setScreen(testMode ? "campaign" : "worldMap");
           }}
           mapLabel={customMission ? "Voltar ao editor" : undefined}
           onTitle={() => setScreen("title")}

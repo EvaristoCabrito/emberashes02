@@ -57,7 +57,7 @@ export type ClassId =
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
 export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "doubleStrike" | "cleave" | "cureDisease";
-export type ScreenId = "boot" | "title" | "campaign" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
+export type ScreenId = "boot" | "title" | "campaign" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitSpell" | "locked";
 
@@ -157,6 +157,19 @@ export interface Mission {
   /** Multi-hex terrain props (mountains, ruins, bridges, ...) placed on this map.
    * Omitted/empty on every existing mission — purely additive. */
   decorations?: DecorationPlacement[];
+}
+
+/** A travel spot on the campaign world map. Most locations cover a single mission; a
+ * location can also bundle a short arc of missions (e.g. an approach, an encounter, and
+ * its aftermath at the same landmark) picked from one sub-menu instead of getting a
+ * marker each — missionIds just lists them in story order. */
+export interface WorldLocation {
+  id: string;
+  name: string;
+  /** Position on the world map image, in percent (0-100) of its width/height. */
+  x: number;
+  y: number;
+  missionIds: string[];
 }
 
 export interface Unit {
