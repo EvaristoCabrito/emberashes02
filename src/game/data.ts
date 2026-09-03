@@ -2103,7 +2103,39 @@ function stampTactics(m: Mission): Mission {
   return { ...m, layout };
 }
 
-export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS);
+/** Alternates which "column" art variant renders per pillar so a hall full of them (the
+ * crypt, the carved cavern) doesn't read as the exact same marble-pillar sprite copy-
+ * pasted everywhere. Grouped by the pillar's original pre-expansion 2x2 block (not per
+ * rendered hex) so one logical pillar stays visually consistent across all 4 of its hexes
+ * instead of being split down the middle. Column tiles elsewhere (e.g. the temple) are
+ * untouched — this only applies to the two missions dense enough with them to notice. */
+const VARY_COLUMNS_FOR = new Set(["cripta", "passagem"]);
+function varyColumns(mission: Mission): Mission {
+  if (!VARY_COLUMNS_FOR.has(mission.id)) return mission;
+  const variants = new Array(mission.cols * mission.rows).fill(0);
+  // Assign a fresh alternating 0/1 per distinct block in raster-scan order — NOT a parity
+  // formula on the block's own coordinates, since in both these missions every pillar's
+  // raw x AND y happen to be odd, which cancels out any x+y or x*y parity check to a
+  // constant (caught by checking the actual output: every "variant" came out 0).
+  const blockVariant = new Map<string, number>();
+  let next = 0;
+  for (let y = 0; y < mission.rows; y++) {
+    for (let x = 0; x < mission.cols; x++) {
+      if (mission.layout[y]![x] !== "c") continue;
+      const key = `${Math.floor(x / 2)},${Math.floor(y / 2)}`;
+      let variant = blockVariant.get(key);
+      if (variant === undefined) {
+        variant = next % 2;
+        blockVariant.set(key, variant);
+        next += 1;
+      }
+      variants[y * mission.cols + x] = variant;
+    }
+  }
+  return { ...mission, tileVariants: variants };
+}
+
+export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(varyColumns);
 
 export function missionById(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
