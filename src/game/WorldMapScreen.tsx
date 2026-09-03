@@ -138,6 +138,16 @@ export function WorldMapScreen({
     const d = dragRef.current;
     const el = viewportRef.current;
     if (!d || !el) return;
+    // The button can go up without any pointerup/click ever reaching this element — e.g.
+    // releasing outside the browser window — which used to leave dragRef.current alive
+    // forever, so plain mouse hover (no button held) kept panning the map afterward. If the
+    // primary button isn't actually down anymore, drop the drag right here instead of
+    // relying solely on onPointerUp/onClickCapture to clean up.
+    if (e.pointerType === "mouse" && e.buttons === 0) {
+      dragRef.current = null;
+      setDragging(false);
+      return;
+    }
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     if (!d.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
@@ -148,7 +158,9 @@ export function WorldMapScreen({
     el.scrollLeft = d.scrollLeft - dx;
     el.scrollTop = d.scrollTop - dy;
   };
-  const endDrag = () => {
+  const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = viewportRef.current;
+    if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     // Keep the ref (with its .moved flag) alive past pointerup — the click event that
     // follows a drag fires just after, and onClickCapture below needs to see it. The next
     // pointerdown always overwrites it with a fresh object either way.
