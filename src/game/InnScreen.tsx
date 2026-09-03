@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponSellValue, weaponsForClass, potionLabel } from "./data";
+import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import type { Bag, ClassId, PotionId, SaveData } from "./types";
 
@@ -436,7 +436,7 @@ function SmithPanel({
               <span className="flex-1 text-sm min-w-0">
                 {equippedWeapon.name} {equippedEnh > 0 ? `+${equippedEnh}` : ""}
                 <span className="block text-[11px] text-muted tabular-nums">
-                  {weaponDiceLabel(equippedWeapon.id)} {equippedEnh > 0 ? `+ ${equippedEnh} aprimoro` : ""}
+                  {weaponDiceLabel(equippedWeapon.id)} {equippedEnh > 0 ? `+ ${equippedEnh} aprimoro` : ""} · {weaponRangeLabel(equippedWeapon.id)}
                 </span>
               </span>
               <div className="flex flex-col gap-1">
@@ -461,7 +461,9 @@ function SmithPanel({
                     <img src={weaponIcon(w.id)} alt="" className="size-8 rounded-sm object-cover" />
                     <span className="flex-1 text-sm min-w-0">
                       {w.name}
-                      <span className="block text-[11px] text-muted tabular-nums">{weaponDiceLabel(w.id)}</span>
+                      <span className="block text-[11px] text-muted tabular-nums">
+                        {weaponDiceLabel(w.id)} · {weaponRangeLabel(w.id)}
+                      </span>
                     </span>
                     <Button size="sm" variant="quiet" onClick={() => equip(w.id)}>
                       Equipar
@@ -485,7 +487,7 @@ function SmithPanel({
                     <span className="flex-1 text-sm min-w-0">
                       {w.name}
                       <span className="block text-[11px] text-muted tabular-nums">
-                        {weaponDiceLabel(w.id)} · {w.price} Ember
+                        {weaponDiceLabel(w.id)} · {weaponRangeLabel(w.id)} · {w.price} Ember
                       </span>
                     </span>
                     <Button size="sm" disabled={ember < w.price} onClick={() => buy(w.id)}>

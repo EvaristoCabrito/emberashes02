@@ -617,9 +617,18 @@ const WEAPON_RUNGS: { dice: number; faces: number; bonus: number; price: number 
   { dice: 2, faces: 12, bonus: 0, price: 300 },
 ];
 
-function wpn(id: string, name: string, usableBy: ClassId[], rung: number): WeaponDef {
+// Attack range is a property of the weapon itself, D&D-weapon-style — not of the class
+// wielding it. MELEE = swords/axes/maces/daggers/staves, REACH = spears/polearms
+// (can strike from 2 without exposing themselves at 1), RANGED = bows (can't strike
+// adjacent, gets the elevated-terrain bonus in effectiveMaxRange).
+type RangeSpec = { minRange: number; maxRange: number; ranged?: boolean };
+const MELEE: RangeSpec = { minRange: 1, maxRange: 1 };
+const REACH: RangeSpec = { minRange: 1, maxRange: 2 };
+const RANGED: RangeSpec = { minRange: 2, maxRange: 3, ranged: true };
+
+function wpn(id: string, name: string, usableBy: ClassId[], rung: number, range: RangeSpec = MELEE): WeaponDef {
   const r = WEAPON_RUNGS[rung - 1]!;
-  return { id, name, usableBy, dice: r.dice, faces: r.faces, bonus: r.bonus, price: r.price };
+  return { id, name, usableBy, dice: r.dice, faces: r.faces, bonus: r.bonus, price: r.price, minRange: range.minRange, maxRange: range.maxRange, ranged: range.ranged };
 }
 
 const ARCANE_MAGE_TRIO: ClassId[] = ["mage", "elementalist", "warlock"];
@@ -633,26 +642,26 @@ const LANCER_TRIO: ClassId[] = ["lancer", "sentinel", "templar"];
 
 export const WEAPONS: Record<string, WeaponDef> = {
   // Mago Negro / Elementalista / Bruxo — cajados arcanos, pool compartilhado
-  "cajado-de-osso": wpn("cajado-de-osso", "Cajado de Osso", ARCANE_ALL, 1),
-  "cajado-abissal": wpn("cajado-abissal", "Cajado Abissal", ARCANE_ALL, 2),
-  "cajado-de-ebano": wpn("cajado-de-ebano", "Cajado de Ébano", ARCANE_ALL, 3),
-  "cajado-igneo": wpn("cajado-igneo", "Cajado Ígneo", ARCANE_ALL, 4),
-  "bastao-do-pacto": wpn("bastao-do-pacto", "Bastão do Pacto", ARCANE_ALL, 5),
-  "cajado-tempestuoso": wpn("cajado-tempestuoso", "Cajado Tempestuoso", ARCANE_ALL, 6),
-  "cetro-da-corrupcao": wpn("cetro-da-corrupcao", "Cetro da Corrupção", ARCANE_ALL, 7),
-  "cajado-terrano": wpn("cajado-terrano", "Cajado Terrano", ARCANE_ALL, 8),
-  "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9),
+  "cajado-de-osso": wpn("cajado-de-osso", "Cajado de Osso", ARCANE_ALL, 1, REACH),
+  "cajado-abissal": wpn("cajado-abissal", "Cajado Abissal", ARCANE_ALL, 2, REACH),
+  "cajado-de-ebano": wpn("cajado-de-ebano", "Cajado de Ébano", ARCANE_ALL, 3, REACH),
+  "cajado-igneo": wpn("cajado-igneo", "Cajado Ígneo", ARCANE_ALL, 4, REACH),
+  "bastao-do-pacto": wpn("bastao-do-pacto", "Bastão do Pacto", ARCANE_ALL, 5, REACH),
+  "cajado-tempestuoso": wpn("cajado-tempestuoso", "Cajado Tempestuoso", ARCANE_ALL, 6, REACH),
+  "cetro-da-corrupcao": wpn("cetro-da-corrupcao", "Cetro da Corrupção", ARCANE_ALL, 7, REACH),
+  "cajado-terrano": wpn("cajado-terrano", "Cajado Terrano", ARCANE_ALL, 8, REACH),
+  "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9, REACH),
 
   // Conjurador / Arcanista / Necromante — cajados arcanos, pool compartilhado
-  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1),
-  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2),
-  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3),
-  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4),
-  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5),
-  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6),
-  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7),
-  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8),
-  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9),
+  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1, REACH),
+  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2, REACH),
+  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3, REACH),
+  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4, REACH),
+  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5, REACH),
+  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6, REACH),
+  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7, REACH),
+  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8, REACH),
+  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9, REACH),
 
   // Curandeiro / Bispo / Clérigo — cajados de cura, pool compartilhado
   "cajado-da-renovacao": wpn("cajado-da-renovacao", "Cajado da Renovação", HEAL_TRIO, 1),
@@ -664,7 +673,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "cajado-da-justica": wpn("cajado-da-justica", "Cajado da Justiça", HEAL_TRIO, 9),
 
   // Guerreiro / Paladino / Cavaleiro Pesado — espada/machado/maça, pool compartilhado.
-  // Martelos também servem para o Clérigo ("não derrama sangue").
+  // Martelos também servem para o Clérigo ("não derrama sangue"). Tudo corpo a corpo.
   "espada-larga": wpn("espada-larga", "Espada Larga", WARRIOR_TRIO, 1),
   "espadao": wpn("espadao", "Espadão", WARRIOR_TRIO, 2),
   "machado-de-guerra": wpn("machado-de-guerra", "Machado de Guerra", WARRIOR_TRIO, 3),
@@ -673,29 +682,31 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "lamina-sagrada": wpn("lamina-sagrada", "Lâmina Sagrada", WARRIOR_TRIO, 6),
   "martelo-de-guerra": wpn("martelo-de-guerra", "Martelo de Guerra", [...WARRIOR_TRIO, "cleric"], 7),
   "martelo-da-justica": wpn("martelo-da-justica", "Martelo da Justiça", [...WARRIOR_TRIO, "cleric"], 8),
-  "lanca-pesada": wpn("lanca-pesada", "Lança Pesada", WARRIOR_TRIO, 9),
+  "lanca-pesada": wpn("lanca-pesada", "Lança Pesada", WARRIOR_TRIO, 9, REACH),
 
-  // Arqueira / Patrulheiro / Assassina — arco/besta/adaga, pool compartilhado
-  "arco-composto": wpn("arco-composto", "Arco Composto", ARCHER_TRIO, 1),
-  "arco-longo": wpn("arco-longo", "Arco Longo", ARCHER_TRIO, 2),
-  "arco-elfico": wpn("arco-elfico", "Arco Élfico", ARCHER_TRIO, 3),
-  "arco-do-cacador": wpn("arco-do-cacador", "Arco do Caçador", ARCHER_TRIO, 4),
+  // Arqueira / Patrulheiro / Assassina — arco/besta/adaga, pool compartilhado.
+  // Arcos e besta são à distância; adagas e katar são corpo a corpo; a lança de caça alcança.
+  "arco-composto": wpn("arco-composto", "Arco Composto", ARCHER_TRIO, 1, RANGED),
+  "arco-longo": wpn("arco-longo", "Arco Longo", ARCHER_TRIO, 2, RANGED),
+  "arco-elfico": wpn("arco-elfico", "Arco Élfico", ARCHER_TRIO, 3, RANGED),
+  "arco-do-cacador": wpn("arco-do-cacador", "Arco do Caçador", ARCHER_TRIO, 4, RANGED),
   "adaga-sombria": wpn("adaga-sombria", "Adaga Sombria", ARCHER_TRIO, 5),
-  "besta-leve": wpn("besta-leve", "Besta Leve", ARCHER_TRIO, 6),
+  "besta-leve": wpn("besta-leve", "Besta Leve", ARCHER_TRIO, 6, { minRange: 1, maxRange: 3, ranged: true }),
   "katar": wpn("katar", "Katar", ARCHER_TRIO, 7),
-  "lanca-de-caca": wpn("lanca-de-caca", "Lança de Caça", ARCHER_TRIO, 8),
+  "lanca-de-caca": wpn("lanca-de-caca", "Lança de Caça", ARCHER_TRIO, 8, REACH),
   "adaga-de-veneno": wpn("adaga-de-veneno", "Adaga de Veneno", ARCHER_TRIO, 9),
 
-  // Lanceiro / Sentinela / Templário — lança e lança-e-escudo, exclusivo dessa linha
-  "lanca": wpn("lanca", "Lança", LANCER_TRIO, 1),
-  "partisan": wpn("partisan", "Partisan", LANCER_TRIO, 2),
-  "guisarme": wpn("guisarme", "Guisarme", LANCER_TRIO, 3),
-  "lanca-de-defesa": wpn("lanca-de-defesa", "Lança de Defesa", LANCER_TRIO, 4),
+  // Lanceiro / Sentinela / Templário — lança e lança-e-escudo, exclusivo dessa linha.
+  // Lanças alcançam 2 hexes; a versão com escudo troca alcance por defesa mais de perto.
+  "lanca": wpn("lanca", "Lança", LANCER_TRIO, 1, REACH),
+  "partisan": wpn("partisan", "Partisan", LANCER_TRIO, 2, REACH),
+  "guisarme": wpn("guisarme", "Guisarme", LANCER_TRIO, 3, REACH),
+  "lanca-de-defesa": wpn("lanca-de-defesa", "Lança de Defesa", LANCER_TRIO, 4, REACH),
   "espada-e-escudo": wpn("espada-e-escudo", "Espada e Escudo", LANCER_TRIO, 5),
   "maca-e-escudo-sentinel": wpn("maca-e-escudo-sentinel", "Maça e Escudo", LANCER_TRIO, 6),
   "maca-e-escudo-templar": wpn("maca-e-escudo-templar", "Maça e Escudo", LANCER_TRIO, 7),
-  "lanca-e-escudo-sentinel": wpn("lanca-e-escudo-sentinel", "Lança e Escudo", LANCER_TRIO, 8),
-  "lanca-e-escudo-templar": wpn("lanca-e-escudo-templar", "Lança e Escudo", LANCER_TRIO, 9),
+  "lanca-e-escudo-sentinel": wpn("lanca-e-escudo-sentinel", "Lança e Escudo", LANCER_TRIO, 8, REACH),
+  "lanca-e-escudo-templar": wpn("lanca-e-escudo-templar", "Lança e Escudo", LANCER_TRIO, 9, REACH),
 };
 
 export function weaponIcon(id: string): string {
@@ -734,6 +745,11 @@ export function weaponPreview(weaponId: string | null | undefined, enh: number):
 export function weaponDiceLabel(weaponId: string): string {
   const w = WEAPONS[weaponId];
   return w ? diceFormula(w.dice, w.faces, w.bonus) : "";
+}
+
+export function weaponRangeLabel(weaponId: string): string {
+  const w = WEAPONS[weaponId];
+  return w ? `Alc ${rangeLabel(w.minRange, w.maxRange)}` : "";
 }
 
 /** Ember cost of the Ferreiro's enhancement ranks +1..+5 (index 0 = cost of the first rank). */
@@ -1245,9 +1261,10 @@ export function isProjectile(unit: { maxRange: number }): boolean {
   return unit.maxRange > 1;
 }
 
-export function effectiveMaxRange(unit: Pick<Unit, "maxRange" | "classId">, tile: TerrainId): number {
+export function effectiveMaxRange(unit: Pick<Unit, "maxRange" | "weaponId">, tile: TerrainId): number {
   const high = TERRAIN[tile].height ? 1 : 0;
-  return unit.maxRange + (unit.classId === "archer" ? high : 0);
+  const ranged = unit.weaponId ? !!WEAPONS[unit.weaponId]?.ranged : false;
+  return unit.maxRange + (ranged ? high : 0);
 }
 
 export function terrainNote(id: TerrainId): string | undefined {

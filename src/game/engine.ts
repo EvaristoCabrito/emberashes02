@@ -221,6 +221,11 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
   const hpCap = roster?.hp[spawn.name];
   const hp = hpCap != null && hpCap > 0 ? Math.min(st.hp, hpCap) : st.hp;
   const weapon = side === "player" ? (roster?.weapons?.[spawn.name] ?? { id: starterWeaponFor(classId), enh: 0 }) : null;
+  // Range is a weapon property (D&D-weapon-style), not a class stat — falls back to the
+  // class baseline only when there's no equipped weapon to read it from (e.g. enemies).
+  const weaponDef = weapon?.id ? WEAPONS[weapon.id] : null;
+  const minRange = weaponDef?.minRange ?? st.minRange;
+  const maxRange = weaponDef?.maxRange ?? st.maxRange;
   return {
     id: `${side}-${spawn.name}-${i}`,
     name: spawn.name,
@@ -238,8 +243,8 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     def: st.def,
     res: st.res,
     mov: st.mov,
-    minRange: st.minRange,
-    maxRange: st.maxRange,
+    minRange,
+    maxRange,
     moved: false,
     acted: false,
     facing: side === "player" ? 1 : -1,
@@ -1484,7 +1489,8 @@ export class BattleEngine {
   }
 
   private longMax(u: Unit): number {
-    const extra = u.classId === "archer" && TERRAIN[tileAt(this.tiles, this.cols, u.x, u.y)].height ? 1 : 0;
+    const ranged = u.weaponId ? !!WEAPONS[u.weaponId]?.ranged : false;
+    const extra = ranged && TERRAIN[tileAt(this.tiles, this.cols, u.x, u.y)].height ? 1 : 0;
     return u.maxRange * LONG_SHOT.rangeMul + LONG_SHOT.rangeBonus + extra;
   }
 

@@ -220,6 +220,11 @@ export interface WeaponDef {
   faces: number;
   bonus: number;
   price: number;
+  /** Attack range, D&D-weapon-style — determined by the weapon itself, not the wielder's class. */
+  minRange: number;
+  maxRange: number;
+  /** True for bow/crossbow-type weapons: grants the elevated-terrain range bonus (see effectiveMaxRange). */
+  ranged?: boolean;
 }
 
 /**
