@@ -896,12 +896,12 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   "adaga-secundaria": { id: "adaga-secundaria", name: "Adaga Secundária", slot: "offHand", kind: "weapon", usableBy: ["archer", "assassin", "rogue"], dice: 1, faces: 4, bonus: 0, minRange: 1, maxRange: 1, price: 70 },
 
   // ---- head
-  hood: { id: "hood", name: "Capuz", slot: "head", res: 1, price: 40 },
-  cowl: { id: "cowl", name: "Cogula Reforçada", slot: "head", def: 1, res: 1, price: 55 },
-  barbute: { id: "barbute", name: "Barbuta", slot: "head", def: 2, price: 90 },
-  sallet: { id: "sallet", name: "Elmo Salade", slot: "head", def: 3, price: 140 },
-  "heavy-war-helmet": { id: "heavy-war-helmet", name: "Elmo de Guerra Pesado", slot: "head", def: 4, price: 200 },
-  "great-helm": { id: "great-helm", name: "Elmo de Grande Porte", slot: "head", def: 5, price: 260 },
+  hood: { id: "hood", name: "Capuz", slot: "head", usableBy: ["mage", "conjurer", "archer", "rogue", "assassin"], res: 1, price: 40 },
+  cowl: { id: "cowl", name: "Cogula Reforçada", slot: "head", usableBy: ["mage", "conjurer", "archer", "rogue", "assassin"], def: 1, res: 1, price: 55 },
+  barbute: { id: "barbute", name: "Barbuta", slot: "head", usableBy: ["swordsman", "heavyKnight", "paladin", "lancer"], def: 2, price: 90 },
+  sallet: { id: "sallet", name: "Elmo Salade", slot: "head", usableBy: ["swordsman", "heavyKnight", "paladin", "lancer"], def: 3, price: 140 },
+  "heavy-war-helmet": { id: "heavy-war-helmet", name: "Elmo de Guerra Pesado", slot: "head", usableBy: ["swordsman", "heavyKnight", "paladin", "lancer"], def: 4, price: 200 },
+  "great-helm": { id: "great-helm", name: "Elmo de Grande Porte", slot: "head", usableBy: ["swordsman", "heavyKnight", "paladin", "lancer"], def: 5, price: 260 },
 
   // ---- legs
   "studded-leather-pants": { id: "studded-leather-pants", name: "Calças de Couro Cravejado", slot: "legs", def: 1, mov: 1, price: 60 },
