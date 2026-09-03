@@ -2335,6 +2335,15 @@ function decorateOpenTerrain(mission: Mission): Mission {
   const enemySpawns: Cell[] = mission.enemySpawns.map((s): Cell => [s.x, s.y]);
   const spawns: Cell[] = [...playerSpawns, ...enemySpawns];
   const spawnSet = new Set(spawns.map(([x, y]) => `${x},${y}`));
+  // A decoration's art (especially the "large" multi-hex ones, like a tree canopy) commonly
+  // renders taller/wider than its own hex footprint and visually bleeds into a neighboring
+  // hex — fine over open ground, but reads as a unit standing "inside" the decoration if
+  // that neighbor happens to be a spawn point, which is confusing even where it's not
+  // actually a pathing block. Building a one-hex buffer around every spawn (not just
+  // excluding the spawn tile itself) keeps decorations from ever anchoring close enough for
+  // that visual bleed to reach a unit.
+  const spawnClearance = new Set(spawnSet);
+  for (const [sx, sy] of spawns) for (const [nx, ny] of hexAdj(sx, sy)) spawnClearance.add(`${nx},${ny}`);
   // A map that already uses "nave" (indoor black-slab floor) anywhere is an indoor/
   // underground space — walls stripped off of it should become more slab floor, not
   // grassy plains, or the whole room reads as an outdoor field with rocks scattered on it
@@ -2357,7 +2366,7 @@ function decorateOpenTerrain(mission: Mission): Mission {
       if (!def) continue;
       const cells: Cell[] = def.footprint.map((f): Cell => [ax + f.dx, ay + f.dy]);
       if (!cells.every(([cx, cy]) => inBoundsCell(cx, cy, cols, rows))) continue;
-      if (cells.some(([cx, cy]) => spawnSet.has(`${cx},${cy}`))) continue;
+      if (cells.some(([cx, cy]) => spawnClearance.has(`${cx},${cy}`))) continue;
       if (!cells.every(([cx, cy]) => CONVERT_TO_OPEN.has(grid[cy]![cx]!) || KEEP_HOST.has(grid[cy]![cx]!))) continue;
       if (cells.some(([cx, cy]) => blockedExtra.has(`${cx},${cy}`))) continue;
       const candidate = new Set(blockedExtra);
@@ -2382,7 +2391,7 @@ function decorateOpenTerrain(mission: Mission): Mission {
       for (const anchor of cluster) {
         if (placed >= budget || got >= perClusterBudget) break;
         const [ax, ay] = anchor;
-        if (spawnSet.has(`${ax},${ay}`)) continue;
+        if (spawnClearance.has(`${ax},${ay}`)) continue;
         const offset = di % pool.length;
         const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
         if (tryPlaceOne(anchor, rotated)) {
@@ -2407,7 +2416,7 @@ function decorateOpenTerrain(mission: Mission): Mission {
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const k = `${x},${y}`;
-        if (grid[y]![x] === floorChar && !spawnSet.has(k) && !blockedExtra.has(k)) openGround.push([x, y]);
+        if (grid[y]![x] === floorChar && !spawnClearance.has(k) && !blockedExtra.has(k)) openGround.push([x, y]);
       }
     }
     const rng = mulberry32Local(seedFromId(`${mission.id}-deco`));
