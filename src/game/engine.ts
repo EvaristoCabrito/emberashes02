@@ -2629,6 +2629,11 @@ export class BattleEngine {
       ctx.translate((Math.random() - 0.5) * 10 * shake, (Math.random() - 0.5) * 10 * shake);
     }
 
+    // Barricade marks draw in a separate pass after decorations (below) so a barricade
+    // always reads in front of a decoration sitting next to it, never the other way
+    // around — a decoration's image spills past its own hex (a deliberate fringe margin,
+    // see drawDecorations) and would otherwise paint over a barricade drawn earlier.
+    const barricades: { cx: number; cy: number }[] = [];
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const { cx, cy } = this.hexCenter(x, y);
@@ -2650,11 +2655,12 @@ export class BattleEngine {
         ctx.lineWidth = 1;
         this.hexPath(ctx, cx, cy, tile * 0.98);
         ctx.stroke();
-        if (id === "barricade") this.drawBarricadeMark(ctx, cx, cy, tile);
+        if (id === "barricade") barricades.push({ cx, cy });
       }
     }
 
     this.drawDecorations(ctx, tile, cssW, cssH);
+    for (const { cx, cy } of barricades) this.drawBarricadeMark(ctx, cx, cy, tile);
 
     const active = this.activeTurnUnit();
     if (active) {
