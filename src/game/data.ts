@@ -605,29 +605,20 @@ export const LOCKPICK_PRICE = 6;
 // stacks flat on top and is tracked per hero save, not here.
 // The "+" bonus is exclusive to the Ferreiro's enhancement system (see WEAPON_ENH_COST) —
 // base weapon rungs are pure dice, no flat bonus baked in.
+// Prices climb steeply on purpose: per-kill Ember drops are 2-10 (EMBER_DROP) and chest
+// loot is 3-8, so a whole early mission nets maybe 20-40 Ember. The top rung has to cost
+// more than a realistic full campaign's income, or the best weapon in the game is a
+// mission-1 impulse buy instead of an endgame goal.
 const WEAPON_RUNGS: { dice: number; faces: number; bonus: number; price: number }[] = [
-  { dice: 1, faces: 4, bonus: 0, price: 30 },
-  { dice: 1, faces: 6, bonus: 0, price: 45 },
-  { dice: 1, faces: 8, bonus: 0, price: 65 },
-  { dice: 1, faces: 10, bonus: 0, price: 90 },
-  { dice: 1, faces: 12, bonus: 0, price: 120 },
-  { dice: 2, faces: 6, bonus: 0, price: 155 },
-  { dice: 2, faces: 8, bonus: 0, price: 195 },
-  { dice: 2, faces: 10, bonus: 0, price: 240 },
-  { dice: 2, faces: 12, bonus: 0, price: 300 },
-  // Rungs 10-18: the arcane staff pool alone has 18 entries (two flavor lines pooled
-  // together), so the ladder keeps climbing past 2D12. Staying on d12 and just adding
-  // dice (not cycling back down to d6) keeps every rung's average strictly above the
-  // last one — 3D6 (avg 10.5) would actually be a downgrade from 2D12 (avg 13).
-  { dice: 3, faces: 12, bonus: 0, price: 360 },
-  { dice: 4, faces: 12, bonus: 0, price: 430 },
-  { dice: 5, faces: 12, bonus: 0, price: 510 },
-  { dice: 6, faces: 12, bonus: 0, price: 600 },
-  { dice: 7, faces: 12, bonus: 0, price: 700 },
-  { dice: 8, faces: 12, bonus: 0, price: 810 },
-  { dice: 9, faces: 12, bonus: 0, price: 930 },
-  { dice: 10, faces: 12, bonus: 0, price: 1060 },
-  { dice: 11, faces: 12, bonus: 0, price: 1200 },
+  { dice: 1, faces: 4, bonus: 0, price: 40 },
+  { dice: 1, faces: 6, bonus: 0, price: 90 },
+  { dice: 1, faces: 8, bonus: 0, price: 180 },
+  { dice: 1, faces: 10, bonus: 0, price: 320 },
+  { dice: 1, faces: 12, bonus: 0, price: 520 },
+  { dice: 2, faces: 6, bonus: 0, price: 800 },
+  { dice: 2, faces: 8, bonus: 0, price: 1200 },
+  { dice: 2, faces: 10, bonus: 0, price: 1800 },
+  { dice: 2, faces: 12, bonus: 0, price: 2600 },
 ];
 
 // Attack range is a property of the weapon itself, D&D-weapon-style — not of the class
@@ -666,17 +657,17 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9, REACH),
 
   // Conjurador / Arcanista / Necromante — cajados arcanos, pool compartilhado com a trinca
-  // acima. As duas linhas somam 18 cajados nesse único pool, então esta continua a escala
-  // do Mago (rungs 1-9) nos rungs 10-18 — sem repetir tier, sem pular, sem voltar.
-  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 10, REACH),
-  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 11, REACH),
-  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 12, REACH),
-  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 13, REACH),
-  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 14, REACH),
-  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 15, REACH),
-  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 16, REACH),
-  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 17, REACH),
-  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 18, REACH),
+  // acima. É uma linha paralela para outras três classes, não uma continuação da mesma
+  // escala — mesma faixa 1D4-2D12 do Mago, como toda outra trinca de classes no jogo.
+  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1, REACH),
+  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2, REACH),
+  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3, REACH),
+  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4, REACH),
+  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5, REACH),
+  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6, REACH),
+  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7, REACH),
+  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8, REACH),
+  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9, REACH),
 
   // Curandeiro / Bispo / Clérigo — cajados de cura, pool compartilhado.
   // Progressão contígua 1D4→2D12, sem pular tier — cada rung do 1 ao 9 tem um cajado.
@@ -711,7 +702,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "arco-elfico": wpn("arco-elfico", "Arco Élfico", ARCHER_TRIO, 3, RANGED),
   "arco-do-cacador": wpn("arco-do-cacador", "Arco do Caçador", ARCHER_TRIO, 4, RANGED),
   "besta-leve": wpn("besta-leve", "Besta Leve", ARCHER_TRIO, 5, { minRange: 1, maxRange: 3, ranged: true }),
-  "lanca-de-caca": wpn("lanca-de-caca", "Lança de Caça", ARCHER_TRIO, 6, REACH),
+  "punhal-curvo": wpn("punhal-curvo", "Punhal Curvo", ARCHER_TRIO, 6),
   "katar": wpn("katar", "Katar", ARCHER_TRIO, 7),
   "adaga-sombria": wpn("adaga-sombria", "Adaga Sombria", ARCHER_TRIO, 8),
   "adaga-de-veneno": wpn("adaga-de-veneno", "Adaga de Veneno", ARCHER_TRIO, 9),
