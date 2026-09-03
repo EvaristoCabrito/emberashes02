@@ -615,6 +615,19 @@ const WEAPON_RUNGS: { dice: number; faces: number; bonus: number; price: number 
   { dice: 2, faces: 8, bonus: 0, price: 195 },
   { dice: 2, faces: 10, bonus: 0, price: 240 },
   { dice: 2, faces: 12, bonus: 0, price: 300 },
+  // Rungs 10-18: the arcane staff pool alone has 18 entries (two flavor lines pooled
+  // together), so the ladder keeps climbing past 2D12. Staying on d12 and just adding
+  // dice (not cycling back down to d6) keeps every rung's average strictly above the
+  // last one — 3D6 (avg 10.5) would actually be a downgrade from 2D12 (avg 13).
+  { dice: 3, faces: 12, bonus: 0, price: 360 },
+  { dice: 4, faces: 12, bonus: 0, price: 430 },
+  { dice: 5, faces: 12, bonus: 0, price: 510 },
+  { dice: 6, faces: 12, bonus: 0, price: 600 },
+  { dice: 7, faces: 12, bonus: 0, price: 700 },
+  { dice: 8, faces: 12, bonus: 0, price: 810 },
+  { dice: 9, faces: 12, bonus: 0, price: 930 },
+  { dice: 10, faces: 12, bonus: 0, price: 1060 },
+  { dice: 11, faces: 12, bonus: 0, price: 1200 },
 ];
 
 // Attack range is a property of the weapon itself, D&D-weapon-style — not of the class
@@ -652,23 +665,28 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "cajado-terrano": wpn("cajado-terrano", "Cajado Terrano", ARCANE_ALL, 8, REACH),
   "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9, REACH),
 
-  // Conjurador / Arcanista / Necromante — cajados arcanos, pool compartilhado
-  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1, REACH),
-  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2, REACH),
-  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3, REACH),
-  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4, REACH),
-  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5, REACH),
-  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6, REACH),
-  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7, REACH),
-  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8, REACH),
-  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9, REACH),
+  // Conjurador / Arcanista / Necromante — cajados arcanos, pool compartilhado com a trinca
+  // acima. As duas linhas somam 18 cajados nesse único pool, então esta continua a escala
+  // do Mago (rungs 1-9) nos rungs 10-18 — sem repetir tier, sem pular, sem voltar.
+  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 10, REACH),
+  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 11, REACH),
+  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 12, REACH),
+  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 13, REACH),
+  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 14, REACH),
+  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 15, REACH),
+  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 16, REACH),
+  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 17, REACH),
+  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 18, REACH),
 
-  // Curandeiro / Bispo / Clérigo — cajados de cura, pool compartilhado
+  // Curandeiro / Bispo / Clérigo — cajados de cura, pool compartilhado.
+  // Progressão contígua 1D4→2D12, sem pular tier — cada rung do 1 ao 9 tem um cajado.
   "cajado-da-renovacao": wpn("cajado-da-renovacao", "Cajado da Renovação", HEAL_TRIO, 1),
+  "cajado-da-esperanca": wpn("cajado-da-esperanca", "Cajado da Esperança", HEAL_TRIO, 2),
   "cajado-da-graca": wpn("cajado-da-graca", "Cajado da Graça", HEAL_TRIO, 3),
   "cetro-da-luz": wpn("cetro-da-luz", "Cetro da Luz", HEAL_TRIO, 4),
   "bastao-da-purificacao": wpn("bastao-da-purificacao", "Bastão da Purificação", HEAL_TRIO, 5),
   "cajado-do-bispo": wpn("cajado-do-bispo", "Cajado do Bispo", HEAL_TRIO, 6),
+  "cajado-da-comunhao": wpn("cajado-da-comunhao", "Cajado da Comunhão", HEAL_TRIO, 7),
   "cajado-da-fe": wpn("cajado-da-fe", "Cajado da Fé", HEAL_TRIO, 8),
   "cajado-da-justica": wpn("cajado-da-justica", "Cajado da Justiça", HEAL_TRIO, 9),
 
@@ -685,15 +703,17 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "machado-barbaro": wpn("machado-barbaro", "Machado Bárbaro", WARRIOR_TRIO, 9),
 
   // Arqueira / Patrulheiro / Assassina — arco/besta/adaga, pool compartilhado.
-  // Arcos e besta são à distância; adagas e katar são corpo a corpo; a lança de caça alcança.
+  // Único desvio deliberado do D&D real (onde adaga < arco): aqui toda arma corpo a corpo
+  // (adaga, katar) supera toda arma à distância (arco, besta), risco de chegar perto paga
+  // mais. Arcos e besta ocupam os rungs 1-5, corpo a corpo/alcance ocupam os rungs 6-9.
   "arco-composto": wpn("arco-composto", "Arco Composto", ARCHER_TRIO, 1, RANGED),
   "arco-longo": wpn("arco-longo", "Arco Longo", ARCHER_TRIO, 2, RANGED),
   "arco-elfico": wpn("arco-elfico", "Arco Élfico", ARCHER_TRIO, 3, RANGED),
   "arco-do-cacador": wpn("arco-do-cacador", "Arco do Caçador", ARCHER_TRIO, 4, RANGED),
-  "adaga-sombria": wpn("adaga-sombria", "Adaga Sombria", ARCHER_TRIO, 5),
-  "besta-leve": wpn("besta-leve", "Besta Leve", ARCHER_TRIO, 6, { minRange: 1, maxRange: 3, ranged: true }),
+  "besta-leve": wpn("besta-leve", "Besta Leve", ARCHER_TRIO, 5, { minRange: 1, maxRange: 3, ranged: true }),
+  "lanca-de-caca": wpn("lanca-de-caca", "Lança de Caça", ARCHER_TRIO, 6, REACH),
   "katar": wpn("katar", "Katar", ARCHER_TRIO, 7),
-  "lanca-de-caca": wpn("lanca-de-caca", "Lança de Caça", ARCHER_TRIO, 8, REACH),
+  "adaga-sombria": wpn("adaga-sombria", "Adaga Sombria", ARCHER_TRIO, 8),
   "adaga-de-veneno": wpn("adaga-de-veneno", "Adaga de Veneno", ARCHER_TRIO, 9),
 
   // Lanceiro / Sentinela / Templário — lança e lança-e-escudo, exclusivo dessa linha.
