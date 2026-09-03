@@ -302,6 +302,7 @@ export function InnScreen({
           save={save}
           onClose={() => setInvView(null)}
           onSwitchToBackpack={() => setInvView("pack")}
+          onEquipWeapon={onEquipWeapon}
         />
       )}
     </section>
@@ -516,6 +517,7 @@ function SmithPanel({
           save={save}
           onClose={() => setInvView(null)}
           onSwitchToBackpack={() => setInvView("pack")}
+          onEquipWeapon={onEquipWeapon}
         />
       )}
     </section>

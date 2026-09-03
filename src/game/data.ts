@@ -682,7 +682,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   "lamina-sagrada": wpn("lamina-sagrada", "Lâmina Sagrada", WARRIOR_TRIO, 6),
   "martelo-de-guerra": wpn("martelo-de-guerra", "Martelo de Guerra", [...WARRIOR_TRIO, "cleric"], 7),
   "martelo-da-justica": wpn("martelo-da-justica", "Martelo da Justiça", [...WARRIOR_TRIO, "cleric"], 8),
-  "lanca-pesada": wpn("lanca-pesada", "Lança Pesada", WARRIOR_TRIO, 9, REACH),
+  "machado-barbaro": wpn("machado-barbaro", "Machado Bárbaro", WARRIOR_TRIO, 9),
 
   // Arqueira / Patrulheiro / Assassina — arco/besta/adaga, pool compartilhado.
   // Arcos e besta são à distância; adagas e katar são corpo a corpo; a lança de caça alcança.

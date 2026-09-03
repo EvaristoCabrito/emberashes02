@@ -1,28 +1,37 @@
+import { useState } from "react";
 import { X } from "lucide-react";
-import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, potionLabel, weaponDiceLabel, weaponIcon } from "./data";
-import type { ClassId, PotionId, SaveData } from "./types";
+import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
+import type { ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
 const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
 
 /** Paper-doll equipment view for one hero. "Mão Principal" reads the real weapon system;
- * every other slot is a skeleton — EQUIPMENT has no items yet, so they show "Vazio". */
+ * every other slot is a skeleton — EQUIPMENT has no items yet, so they show "Vazio".
+ * When onEquipWeapon is given, clicking a slot opens a picker of compatible owned items —
+ * Mão Principal lists owned weapons for this class, other slots list EQUIPMENT of that
+ * slot type (empty today; the picker is ready for whenever real items land there). */
 export function PaperDollScreen({
   heroName,
   classId,
   save,
   onClose,
   onSwitchToBackpack,
+  onEquipWeapon,
 }: {
   heroName: string;
   classId: ClassId;
   save: SaveData;
   onClose: () => void;
   onSwitchToBackpack?: () => void;
+  onEquipWeapon?: (hero: string, weaponId: string) => void;
 }) {
+  const [picker, setPicker] = useState<"mainHand" | EquipSlot | null>(null);
   const weaponId = save.equipped[heroName];
   const weapon = weaponId ? WEAPONS[weaponId] : null;
   const enh = weaponId ? (save.weapons[weaponId] ?? 0) : 0;
   const equip = save.equipment[heroName] ?? {};
+
+  const ownedWeapons = [...weaponsForClass(classId)].filter((w) => save.weapons[w.id] != null).sort((a, b) => weaponPower(a) - weaponPower(b));
 
   return (
     <div
@@ -50,19 +59,26 @@ export function PaperDollScreen({
         </div>
 
         <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Mão Principal</p>
-        <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 mb-4">
+        <button
+          type="button"
+          disabled={!onEquipWeapon}
+          onClick={() => setPicker("mainHand")}
+          className="w-full flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 mb-4 text-left disabled:cursor-default"
+        >
           {weapon ? (
             <>
               <img src={weaponIcon(weapon.id)} alt="" className="size-9 rounded-sm object-cover shrink-0" />
               <span className="flex-1 text-sm min-w-0">
                 {weapon.name} {enh > 0 ? `+${enh}` : ""}
-                <span className="block text-[11px] text-muted tabular-nums">{weaponDiceLabel(weapon.id)}</span>
+                <span className="block text-[11px] text-muted tabular-nums">
+                  {weaponDiceLabel(weapon.id)} · {weaponRangeLabel(weapon.id)}
+                </span>
               </span>
             </>
           ) : (
             <p className="text-sm text-muted">Vazia · equipe com o Ferreiro na Estalagem</p>
           )}
-        </div>
+        </button>
 
         <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Equipamento</p>
         <div className="grid grid-cols-2 gap-1.5">
@@ -70,14 +86,82 @@ export function PaperDollScreen({
             const itemId = equip[s.id];
             const item = itemId ? EQUIPMENT[itemId] : null;
             return (
-              <div key={s.id} className="bg-bg border border-border rounded-md px-2 py-1.5">
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setPicker(s.id)}
+                className="bg-bg border border-border rounded-md px-2 py-1.5 text-left"
+              >
                 <p className="text-[10px] uppercase tracking-wide text-muted">{s.label}</p>
                 <p className="text-xs truncate text-fg/90">{item ? item.name : "Vazio"}</p>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
+
+      {picker != null && (
+        <div
+          className="absolute inset-0 z-50 bg-bg/85 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPicker(null);
+          }}
+        >
+          <div className="w-full max-w-sm max-h-[80dvh] overflow-y-auto bg-surface border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="font-display text-lg leading-tight">{picker === "mainHand" ? "Mão Principal" : EQUIPMENT_SLOTS.find((s) => s.id === picker)?.label}</p>
+              <button type="button" onClick={() => setPicker(null)} className="size-8 grid place-items-center rounded-md border border-border" aria-label="Fechar">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {picker === "mainHand" ? (
+              ownedWeapons.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {ownedWeapons.map((w) => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => {
+                        onEquipWeapon?.(heroName, w.id);
+                        setPicker(null);
+                      }}
+                      disabled={w.id === weaponId}
+                      className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-left disabled:opacity-50"
+                    >
+                      <img src={weaponIcon(w.id)} alt="" className="size-9 rounded-sm object-cover shrink-0" />
+                      <span className="flex-1 text-sm min-w-0">
+                        {w.name} {save.weapons[w.id] ? `+${save.weapons[w.id]}` : ""}
+                        <span className="block text-[11px] text-muted tabular-nums">
+                          {weaponDiceLabel(w.id)} · {weaponRangeLabel(w.id)}
+                        </span>
+                      </span>
+                      {w.id === weaponId && <span className="text-[11px] text-muted shrink-0">Equipada</span>}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted">Nenhuma arma no saco ainda. Compre uma com o Ferreiro.</p>
+              )
+            ) : (
+              (() => {
+                const options = Object.values(EQUIPMENT).filter((it) => it.slot === picker);
+                return options.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    {options.map((it) => (
+                      <div key={it.id} className="bg-bg border border-border rounded-md px-2 py-1.5 text-sm">
+                        {it.name}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted">Nenhum item disponível ainda.</p>
+                );
+              })()
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
