@@ -1997,7 +1997,10 @@ const HERO_JOIN_INDEX: Record<string, number> = (() => {
 
 /** Whether a hero has joined the party yet — false before the mission they first appear
  * in has been reached, so their gear doesn't show up in party-wide UI (Ferreiro,
- * Mochila) before the story actually recruits them. */
+ * Mochila) before the story actually recruits them. Recruited once the PRECEDING mission
+ * is completed, since that's the one whose briefing/outcome frees them — e.g. Salazar
+ * (first playerSpawn in "cripta", index 6) becomes recruited on completing mission 06,
+ * "Nave Enforcada" (index 5), where Asherah falls and he's found as her prisoner. */
 export function heroRecruited(name: string, completed: string[]): boolean {
   const joinIndex = HERO_JOIN_INDEX[name] ?? 0;
   if (joinIndex <= 0) return true;
