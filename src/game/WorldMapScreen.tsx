@@ -224,6 +224,16 @@ export function WorldMapScreen({
               className="block w-full h-auto rounded-lg select-none"
               draggable={false}
               onError={() => setArtOk(false)}
+              // The mount-time centering effect below fires before this image has actually
+              // finished loading — with no intrinsic size yet, the viewport's scrollHeight
+              // is still near zero at that moment, so recenterOn's own clamp forces the
+              // scroll position back to (0, 0) regardless of which location it targeted.
+              // Once the image loads and the container snaps to its real size, nothing
+              // re-centers it — the map just sits wherever that early clamp left it, which
+              // reads as "opens somewhere random" rather than "opens on your location."
+              // Re-centering here, once real dimensions exist, fixes that; it's a no-op if
+              // the mount effect already landed correctly (same target fraction either way).
+              onLoad={() => recenterOn(centerFracRef.current.x, centerFracRef.current.y)}
             />
           ) : (
             <div className="w-[70dvw] h-[70dvh] max-w-md" />
