@@ -1957,6 +1957,16 @@ function expandMaps(missions: Mission[]): Mission[] {
   });
 }
 
+/** The six neighbor cells of an odd-r offset hex grid coordinate, as absolute [x, y] pairs
+ * — the one copy of this offset table for the whole file (it was previously re-declared
+ * three separate times: twice inline in stampTactics, once more for decorateOpenTerrain's
+ * flood-fill/connectivity checks below). */
+function hexAdj(x: number, y: number): [number, number][] {
+  const even: [number, number][] = [[1, 0], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1]];
+  const odd: [number, number][] = [[1, 0], [1, -1], [0, -1], [-1, 0], [0, 1], [1, 1]];
+  return (y & 1 ? odd : even).map(([dx, dy]) => [x + dx, y + dy]);
+}
+
 function oddrDist(ax: number, ay: number, bx: number, by: number): number {
   const aq = ax - (ay - (ay & 1)) / 2;
   const bq = bx - (by - (by & 1)) / 2;
@@ -1971,23 +1981,7 @@ function stampTactics(m: Mission): Mission {
   const mark = (x: number, y: number) => blocked.add(`${x},${y}`);
   for (const s of [...m.playerSpawns, ...m.enemySpawns]) {
     mark(s.x, s.y);
-    const even = [
-      [1, 0],
-      [0, -1],
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, 1],
-    ];
-    const odd = [
-      [1, 0],
-      [1, -1],
-      [0, -1],
-      [-1, 0],
-      [0, 1],
-      [1, 1],
-    ];
-    for (const [dx, dy] of s.y & 1 ? odd : even) mark(s.x + dx!, s.y + dy!);
+    for (const [nx, ny] of hexAdj(s.x, s.y)) mark(nx, ny);
   }
   const cand: { x: number; y: number }[] = [];
   for (let y = 1; y < m.rows - 1; y++) {
@@ -2008,23 +2002,6 @@ function stampTactics(m: Mission): Mission {
     cand[j] = tmp;
   }
   const taken: { x: number; y: number }[] = [];
-  const dirsEven = [
-    [1, 0],
-    [0, -1],
-    [-1, -1],
-    [-1, 0],
-    [-1, 1],
-    [0, 1],
-  ];
-  const dirsOdd = [
-    [1, 0],
-    [1, -1],
-    [0, -1],
-    [-1, 0],
-    [0, 1],
-    [1, 1],
-  ];
-  const neigh = (x: number, y: number) => (y & 1 ? dirsOdd : dirsEven).map(([dx, dy]) => ({ x: x + dx!, y: y + dy! }));
   const walkable = (t: TerrainId | undefined) => !!t && TERRAIN[t].passable;
   const canWalk = (tilesNow: TerrainId[]) => {
     const from = m.playerSpawns[0];
@@ -2035,13 +2012,13 @@ function stampTactics(m: Mission): Mission {
     while (q.length) {
       const p = q.pop()!;
       if (oddrDist(p.x, p.y, to.x, to.y) <= 1) return true;
-      for (const n of neigh(p.x, p.y)) {
-        if (n.x < 0 || n.y < 0 || n.x >= m.cols || n.y >= m.rows) continue;
-        const k = `${n.x},${n.y}`;
+      for (const [nx, ny] of hexAdj(p.x, p.y)) {
+        if (nx < 0 || ny < 0 || nx >= m.cols || ny >= m.rows) continue;
+        const k = `${nx},${ny}`;
         if (seen.has(k)) continue;
-        if (!walkable(tilesNow[n.y * m.cols + n.x])) continue;
+        if (!walkable(tilesNow[ny * m.cols + nx])) continue;
         seen.add(k);
-        q.push(n);
+        q.push({ x: nx, y: ny });
       }
     }
     return false;
@@ -2198,7 +2175,273 @@ function rockifyColumns(mission: Mission): Mission {
   return { ...mission, layout: grid.map((row) => row.join("")), decorations };
 }
 
-export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(rockifyColumns);
+// Local seeded RNG for decorateOpenTerrain below — deliberately NOT imported from
+// combat.ts, since it imports from data.ts already and importing back would create a
+// circular module dependency. hexAdj above is the shared neighbor-offset helper both this
+// section and stampTactics use.
+function mulberry32Local(seed: number): () => number {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seedFromId(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const TREE_DECOS = ["dense-forest", "dead-tree-large"];
+const RUIN_DECOS = ["ruined-cottage", "broken-tower", "ruined-chapel", "broken-wall-segment", "boulder-cluster", "abandoned-mansion"];
+const CONVERT_TO_OPEN = new Set(["w", "r"]);
+const KEEP_HOST = new Set([".", "h", "f", "n"]);
+
+type Cell = [number, number];
+
+function inBoundsCell(x: number, y: number, cols: number, rows: number): boolean {
+  return x >= 0 && x < cols && y >= 0 && y < rows;
+}
+
+function floodClusters(grid: string[][], cols: number, rows: number, chars: Set<string>): Cell[][] {
+  const seen = new Set<string>();
+  const clusters: Cell[][] = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const key = `${x},${y}`;
+      if (seen.has(key) || !chars.has(grid[y]![x]!)) continue;
+      const stack: Cell[] = [[x, y]];
+      seen.add(key);
+      const comp: Cell[] = [[x, y]];
+      while (stack.length) {
+        const [cx, cy] = stack.pop()!;
+        for (const [nx, ny] of hexAdj(cx, cy)) {
+          const k = `${nx},${ny}`;
+          if (inBoundsCell(nx, ny, cols, rows) && !seen.has(k) && chars.has(grid[ny]?.[nx] ?? "")) {
+            seen.add(k);
+            stack.push([nx, ny]);
+            comp.push([nx, ny]);
+          }
+        }
+      }
+      clusters.push(comp);
+    }
+  }
+  return clusters;
+}
+
+function connectivityOk(grid: string[][], cols: number, rows: number, blockedExtra: Set<string>, spawns: Cell[]): boolean {
+  if (spawns.length === 0) return true;
+  const passable = (x: number, y: number): boolean => {
+    if (blockedExtra.has(`${x},${y}`)) return false;
+    const id = CHAR[grid[y]![x]!] ?? "plains";
+    return TERRAIN[id]?.passable !== false;
+  };
+  const [sx, sy] = spawns[0]!;
+  const seen = new Set([`${sx},${sy}`]);
+  const stack: Cell[] = [[sx, sy]];
+  while (stack.length) {
+    const [cx, cy] = stack.pop()!;
+    for (const [nx, ny] of hexAdj(cx, cy)) {
+      const k = `${nx},${ny}`;
+      if (inBoundsCell(nx, ny, cols, rows) && !seen.has(k) && passable(nx, ny)) {
+        seen.add(k);
+        stack.push([nx, ny]);
+      }
+    }
+  }
+  return spawns.every(([x, y]) => seen.has(`${x},${y}`));
+}
+
+function chebyshev(a: Cell, b: Cell): number {
+  return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
+}
+
+function minDist(cell: Cell, pts: Cell[]): number {
+  return pts.length ? Math.min(...pts.map((p) => chebyshev(cell, p))) : Infinity;
+}
+
+/** Sprinkles a handful of lockable chests ("here and there", not blanket coverage) onto
+ * open ground — spaced apart, never where they'd cut off a spawn (same BFS check as
+ * decoration placement, since a chest is impassable terrain until picked), and biased
+ * toward enemy territory: candidates are ranked by (distance from the nearest player
+ * spawn) minus (distance from the nearest enemy spawn), so a chest is worth fighting
+ * through the enemy line for, not a freebie sitting next to the party's own spawn. */
+function placeChests(
+  grid: string[][],
+  cols: number,
+  rows: number,
+  playerSpawns: Cell[],
+  enemySpawns: Cell[],
+  spawnSet: Set<string>,
+  blockedExtra: Set<string>,
+  seed: number,
+  floorChar: string,
+): void {
+  const rng = mulberry32Local(seed);
+  const spawns = [...playerSpawns, ...enemySpawns];
+  const candidates: Cell[] = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const k = `${x},${y}`;
+      if (spawnSet.has(k) || blockedExtra.has(k) || grid[y]![x] !== floorChar) continue;
+      candidates.push([x, y]);
+    }
+  }
+  candidates.sort((a, b) => {
+    const scoreA = minDist(a, playerSpawns) - minDist(a, enemySpawns);
+    const scoreB = minDist(b, playerSpawns) - minDist(b, enemySpawns);
+    return scoreB - scoreA;
+  });
+  const pool = candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)));
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  const budget = Math.min(3, Math.max(1, Math.floor((cols * rows) / 150)));
+  const placed: Cell[] = [];
+  for (const [cx, cy] of pool) {
+    if (placed.length >= budget) break;
+    if (placed.some(([px, py]) => Math.max(Math.abs(px - cx), Math.abs(py - cy)) < 3)) continue;
+    const candidate = new Set(blockedExtra);
+    candidate.add(`${cx},${cy}`);
+    if (connectivityOk(grid, cols, rows, candidate, spawns)) {
+      grid[cy]![cx] = "k";
+      blockedExtra.add(`${cx},${cy}`);
+      placed.push([cx, cy]);
+    }
+  }
+}
+
+/** Strips "funky" single-hex clutter tiles — woods ("w") and ruins ("r"), whose baked-in
+ * tree/house art tiles awkwardly at hex scale (and reads as grass/greenery even indoors,
+ * e.g. a temple nave) — back to plain ground, replaced with a modest sprinkling of the
+ * multi-hex decoration objects instead. Elevation (hill), fire (flame) and ember are
+ * untouched. Also sprinkles 1-3 lockable chests per map onto open ground, deterministically
+ * seeded by mission id so they don't reshuffle on reload. Every placement is verified with a
+ * BFS connectivity check — dropped if it would cut any spawn off from the rest of the board —
+ * so this can never produce an unwinnable map. Runs last, after rockifyColumns, on the same
+ * real expanded coordinates the game actually renders. */
+function decorateOpenTerrain(mission: Mission): Mission {
+  if (mission.hub) return mission;
+  const { cols, rows } = mission;
+  const grid: string[][] = mission.layout.map((row) => row.split(""));
+  const playerSpawns: Cell[] = mission.playerSpawns.map((s): Cell => [s.x, s.y]);
+  const enemySpawns: Cell[] = mission.enemySpawns.map((s): Cell => [s.x, s.y]);
+  const spawns: Cell[] = [...playerSpawns, ...enemySpawns];
+  const spawnSet = new Set(spawns.map(([x, y]) => `${x},${y}`));
+  // A map that already uses "nave" (indoor black-slab floor) anywhere is an indoor/
+  // underground space — walls stripped off of it should become more slab floor, not
+  // grassy plains, or the whole room reads as an outdoor field with rocks scattered on it
+  // (exactly what happened to "templo": most of its "r" ruin walls had no room left in the
+  // decoration budget, so they fell back to plain grass on a map that's supposed to be a
+  // hanged nave underground).
+  const floorChar = mission.layout.some((row) => row.includes("n")) ? "n" : ".";
+
+  const woodClusters = floodClusters(grid, cols, rows, new Set(["w"])).sort((a, b) => b.length - a.length);
+  const ruinClusters = floodClusters(grid, cols, rows, new Set(["r"])).sort((a, b) => b.length - a.length);
+  const totalWr = woodClusters.reduce((n, c) => n + c.length, 0) + ruinClusters.reduce((n, c) => n + c.length, 0);
+
+  const decorations: DecorationPlacement[] = [];
+  const blockedExtra = new Set<string>();
+
+  function tryPlaceOne(anchor: Cell, pool: string[]): boolean {
+    const [ax, ay] = anchor;
+    for (const name of pool) {
+      const def = DECORATIONS[name];
+      if (!def) continue;
+      const cells: Cell[] = def.footprint.map((f): Cell => [ax + f.dx, ay + f.dy]);
+      if (!cells.every(([cx, cy]) => inBoundsCell(cx, cy, cols, rows))) continue;
+      if (cells.some(([cx, cy]) => spawnSet.has(`${cx},${cy}`))) continue;
+      if (!cells.every(([cx, cy]) => CONVERT_TO_OPEN.has(grid[cy]![cx]!) || KEEP_HOST.has(grid[cy]![cx]!))) continue;
+      if (cells.some(([cx, cy]) => blockedExtra.has(`${cx},${cy}`))) continue;
+      const candidate = new Set(blockedExtra);
+      for (const [cx, cy] of cells) candidate.add(`${cx},${cy}`);
+      if (connectivityOk(grid, cols, rows, candidate, spawns)) {
+        for (const [cx, cy] of cells) blockedExtra.add(`${cx},${cy}`);
+        decorations.push({ id: name, x: ax, y: ay });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function placeInClusters(clusters: Cell[][], pool: string[], budget: number): number {
+    let placed = 0;
+    let di = 0;
+    for (const cluster of clusters) {
+      if (placed >= budget) break;
+      if (cluster.length < 2) continue;
+      const perClusterBudget = Math.max(1, Math.floor(cluster.length / 5));
+      let got = 0;
+      for (const anchor of cluster) {
+        if (placed >= budget || got >= perClusterBudget) break;
+        const [ax, ay] = anchor;
+        if (spawnSet.has(`${ax},${ay}`)) continue;
+        const offset = di % pool.length;
+        const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
+        if (tryPlaceOne(anchor, rotated)) {
+          di += 1;
+          got += 1;
+          placed += 1;
+        }
+      }
+    }
+    return placed;
+  }
+
+  const cap = totalWr > 0 ? Math.min(8, Math.max(2, Math.floor(totalWr / 6))) : 0;
+  const placedTrees = placeInClusters(woodClusters, TREE_DECOS, cap);
+  const placedRuins = placeInClusters(ruinClusters, RUIN_DECOS, Math.max(0, cap - placedTrees) + (placedTrees < cap ? 2 : 0));
+
+  // A map with no wood/ruin clutter to begin with got zero decorations above — cap is 0
+  // when there's nothing to convert. Top it up straight onto open ground so every map ends
+  // up dressed, not just the ones that already had funky tiles to work with.
+  if (placedTrees + placedRuins < 3) {
+    const openGround: Cell[] = [];
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const k = `${x},${y}`;
+        if (grid[y]![x] === floorChar && !spawnSet.has(k) && !blockedExtra.has(k)) openGround.push([x, y]);
+      }
+    }
+    const rng = mulberry32Local(seedFromId(`${mission.id}-deco`));
+    for (let i = openGround.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [openGround[i], openGround[j]] = [openGround[j]!, openGround[i]!];
+    }
+    const pool = [...TREE_DECOS, ...RUIN_DECOS];
+    let placed = 0;
+    const budget = 4;
+    for (const anchor of openGround) {
+      if (placed >= budget) break;
+      const offset = placed % pool.length;
+      const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
+      if (tryPlaceOne(anchor, rotated)) placed += 1;
+    }
+  }
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (CONVERT_TO_OPEN.has(grid[y]![x]!)) grid[y]![x] = floorChar;
+    }
+  }
+
+  placeChests(grid, cols, rows, playerSpawns, enemySpawns, spawnSet, blockedExtra, seedFromId(mission.id), floorChar);
+
+  return {
+    ...mission,
+    layout: grid.map((row) => row.join("")),
+    decorations: [...(mission.decorations ?? []), ...decorations],
+  };
+}
+
+export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(rockifyColumns).map(decorateOpenTerrain);
 
 export function missionById(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
