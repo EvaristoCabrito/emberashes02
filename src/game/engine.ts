@@ -1147,6 +1147,13 @@ export class BattleEngine {
     att.drawY = att.y;
     this.active = null;
     this.spellKind = null;
+    // A spell/heal/cureDisease sets this.banner directly (the cast name, e.g. "Bola de
+    // Fogo") when it starts, outside the dedicated "banner" active-step type — which is
+    // the only other thing that ever set it, and the only thing that ever cleared it (see
+    // stepActive). Every skill routes through this single completion point regardless of
+    // which one it was, so clearing it here is the one place that actually covers all of
+    // them instead of the banner sitting on screen until something unrelated overwrites it.
+    this.banner = null;
     this.evaluateEnd();
     if (this.result) {
       this.selectedId = null;
