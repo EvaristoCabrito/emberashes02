@@ -202,6 +202,26 @@ export const sfxPlay = {
     setTimeout(() => beep(659, 0.4, "triangle", 0.24), 280);
   },
   lose: () => beep(196, 0.5, "sine", 0.24, -80),
+  spell: () => {
+    beep(440, 0.14, "sine", 0.18, 220);
+    beep(660, 0.18, "triangle", 0.14, 300);
+  },
+  heal: () => {
+    beep(523, 0.14, "sine", 0.16, 90);
+    setTimeout(() => beep(784, 0.2, "sine", 0.15, 60), 90);
+  },
+  stun: () => {
+    noise(0.07, 0.2);
+    beep(210, 0.24, "square", 0.18, -160);
+  },
+  chest: () => {
+    beep(700, 0.05, "square", 0.14);
+    setTimeout(() => beep(920, 0.09, "triangle", 0.18, 220), 60);
+  },
+  loot: () => {
+    beep(880, 0.06, "triangle", 0.2);
+    setTimeout(() => beep(1180, 0.09, "triangle", 0.18), 70);
+  },
 };
 
 let introEl: HTMLAudioElement | null = null;

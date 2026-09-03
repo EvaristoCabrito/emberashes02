@@ -788,6 +788,7 @@ export class BattleEngine {
         }
         if (a.stage === "hit" && a.stunChance > 0 && this.rng() < a.stunChance) {
           target.stunned = true;
+          sfxPlay.stun();
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
@@ -849,6 +850,7 @@ export class BattleEngine {
     a.t += dt;
     if (!a.hit && a.t >= 0.18) {
       a.hit = true;
+      sfxPlay.spell();
       for (const id of a.ids) {
         const foe = this.units.find((u) => u.id === id && u.alive);
         if (!foe) continue;
@@ -958,7 +960,7 @@ export class BattleEngine {
       });
       this.tip = `${CURES[a.kind].name} · +${gained} HP`;
       this.pushLog(`${att.name} curou ${target.name}: +${gained} HP`);
-      sfxPlay.ui();
+      sfxPlay.heal();
     }
     if (a.t >= 0.5) this.finishCombat(att);
   }
@@ -988,7 +990,7 @@ export class BattleEngine {
         frame: 0,
       });
       this.tip = `${CURE_DISEASE.name} · ${target.name} está curado.`;
-      sfxPlay.ui();
+      sfxPlay.heal();
     }
     if (a.t >= 0.5) this.finishCombat(att);
   }
@@ -1916,13 +1918,13 @@ export class BattleEngine {
       kind: "impact",
       frame: 0,
     });
+    const found: string[] = [];
     if (wasChest) {
       // Every chest always gives a little Ember; a potion and a piece of gear are each
       // their own independent roll, weighted so the strongest of either is the rarest —
       // a lucky chest can gives all three, an unlucky one just the Ember.
       const gain = 3 + Math.floor(this.rng() * 6);
       this.lootEmber += gain;
-      const found: string[] = [];
       if (this.rng() < 0.55) {
         const kind = weightedPotionPick(this.rng);
         u.bag[kind] = (u.bag[kind] ?? 0) + 1;
@@ -1950,7 +1952,12 @@ export class BattleEngine {
       this.pushLog(this.tip);
     }
     this.finishAction(u);
-    sfxPlay.ui();
+    if (wasChest) {
+      sfxPlay.chest();
+      if (found.length > 0) setTimeout(() => sfxPlay.loot(), 130);
+    } else {
+      sfxPlay.ui();
+    }
   }
 
   /** "Fim do turno": passes whoever's turn it currently is (same as Esperar). */
