@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, maxLootPrice, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -236,6 +236,9 @@ interface Roster {
   /** Enemy name → level override, for Map Editor balance-testing. Falls back to the
    * mission's uniform enemyLevelFor(index) when a name has no entry. */
   enemyLevels?: Record<string, number>;
+  /** Every weapon id already in the player's save — chest and kill-drop loot rolls exclude
+   * these so a drop never announces a weapon the player already has. */
+  ownedWeaponIds?: string[];
 }
 
 function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i: number, roster?: Roster, enemyLevel = 1): Unit {
@@ -351,6 +354,12 @@ export class BattleEngine {
   /** Weapon ids found in chests or off an enemy kill mid-battle; folded into the save's
    * weapon stash on victory. */
   lootWeapons: string[] = [];
+  /** Every weapon id the player already owns, plus anything granted mid-battle the moment
+   * it's granted — checked before every loot roll so a chest or kill drop never announces
+   * a weapon the player already has (it used to: the roll didn't know about ownership at
+   * all, so a "found" weapon could silently vanish once persistVictory deduped it against
+   * the save, with nothing to show for the mid-battle "you found X" message). */
+  private ownedWeapons: Set<string>;
   /** Rolling combat log — attacks, spells, heals, kills, and loot, newest last. Capped so
    * a long battle doesn't grow it without bound; read via getHud() for the in-battle log
    * view. */
@@ -383,6 +392,7 @@ export class BattleEngine {
   constructor(mission: Mission, art: GameArt, roster: Roster, seed = 1) {
     this.mission = mission;
     this.art = art;
+    this.ownedWeapons = new Set(roster.ownedWeaponIds ?? []);
     this.cols = mission.cols;
     this.rows = mission.rows;
     this.tiles = parseLayout(mission.layout);
@@ -1029,10 +1039,17 @@ export class BattleEngine {
     u.alive = false;
     sfxPlay.death();
     this.pushLog(`${u.name} foi derrotado.`);
-    if (u.side === "enemy" && this.rng() < 0.15) {
-      const id = weightedWeaponPick(this.rng);
-      this.lootWeapons.push(id);
-      this.pushLog(`Loot: ${WEAPONS[id]?.name ?? id}`);
+    // 1% per kill, capped to what this mission's progress has actually unlocked, and never
+    // a weapon already owned — a low-index mission never hands out the campaign's best gear.
+    if (u.side === "enemy" && this.rng() < 0.01) {
+      const id = weightedWeaponPick(this.rng, Object.keys(WEAPONS), maxLootPrice(this.mission.index));
+      if (this.ownedWeapons.has(id)) {
+        this.lootEmber += 15;
+      } else {
+        this.ownedWeapons.add(id);
+        this.lootWeapons.push(id);
+        this.pushLog(`Loot: ${WEAPONS[id]?.name ?? id}`);
+      }
     }
   }
 
@@ -1920,19 +1937,21 @@ export class BattleEngine {
     });
     const found: string[] = [];
     if (wasChest) {
-      // Every chest always gives a little Ember; a potion and a piece of gear are each
-      // their own independent roll, weighted so the strongest of either is the rarest —
-      // a lucky chest can gives all three, an unlucky one just the Ember.
+      // Every chest always gives a little Ember, plus at most ONE extra item — a single
+      // roll decides potion vs. gear vs. nothing (not two independent rolls, which used to
+      // let one chest hand out both), weighted so the strongest gear is the rarest and
+      // gear never exceeds what this mission's progress has unlocked (see maxLootPrice).
       const gain = 3 + Math.floor(this.rng() * 6);
       this.lootEmber += gain;
-      if (this.rng() < 0.55) {
+      const roll = this.rng();
+      if (roll < 0.55) {
         const kind = weightedPotionPick(this.rng);
         u.bag[kind] = (u.bag[kind] ?? 0) + 1;
         found.push(POTIONS[kind].name);
-      }
-      if (this.rng() < 0.4) {
-        const drop = weightedLootPick(this.rng);
+      } else if (roll < 0.95) {
+        const drop = weightedLootPick(this.rng, maxLootPrice(this.mission.index), this.ownedWeapons);
         if (drop.kind === "weapon") {
+          this.ownedWeapons.add(drop.id);
           this.lootWeapons.push(drop.id);
           found.push(WEAPONS[drop.id]!.name);
         } else {

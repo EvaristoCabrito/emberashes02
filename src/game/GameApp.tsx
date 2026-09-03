@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, weightedWeaponPick, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { MISSIONS_V2 } from "./campaignV2";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
@@ -234,6 +234,10 @@ export function GameApp() {
   const [lastGrowth, setLastGrowth] = useState<GrowthLine[] | null>(null);
   const [lastLoot, setLastLoot] = useState<string[]>([]);
   const [pendingPromotions, setPendingPromotions] = useState<{ name: string; options: [ClassId, ClassId] }[]>([]);
+  // Set right after a victory that leaves more chapters at the same location — the world
+  // map opens with that location's chapter list already popped open instead of the bare
+  // map, so a multi-mission location plays as one continuous series of combats.
+  const [openLocationOnMap, setOpenLocationOnMap] = useState<string | null>(null);
   const [testMode, setTestMode] = useState(false);
   const [testEmber, setTestEmber] = useState(TEST_EMBER);
   const awardedRef = useRef<string | null>(null);
@@ -352,7 +356,8 @@ export function GameApp() {
               .map(([hero, e]) => [hero, e.offHand] as const)
               .filter((entry): entry is [string, string] => !!entry[1]),
           );
-      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, offHand, enemyLevels }, Date.now() % 100000);
+      const ownedWeaponIds = testMode ? undefined : Object.keys(save.weapons);
+      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, offHand, enemyLevels, ownedWeaponIds }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -448,22 +453,11 @@ export function GameApp() {
         .reduce((n, u) => n + emberForKill(u.classId), 0);
       const weapons = { ...save.weapons };
       const found: string[] = [];
-      let salvage = 0;
-      const weaponPool = Object.keys(WEAPONS);
-      const dropWeapon = () => {
-        const fresh = weaponPool.filter((wid) => weapons[wid] == null);
-        const pool = fresh.length > 0 ? fresh : weaponPool;
-        const id = weightedWeaponPick(Math.random, pool);
-        if (weapons[id] == null) {
-          weapons[id] = 0;
-          found.push(WEAPONS[id]!.name);
-        } else {
-          salvage += 20;
-        }
-      };
-      for (const u of engine.units) {
-        if (u.side === "enemy" && !u.alive && Math.random() < 0.15) dropWeapon();
-      }
+      // Weapon drops are already resolved and logged live, in-battle, by the engine
+      // (kill drops in markDead, chest loot in useLockpick — both ownership- and
+      // mission-level-aware). This just folds engine.lootWeapons into the save; it used to
+      // ALSO roll its own separate 15%-per-dead-enemy chance here, completely independent
+      // of and in addition to the engine's roll, silently doubling the real drop odds.
       for (const id of engine.lootWeapons) {
         if (weapons[id] == null) {
           weapons[id] = 0;
@@ -485,7 +479,7 @@ export function GameApp() {
         xp,
         weapons,
         equipment,
-        ember: (save.ember ?? 0) + loot + engine.lootEmber + salvage,
+        ember: (save.ember ?? 0) + loot + engine.lootEmber,
         emberSeeded: true,
         muted,
         pendingMission: null,
@@ -541,15 +535,19 @@ export function GameApp() {
       stopMusic();
       return;
     }
-    if (screen === "battle" && missionId === "templo") {
+    // Victory/defeat and the mission briefing keep whatever track that mission plays
+    // instead of falling through to the menu theme below — a win screen or a briefing
+    // is still "in" that mission, not back at the title.
+    const inMission = screen === "battle" || screen === "victory" || screen === "defeat" || screen === "briefing";
+    if (inMission && missionId === "templo") {
       playTheme("temple");
       return;
     }
-    if (screen === "battle" && missionId === "aldeia") {
+    if (inMission && missionId === "aldeia") {
       playTheme("aldeia");
       return;
     }
-    if (screen === "battle" && (missionId === "vau" || missionId === "bosque" || missionId === "cripta" || missionId === "vertente")) {
+    if (inMission && (missionId === "vau" || missionId === "bosque" || missionId === "cripta" || missionId === "vertente")) {
       playTheme("early");
       return;
     }
@@ -561,19 +559,19 @@ export function GameApp() {
       playTheme("worldMap");
       return;
     }
-    if (screen === "battle" && (missionId === "muralha" || missionId === "fortaleza")) {
+    if (inMission && (missionId === "muralha" || missionId === "fortaleza")) {
       playTheme("siege");
       return;
     }
-    if (screen === "battle" && (missionId === "colina" || missionId === "passagem")) {
+    if (inMission && (missionId === "colina" || missionId === "passagem")) {
       playTheme("hill");
       return;
     }
-    if (screen === "battle" && missionId === "portao") {
+    if (inMission && missionId === "portao") {
       playTheme("portao");
       return;
     }
-    if (screen === "battle") {
+    if (inMission) {
       playTheme("early");
       return;
     }
@@ -681,6 +679,13 @@ export function GameApp() {
           missionStatus={(id) => missionStatus(id, save.completed, testMode)}
           ember={testMode ? testEmber : (save.ember ?? 0)}
           test={testMode}
+          muted={muted}
+          onMute={() => {
+            unlockAudio();
+            setMutedUi((v) => !v);
+          }}
+          autoOpenLocationId={openLocationOnMap}
+          centerLocationId={locationForMission(MISSIONS.find((m) => !m.hub && !save.completed.includes(m.id))?.id ?? "")?.id ?? null}
           onBack={() => setScreen(testMode ? "testMenu" : "title")}
           onPick={openMission}
           onOpenList={() => setScreen("campaign")}
@@ -874,19 +879,21 @@ export function GameApp() {
               setScreen(origin === "campaignV2" ? "campaignV2" : "mapEditor");
               return;
             }
+            // Reopens the world map straight onto this mission's location — if that
+            // location has more chapters left, its list pops open immediately (a
+            // multi-mission location plays as one continuous series of combats instead
+            // of dropping back to the bare map after every fight).
+            setOpenLocationOnMap(locationForMission(mission.id)?.id ?? null);
             setScreen("worldMap");
           }}
-          mapLabel={customMission ? (customOrigin === "campaignV2" ? "Voltar à Campanha V2" : "Voltar ao editor") : undefined}
+          mapLabel={customMission ? (customOrigin === "campaignV2" ? "Voltar à Campanha V2" : "Voltar ao editor") : "Mapa"}
           onTitle={() => setScreen("title")}
-          onNext={() => {
-            if (customMission) return;
-            const nxt = MISSIONS.find((m) => m.index === mission.index + 1);
-            if (nxt) {
-              setMissionId(nxt.id);
-              setScreen("briefing");
-            } else setScreen("title");
-          }}
-          hasNext={!customMission && MISSIONS.some((m) => m.index === mission.index + 1)}
+          // The raw "next mission by global index" shortcut this used to offer could skip
+          // straight past an entire other location (missions aren't numbered in location
+          // order) — hasNext is always false below now, so this never fires; onMap is the
+          // one continue path, and it's location-aware.
+          onNext={() => {}}
+          hasNext={false}
         />
       )}
 

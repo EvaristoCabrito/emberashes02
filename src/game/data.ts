@@ -654,21 +654,41 @@ function priceWeight(price: number): number {
 
 export type LootDrop = { kind: "weapon"; id: string } | { kind: "equipment"; id: string };
 
-/** Weighted random pick across every weapon and every offHand EquipmentDef, rarer as price
- * climbs. Used for chest loot and enemy kill drops alike. */
-export function weightedLootPick(rng: () => number): LootDrop {
-  const entries: [LootDrop, number][] = [
-    ...Object.values(WEAPONS).map((w): [LootDrop, number] => [{ kind: "weapon", id: w.id }, priceWeight(w.price)]),
-    ...Object.values(EQUIPMENT).map((e): [LootDrop, number] => [{ kind: "equipment", id: e.id }, priceWeight(e.price ?? 60)]),
-  ];
-  return weightedPick(rng, entries);
+/** Price ceiling for loot on a given mission — an early mission never drops the campaign's
+ * best gear. Missions aren't leveled 1:1 with the 9 weapon rungs (~11 real missions), so
+ * this steps up roughly one rung every mission and a half, reaching the full price range
+ * (every rung, every piece of gear) by the last couple of missions. */
+export function maxLootPrice(missionIndex: number): number {
+  const rung = Math.min(WEAPON_RUNGS.length, Math.floor(missionIndex / 1.3) + 2);
+  return WEAPON_RUNGS[rung - 1]!.price;
 }
 
-/** Weighted random pick across a given set of weapon ids (no offHand gear) — for drop
+/** Weighted random pick across every weapon and every offHand EquipmentDef, rarer as price
+ * climbs, capped to maxPrice (see maxLootPrice) and — for weapons — excluding anything in
+ * ownedWeaponIds so a drop never announces a weapon the recipient already has. Used for
+ * chest loot and enemy kill drops alike. */
+export function weightedLootPick(rng: () => number, maxPrice = Infinity, ownedWeaponIds: ReadonlySet<string> = new Set()): LootDrop {
+  const build = (price: number): [LootDrop, number][] => [
+    ...Object.values(WEAPONS)
+      .filter((w) => w.price <= price && !ownedWeaponIds.has(w.id))
+      .map((w): [LootDrop, number] => [{ kind: "weapon", id: w.id }, priceWeight(w.price)]),
+    ...Object.values(EQUIPMENT)
+      .filter((e) => (e.price ?? 60) <= price)
+      .map((e): [LootDrop, number] => [{ kind: "equipment", id: e.id }, priceWeight(e.price ?? 60)]),
+  ];
+  // The mission-level price cap can (rarely) leave nothing eligible once owned weapons are
+  // also excluded — widen to the full price range rather than crash on an empty pool.
+  const entries = build(maxPrice);
+  return weightedPick(rng, entries.length > 0 ? entries : build(Infinity));
+}
+
+/** Weighted random pick across a given set of weapon ids, capped to maxPrice — for drop
  * sources that only ever granted a weapon before (e.g. enemy kill drops), optionally
  * restricted to a pool (e.g. "not already owned"). Defaults to every weapon in the game. */
-export function weightedWeaponPick(rng: () => number, ids: string[] = Object.keys(WEAPONS)): string {
-  const entries: [string, number][] = ids.map((id): [string, number] => [id, priceWeight(WEAPONS[id]?.price ?? 100)]);
+export function weightedWeaponPick(rng: () => number, ids: string[] = Object.keys(WEAPONS), maxPrice = Infinity): string {
+  const capped = ids.filter((id) => (WEAPONS[id]?.price ?? 100) <= maxPrice);
+  const pool = capped.length > 0 ? capped : ids;
+  const entries: [string, number][] = pool.map((id): [string, number] => [id, priceWeight(WEAPONS[id]?.price ?? 100)]);
   return weightedPick(rng, entries);
 }
 export const BAG_MAX = 9;

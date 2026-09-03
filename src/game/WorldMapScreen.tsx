@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, ChevronLeft, Lock, MapPin, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Check, ChevronLeft, Lock, MapPin, Volume2, VolumeX, X, ZoomIn, ZoomOut } from "lucide-react";
 import { missionsForLocation } from "./data";
 import type { Mission, WorldLocation } from "./types";
 
@@ -21,6 +21,10 @@ export function WorldMapScreen({
   missionStatus,
   ember,
   test,
+  muted,
+  onMute,
+  autoOpenLocationId,
+  centerLocationId,
   onBack,
   onPick,
   onOpenList,
@@ -30,6 +34,16 @@ export function WorldMapScreen({
   missionStatus: (missionId: string) => LocationStatus;
   ember: number;
   test: boolean;
+  muted: boolean;
+  onMute: () => void;
+  /** Set right after finishing a mission that's part of a multi-mission location — pops
+   * that location's chapter list straight back open (world map still visible behind it)
+   * instead of dropping the player back on the bare map, so a "series of combats" reads
+   * as one continuous flow with a chapter picker between each fight. */
+  autoOpenLocationId?: string | null;
+  /** Which location's marker the map should open scrolled to — the player's current
+   * location, not always the geometric center of the art. */
+  centerLocationId?: string | null;
   onBack: () => void;
   onPick: (missionId: string) => void;
   onOpenList: () => void;
@@ -46,15 +60,66 @@ export function WorldMapScreen({
   // deciding whether to swallow the click that follows (so dragging over a location
   // marker doesn't also fire its onClick).
   const dragRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number; moved: boolean } | null>(null);
+  // Whatever point is currently centered in the viewport, as a 0-1 fraction of the whole
+  // image — kept up to date so a zoom change can re-center on the SAME spot instead of
+  // jumping back to the image's absolute middle (which is what used to happen: zooming in
+  // or out teleported the view away from wherever the player actually was, e.g. off of
+  // Stone Bridge and over near the Inn, several screens away).
+  const centerFracRef = useRef({ x: 0.5, y: 0.5 });
 
-  // Re-center the view on every zoom change (and on first mount) so zooming in never stalls
-  // the player at whatever corner they happened to be scrolled to.
-  useEffect(() => {
+  const recenterOn = (fx: number, fy: number) => {
     const el = viewportRef.current;
     if (!el) return;
-    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
-    el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
+    el.scrollLeft = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, fx * el.scrollWidth - el.clientWidth / 2));
+    el.scrollTop = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, fy * el.scrollHeight - el.clientHeight / 2));
+  };
+  // Reads whatever the viewport is actually showing right now (however it got there —
+  // drag, native touch scroll, a previous zoom) so the next zoom change can anchor back on
+  // it instead of the ref only ever reflecting the last programmatic recenter.
+  const captureCenterFrac = () => {
+    const el = viewportRef.current;
+    if (!el || el.scrollWidth === 0 || el.scrollHeight === 0) return;
+    centerFracRef.current = {
+      x: (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth,
+      y: (el.scrollTop + el.clientHeight / 2) / el.scrollHeight,
+    };
+  };
+
+  // Re-center on every zoom change so it lands back on the same spot at the new size,
+  // instead of the image's fixed midpoint. Skipped on the very first render (zoomIdx
+  // hasn't actually changed yet) — the mount effect below handles the opening position.
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) return;
+    recenterOn(centerFracRef.current.x, centerFracRef.current.y);
+    // recenterOn reads refs only, not reactive state — safe to omit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomIdx]);
+
+  // Runs once, after mount, so it wins as the screen's actual opening scroll position:
+  // centers on the player's current location instead of the art's literal center, so the
+  // map opens already looking at wherever they are in the campaign. Also seeds the "current
+  // center" ref so later zoom changes anchor on this location too, not 50/50.
+  useEffect(() => {
+    const loc = centerLocationId ? locations.find((l) => l.id === centerLocationId) : null;
+    if (loc) {
+      centerFracRef.current = { x: loc.x / 100, y: loc.y / 100 };
+      recenterOn(centerFracRef.current.x, centerFracRef.current.y);
+    }
+    mounted.current = true;
+    // Deliberately mount-only — re-centering on every render (or every zoom change) would
+    // fight the player's own panning.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-reopens a location's chapter list right after finishing one of its missions, so a
+  // multi-mission location plays as a continuous "series of combats" with the list as the
+  // between-fights beat, not a detour back through the bare map.
+  useEffect(() => {
+    if (!autoOpenLocationId) return;
+    const loc = locations.find((l) => l.id === autoOpenLocationId);
+    if (loc) setOpen(loc);
+  }, [autoOpenLocationId, locations]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "touch") return; // native touch scroll already handles this
@@ -62,7 +127,11 @@ export function WorldMapScreen({
     if (!el) return;
     dragRef.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, moved: false };
     setDragging(true);
-    el.setPointerCapture(e.pointerId);
+    // Pointer capture is deliberately NOT taken here — capturing on every mousedown
+    // redirects the matching pointerup (and the mouseup derived from it) to this div
+    // instead of whatever was actually under the cursor, so a plain click on a location
+    // marker never reaches its own onClick and silently does nothing. Capture is instead
+    // grabbed lazily in onPointerMove, only once an actual drag is confirmed.
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
@@ -70,7 +139,11 @@ export function WorldMapScreen({
     if (!d || !el) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+    if (!d.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      d.moved = true;
+      el.setPointerCapture(e.pointerId);
+    }
+    if (!d.moved) return;
     el.scrollLeft = d.scrollLeft - dx;
     el.scrollTop = d.scrollTop - dy;
   };
@@ -107,6 +180,9 @@ export function WorldMapScreen({
         </div>
         <button type="button" onClick={onOpenList} className="h-9 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]">
           Lista
+        </button>
+        <button type="button" onClick={onMute} className="size-9 grid place-items-center rounded-md border border-border bg-bg/70" aria-label="Som">
+          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
         <p className="text-sm tabular-nums text-muted border border-border rounded-md px-2 py-1 bg-bg/70">Ember {ember}</p>
       </header>
@@ -199,7 +275,10 @@ export function WorldMapScreen({
         <div className="absolute z-20 bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 flex flex-col gap-1 bg-bg/85 border border-border rounded-lg p-1">
           <button
             type="button"
-            onClick={() => setZoomIdx((i) => Math.min(ZOOM_STOPS.length - 1, i + 1))}
+            onClick={() => {
+              captureCenterFrac();
+              setZoomIdx((i) => Math.min(ZOOM_STOPS.length - 1, i + 1));
+            }}
             disabled={zoomIdx >= ZOOM_STOPS.length - 1}
             className="size-11 grid place-items-center rounded-md disabled:opacity-30 active:bg-surface-2"
             aria-label="Aproximar"
@@ -209,7 +288,10 @@ export function WorldMapScreen({
           <div className="text-center text-[10px] tabular-nums text-muted py-0.5">{zoomIdx + 1}/{ZOOM_STOPS.length}</div>
           <button
             type="button"
-            onClick={() => setZoomIdx((i) => Math.max(0, i - 1))}
+            onClick={() => {
+              captureCenterFrac();
+              setZoomIdx((i) => Math.max(0, i - 1));
+            }}
             disabled={zoomIdx <= 0}
             className="size-11 grid place-items-center rounded-md disabled:opacity-30 active:bg-surface-2"
             aria-label="Afastar"
