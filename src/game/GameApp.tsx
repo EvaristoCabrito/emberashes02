@@ -23,7 +23,7 @@ import {
   writeSlot,
   selectSlot,
 } from "./save";
-import type { ClassId, DecorationPlacement, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition, WorldLocation } from "./types";
+import type { ClassId, DecorationPlacement, EquipSlot, GameArt, GrowthLine, HudSnapshot, Mission, PotionId, SaveBank, SaveData, ScreenId, SpellKind, Spawn, TerrainId, UnitPublic, WinCondition, WorldLocation } from "./types";
 
 function hudBlank(): HudSnapshot {
   return {
@@ -34,6 +34,7 @@ function hudBlank(): HudSnapshot {
     terrain: null,
     mode: "idle",
     canAttack: false,
+    offHandKind: null,
     canLockpick: false,
     forecast: null,
     turn: 1,
@@ -343,7 +344,14 @@ export function GameApp() {
       const weapons = testMode
         ? undefined
         : Object.fromEntries(Object.entries(save.equipped).map(([hero, id]) => [hero, { id, enh: save.weapons[id] ?? 0 }]));
-      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, enemyLevels }, Date.now() % 100000);
+      const offHand = testMode
+        ? undefined
+        : Object.fromEntries(
+            Object.entries(save.equipment)
+              .map(([hero, e]) => [hero, e.offHand] as const)
+              .filter((entry): entry is [string, string] => !!entry[1]),
+          );
+      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, offHand, enemyLevels }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -706,6 +714,14 @@ export function GameApp() {
             const rec = activeSave(bank);
             if (rec.weapons[weaponId] == null) return;
             persistCurrent({ ...rec, equipped: { ...rec.equipped, [hero]: weaponId }, pendingMission: null });
+          }}
+          onEquipItem={(hero: string, slot: EquipSlot, itemId: string) => {
+            const rec = activeSave(bank);
+            persistCurrent({
+              ...rec,
+              equipment: { ...rec.equipment, [hero]: { ...(rec.equipment[hero] ?? {}), [slot]: itemId } },
+              pendingMission: null,
+            });
           }}
           onUpgradeWeapon={(weaponId: string) => {
             const rec = activeSave(bank);
@@ -2428,6 +2444,17 @@ function BattleScreen({
           )}
         </div>
         <div className="flex flex-wrap gap-1 min-h-10 items-center mt-1">
+          {hud.offHandKind && (
+            <Button
+              size="sm"
+              variant="quiet"
+              disabled={!showAct || hud.busy || hud.mode === "awaitSpell"}
+              onClick={() => engine.startOffHand()}
+              title={hud.offHandKind === "shield" ? "75% do dano normal · 70% de chance de atordoar por 1 turno" : "Ataca com a arma da mão secundária"}
+            >
+              {hud.offHandKind === "shield" ? "Investida de Escudo" : "Mão Secundária"}
+            </Button>
+          )}
           <Button size="sm" disabled={!showAct || !hud.canAttack || hud.busy || hud.mode === "awaitSpell"} onClick={() => engine.startAttack()}>
             Atacar
           </Button>

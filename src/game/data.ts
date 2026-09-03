@@ -820,8 +820,10 @@ export function weaponEnhCost(nextRank: number): number {
 }
 
 // ------------------------------------------------------------- Equipment (paper doll)
-// Skeleton only: slots + the data shape exist and are wired into a screen, but no
-// EquipmentDef exists yet. "mainHand" isn't a slot here — it's the weapon system above.
+// Skeleton for every slot except offHand: the data shape exists and is wired into a
+// screen, but no EquipmentDef exists yet. "mainHand" isn't a slot here — it's the weapon
+// system above. offHand is real: a shield (Shield Bash) or a light off-hand weapon, never
+// both at once, and never alongside a two-handed main-hand weapon (see offHandBlocked).
 export const EQUIPMENT_SLOTS: { id: EquipSlot; label: string }[] = [
   { id: "head", label: "Cabeça" },
   { id: "neck", label: "Pescoço" },
@@ -837,7 +839,37 @@ export const EQUIPMENT_SLOTS: { id: EquipSlot; label: string }[] = [
   { id: "offHand", label: "Mão Secundária" },
 ];
 
-export const EQUIPMENT: Record<string, EquipmentDef> = {};
+export const EQUIPMENT: Record<string, EquipmentDef> = {
+  broquel: {
+    id: "broquel",
+    name: "Broquel",
+    slot: "offHand",
+    kind: "shield",
+    usableBy: ["swordsman", "heavyKnight", "paladin"],
+    def: 1,
+    price: 60,
+  },
+  "adaga-secundaria": {
+    id: "adaga-secundaria",
+    name: "Adaga Secundária",
+    slot: "offHand",
+    kind: "weapon",
+    usableBy: ["archer", "assassin", "rogue"],
+    dice: 1,
+    faces: 4,
+    bonus: 0,
+    minRange: 1,
+    maxRange: 1,
+    price: 70,
+  },
+};
+
+/** Whether a class's main-hand weapon choice blocks the offHand slot — true when it's a
+ * two-handed weapon (lances and the like: both hands are already full). */
+export function offHandBlocked(mainHandWeaponId: string | null): boolean {
+  const w = mainHandWeaponId ? WEAPONS[mainHandWeaponId] : null;
+  return !!w?.twoHanded;
+}
 
 export function equipmentIcon(id: string): string {
   return `/game/icons/equipment/${id}.png`;

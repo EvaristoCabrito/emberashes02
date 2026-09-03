@@ -59,7 +59,7 @@ export type HealId = "cureMinor" | "cureWounds";
 export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "doubleStrike" | "cleave" | "cureDisease";
 export type ScreenId = "boot" | "title" | "campaign" | "campaignV2" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
-export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitSpell" | "locked";
+export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitOffHand" | "awaitSpell" | "locked";
 
 export interface Point {
   x: number;
@@ -217,6 +217,10 @@ export interface Unit {
   shock: { dice: number; faces: number; bonus: number } | null;
   diseased: boolean;
   diseaseBase: { atk: number; mag: number; def: number; res: number; mov: number } | null;
+  /** Shield Bash victim: loses their entire next turn, then clears automatically. */
+  stunned: boolean;
+  /** Equipped off-hand EquipmentDef id (kind "weapon" or "shield"), or null. */
+  offHandId: string | null;
 }
 
 export interface UnitPublic {
@@ -248,6 +252,8 @@ export interface UnitPublic {
   weaponEnh: number;
   size: number;
   diseased: boolean;
+  stunned: boolean;
+  offHandId: string | null;
 }
 
 export interface WeaponDef {
@@ -264,6 +270,8 @@ export interface WeaponDef {
   maxRange: number;
   /** True for bow/crossbow-type weapons: grants the elevated-terrain range bonus (see effectiveMaxRange). */
   ranged?: boolean;
+  /** Occupies both hands — an offHand item can't be equipped alongside it. */
+  twoHanded?: boolean;
 }
 
 /**
@@ -298,6 +306,16 @@ export interface EquipmentDef {
   res?: number;
   mov?: number;
   price?: number;
+  /** offHand-slot items only: "weapon" grants an off-hand attack command (using this
+   * item's own dice/range below); "shield" grants Shield Bash instead (75% weapon damage,
+   * 70% chance to stun for the target's next turn). Both show as the command menu's first
+   * option, and both are blocked while the main hand holds a WeaponDef.twoHanded weapon. */
+  kind?: "weapon" | "shield";
+  dice?: number;
+  faces?: number;
+  bonus?: number;
+  minRange?: number;
+  maxRange?: number;
 }
 
 export interface Forecast {
@@ -328,6 +346,9 @@ export interface HudSnapshot {
   terrain: TerrainHover | null;
   mode: InputMode;
   canAttack: boolean;
+  /** Selected unit has an unused offHand item and could still act — "weapon" for an
+   * off-hand attack command, "shield" for Shield Bash, null when neither applies. */
+  offHandKind: "weapon" | "shield" | null;
   canLockpick: boolean;
   forecast: Forecast | null;
   turn: number;

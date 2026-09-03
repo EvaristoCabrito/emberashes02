@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, heroRecruited, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
+import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, equipmentIcon, heroRecruited, offHandBlocked, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
 import type { ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
 const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
@@ -17,6 +17,7 @@ export function PaperDollScreen({
   onClose,
   onSwitchToBackpack,
   onEquipWeapon,
+  onEquipItem,
 }: {
   heroName: string;
   classId: ClassId;
@@ -24,6 +25,7 @@ export function PaperDollScreen({
   onClose: () => void;
   onSwitchToBackpack?: () => void;
   onEquipWeapon?: (hero: string, weaponId: string) => void;
+  onEquipItem?: (hero: string, slot: EquipSlot, itemId: string) => void;
 }) {
   const [picker, setPicker] = useState<"mainHand" | EquipSlot | null>(null);
   const weaponId = save.equipped[heroName];
@@ -143,16 +145,39 @@ export function PaperDollScreen({
               ) : (
                 <p className="text-sm text-muted">Nenhuma arma no saco ainda. Compre uma com o Ferreiro.</p>
               )
+            ) : picker === "offHand" && offHandBlocked(weaponId ?? null) ? (
+              <p className="text-sm text-muted">Arma principal de duas mãos — sem mão livre para a secundária.</p>
             ) : (
               (() => {
-                const options = Object.values(EQUIPMENT).filter((it) => it.slot === picker);
+                const options = Object.values(EQUIPMENT).filter(
+                  (it) => it.slot === picker && (!it.usableBy || it.usableBy.includes(classId)),
+                );
                 return options.length > 0 ? (
                   <div className="flex flex-col gap-1.5">
-                    {options.map((it) => (
-                      <div key={it.id} className="bg-bg border border-border rounded-md px-2 py-1.5 text-sm">
-                        {it.name}
-                      </div>
-                    ))}
+                    {options.map((it) => {
+                      const equipped = equip[picker as EquipSlot] === it.id;
+                      return (
+                        <button
+                          key={it.id}
+                          type="button"
+                          disabled={equipped || !onEquipItem}
+                          onClick={() => {
+                            onEquipItem?.(heroName, picker as EquipSlot, it.id);
+                            setPicker(null);
+                          }}
+                          className="w-full flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-left disabled:opacity-50"
+                        >
+                          <img src={equipmentIcon(it.id)} alt="" className="size-9 rounded-sm object-cover shrink-0" />
+                          <span className="flex-1 text-sm min-w-0">
+                            {it.name}
+                            <span className="block text-[11px] text-muted">
+                              {it.kind === "shield" ? "Investida de Escudo · 75% dano · 70% atordoa" : it.kind === "weapon" ? `${it.dice}D${it.faces} · Mão secundária` : ""}
+                            </span>
+                          </span>
+                          {equipped && <span className="text-[11px] text-muted shrink-0">Equipado</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-muted">Nenhum item disponível ainda.</p>

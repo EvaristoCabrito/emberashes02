@@ -3,7 +3,7 @@ import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, heroRecruited, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import type { Bag, ClassId, PotionId, SaveData } from "./types";
+import type { Bag, ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
 const NPCS = [
   {
@@ -56,6 +56,7 @@ export function InnScreen({
   onPay,
   onBuyWeapon,
   onEquipWeapon,
+  onEquipItem,
   onUpgradeWeapon,
   onSellWeapon,
 }: {
@@ -71,6 +72,7 @@ export function InnScreen({
   onPay: (hero: string, cart: Record<PotionId, number>, lockpicks: number) => boolean;
   onBuyWeapon: (hero: string, weaponId: string) => boolean;
   onEquipWeapon: (hero: string, weaponId: string) => void;
+  onEquipItem?: (hero: string, slot: EquipSlot, itemId: string) => void;
   onUpgradeWeapon: (weaponId: string) => boolean;
   onSellWeapon: (weaponId: string) => number | false;
 }) {
@@ -141,6 +143,7 @@ export function InnScreen({
         onBack={() => setView("npc")}
         onBuyWeapon={onBuyWeapon}
         onEquipWeapon={onEquipWeapon}
+        onEquipItem={onEquipItem}
         onUpgradeWeapon={onUpgradeWeapon}
         onSellWeapon={onSellWeapon}
       />
@@ -303,6 +306,7 @@ export function InnScreen({
           onClose={() => setInvView(null)}
           onSwitchToBackpack={() => setInvView("pack")}
           onEquipWeapon={onEquipWeapon}
+          onEquipItem={onEquipItem}
         />
       )}
     </section>
@@ -320,6 +324,7 @@ function SmithPanel({
   onBack,
   onBuyWeapon,
   onEquipWeapon,
+  onEquipItem,
   onUpgradeWeapon,
   onSellWeapon,
 }: {
@@ -333,6 +338,7 @@ function SmithPanel({
   onBack: () => void;
   onBuyWeapon: (hero: string, weaponId: string) => boolean;
   onEquipWeapon: (hero: string, weaponId: string) => void;
+  onEquipItem?: (hero: string, slot: EquipSlot, itemId: string) => void;
   onUpgradeWeapon: (weaponId: string) => boolean;
   onSellWeapon: (weaponId: string) => number | false;
 }) {
@@ -518,6 +524,7 @@ function SmithPanel({
           onClose={() => setInvView(null)}
           onSwitchToBackpack={() => setInvView("pack")}
           onEquipWeapon={onEquipWeapon}
+          onEquipItem={onEquipItem}
         />
       )}
     </section>

@@ -1,6 +1,6 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
 import type { SpellTier } from "./data";
-import { canCounter, makeForecast, mulberry32, rollDamage } from "./combat";
+import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
   attackableEnemies,
   canHitFrom,
@@ -91,7 +91,23 @@ function blankParticle(): Particle {
 
 type Seq =
   | { type: "move"; id: string; path: Point[] }
-  | { type: "combat"; att: string; def: string; bonusDice?: number; bonusFlat?: number; noCounter?: boolean; spellKind?: SpellKind }
+  | {
+      type: "combat";
+      att: string;
+      def: string;
+      bonusDice?: number;
+      bonusFlat?: number;
+      noCounter?: boolean;
+      spellKind?: SpellKind;
+      /** Off-hand weapon attack: roll these dice instead of the attacker's main-hand
+       * weapon. Only applied on the attacker's own strike, never on a counter. */
+      customDice?: { dice: number; faces: number; bonus: number };
+      /** Shield Bash: multiplies the attacker's own strike damage (e.g. 0.75). */
+      dmgMul?: number;
+      /** Shield Bash: chance (0-1) the strike, if it lands, stuns the defender for their
+       * next turn. */
+      stunChance?: number;
+    }
   | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number; spellKind?: SpellKind }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
@@ -118,6 +134,9 @@ interface CombatAnim {
   bonusFlat: number;
   noCounter: boolean;
   spellKind: SpellKind | null;
+  customDice: { dice: number; faces: number; bonus: number } | null;
+  dmgMul: number;
+  stunChance: number;
 }
 
 interface SpellAnim {
@@ -196,6 +215,8 @@ function pub(u: Unit): UnitPublic {
     weaponEnh: u.weaponEnh,
     size: u.size,
     diseased: u.diseased,
+    stunned: u.stunned,
+    offHandId: u.offHandId,
   };
 }
 
@@ -209,6 +230,9 @@ interface Roster {
   /** Hero name → equipped weapon + enhancement, resolved from save.equipped/save.weapons. Falls
    * back to that class's free starter weapon when a hero has no entry yet. */
   weapons?: Record<string, { id: string; enh: number }>;
+  /** Hero name → equipped offHand EquipmentDef id (shield or off-hand weapon), resolved
+   * from save.equipment[hero].offHand. */
+  offHand?: Record<string, string>;
   /** Enemy name → level override, for Map Editor balance-testing. Falls back to the
    * mission's uniform enemyLevelFor(index) when a name has no entry. */
   enemyLevels?: Record<string, number>;
@@ -227,6 +251,9 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
   const weaponDef = weapon?.id ? WEAPONS[weapon.id] : null;
   const minRange = weaponDef?.minRange ?? st.minRange;
   const maxRange = weaponDef?.maxRange ?? st.maxRange;
+  // A two-handed main-hand weapon leaves no free hand for an off-hand item, regardless of
+  // what's saved in equipment — enforced here too, not just at the equip screen.
+  const offHandId = side === "player" && !weaponDef?.twoHanded ? (roster?.offHand?.[spawn.name] ?? null) : null;
   return {
     id: `${side}-${spawn.name}-${i}`,
     name: spawn.name,
@@ -280,6 +307,8 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     shock: null,
     diseased: false,
     diseaseBase: null,
+    stunned: false,
+    offHandId,
   };
 }
 
@@ -439,6 +468,8 @@ export class BattleEngine {
       (this.attackFrom.size > 0 ||
         this.units.some((u) => u.alive && u.side !== selected.side && canHitFrom(selected, selected, u, this.tiles, this.cols)));
     const canLockpick = !!selected && !selected.acted && selected.bag.lockpick > 0 && !!this.adjacentLock(selected);
+    const offHandKind: "weapon" | "shield" | null =
+      selected && !selected.acted && selected.offHandId ? (EQUIPMENT[selected.offHandId]?.kind ?? null) : null;
     return {
       phase: this.phase,
       banner: this.banner,
@@ -457,6 +488,7 @@ export class BattleEngine {
         : null,
       mode: this.mode,
       canAttack,
+      offHandKind,
       canLockpick,
       forecast,
       turn: this.turn,
@@ -592,6 +624,9 @@ export class BattleEngine {
         bonusFlat: step.bonusFlat ?? 0,
         noCounter: step.noCounter ?? false,
         spellKind: step.spellKind ?? null,
+        customDice: step.customDice ?? null,
+        dmgMul: step.dmgMul ?? 1,
+        stunChance: step.stunChance ?? 0,
       };
     } else if (step.type === "spell") {
       this.active = {
@@ -720,15 +755,23 @@ export class BattleEngine {
       if (a.t < 0.02) {
         const actor = a.stage === "hit" ? att : def;
         const target = a.stage === "hit" ? def : att;
-        const hit = rollDamage(
-          actor,
-          target,
-          tileAt(this.tiles, this.cols, actor.x, actor.y),
-          tileAt(this.tiles, this.cols, target.x, target.y),
-          this.rng,
-        );
+        const attTile = tileAt(this.tiles, this.cols, actor.x, actor.y);
+        const defTile = tileAt(this.tiles, this.cols, target.x, target.y);
+        // customDice/dmgMul/stunChance are the attacker's own strike (off-hand weapon or
+        // Shield Bash) — never applied to the defender's counter, which always uses their
+        // real equipped weapon at full strength.
+        const hit =
+          a.stage === "hit" && a.customDice
+            ? rollDamageCustom(actor, target, attTile, defTile, a.customDice.dice, a.customDice.faces, a.customDice.bonus, this.rng)
+            : rollDamage(actor, target, attTile, defTile, this.rng);
         if (a.stage === "hit" && a.bonusDice > 0) {
           hit.dmg += rollDice(1, a.bonusDice, a.bonusFlat, this.rng);
+        }
+        if (a.stage === "hit" && a.dmgMul !== 1) {
+          hit.dmg = Math.max(1, Math.floor(hit.dmg * a.dmgMul));
+        }
+        if (a.stage === "hit" && a.stunChance > 0 && this.rng() < a.stunChance) {
+          target.stunned = true;
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
@@ -765,7 +808,7 @@ export class BattleEngine {
         actor.drawY = actor.y;
         a.t = 0;
         if (a.stage === "recover") {
-          if (!a.noCounter && def.alive && canCounter(att, def, { x: att.x, y: att.y }, this.tiles, this.cols)) a.stage = "counterLunge";
+          if (!a.noCounter && !def.stunned && def.alive && canCounter(att, def, { x: att.x, y: att.y }, this.tiles, this.cols)) a.stage = "counterLunge";
           else if (!def.alive) a.stage = "fade";
           else this.finishCombat(att);
         } else if (!att.alive) a.stage = "fade";
@@ -1350,6 +1393,14 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startOffHand(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || !u.offHandId) return;
+    this.mode = "awaitOffHand";
+    this.tip = "Toque no alvo.";
+    sfxPlay.ui();
+  }
+
   startFireball(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
     if (!u || u.acted || this.tierRemaining(u, "fireball") <= 0) return;
@@ -1868,6 +1919,14 @@ export class BattleEngine {
       this.activeUnitId = null; // force re-detection next tick, skipping the unit that just died
       return;
     }
+    if (u.stunned) {
+      u.stunned = false;
+      u.moved = true;
+      u.acted = true;
+      this.tip = `${u.name} está atordoado(a) — perde o turno.`;
+      this.activeUnitId = null; // force re-detection next tick, moving on to whoever's next
+      return;
+    }
     if (u.side === "player") {
       u.acted = false;
       this.selectedId = u.id;
@@ -2032,6 +2091,16 @@ export class BattleEngine {
       return;
     }
     if (here && here.side === "enemy" && here.alive) {
+      if (selected && !selected.acted && this.mode === "awaitOffHand") {
+        if (canHitFrom(selected, selected, here, this.tiles, this.cols)) {
+          this.commitOffHandAction(selected, here, { x: selected.x, y: selected.y });
+          return;
+        }
+        this.tip = "Fora de alcance.";
+        sfxPlay.ui();
+        this.inspect(here);
+        return;
+      }
       if (selected && !selected.acted && (this.mode === "awaitAttack" || this.mode === "awaitAction" || this.mode === "selected")) {
         if (this.mode === "selected") {
           const from = this.attackFrom.get(here.id);
@@ -2123,6 +2192,29 @@ export class BattleEngine {
       if (path.length > 1) this.queue.push({ type: "move", id: unit.id, path });
     }
     this.queue.push({ type: "combat", att: unit.id, def: foe.id });
+  }
+
+  /** Off-hand attack (a light weapon in the offHand slot) or Shield Bash (a shield
+   * there) — whichever EQUIPMENT[unit.offHandId].kind resolves to. Reuses the same
+   * "already in range from here" check as a normal Atacar; no move-then-act chaining. */
+  private commitOffHandAction(unit: Unit, foe: Unit, from: Point): void {
+    const item = unit.offHandId ? EQUIPMENT[unit.offHandId] : null;
+    if (!item || !canHitFrom(unit, from, foe, this.tiles, this.cols)) {
+      this.mode = "awaitAction";
+      this.tip = "Fora de alcance.";
+      return;
+    }
+    this.mode = "locked";
+    if (item.kind === "shield") {
+      this.queue.push({ type: "combat", att: unit.id, def: foe.id, dmgMul: 0.75, stunChance: 0.7 });
+    } else {
+      this.queue.push({
+        type: "combat",
+        att: unit.id,
+        def: foe.id,
+        customDice: { dice: item.dice ?? 1, faces: item.faces ?? 4, bonus: item.bonus ?? 0 },
+      });
+    }
   }
 
   private castFireball(unit: Unit, click: Point): void {
@@ -2688,6 +2780,19 @@ export class BattleEngine {
           ctx.fillStyle = "#f0ebe3";
           ctx.strokeText(`${u.hp}`, px, by - 1);
           ctx.fillText(`${u.hp}`, px, by - 1);
+        }
+        if (u.stunned) {
+          const gx = px;
+          const gy = by - bh - cell * 0.16;
+          const r = cell * 0.13;
+          const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+          glow.addColorStop(0, "rgba(255,90,70,0.95)");
+          glow.addColorStop(0.6, "rgba(255,60,50,0.55)");
+          glow.addColorStop(1, "rgba(255,60,50,0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(gx, gy, r, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
 

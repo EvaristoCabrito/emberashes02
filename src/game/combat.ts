@@ -1,4 +1,4 @@
-import { isProjectile, TERRAIN, weaponPreview, weaponRoll } from "./data";
+import { isProjectile, rollDice, TERRAIN, weaponPreview, weaponRoll } from "./data";
 import { canHitFrom } from "./pathfinding";
 import type { Forecast, TerrainId, Unit } from "./types";
 
@@ -27,6 +27,28 @@ export function rollDamage(
 ): { dmg: number; crit: boolean } {
   const b = terrainBonus(attacker, defender, attTile, defTile);
   const weapon = weaponRoll(attacker.weaponId, attacker.weaponEnh, rng);
+  const raw = powerOf(attacker) + weapon + b.atk - protOf(attacker, defender) - b.def;
+  let dmg = Math.max(1, raw);
+  const crit = rng() < 0.08;
+  if (crit) dmg = Math.max(1, Math.floor(dmg * 1.5));
+  return { dmg, crit };
+}
+
+/** Same formula as rollDamage, but rolling explicit dice instead of the attacker's
+ * equipped main-hand weapon — for an off-hand weapon attack, whose dice come from the
+ * EquipmentDef in the offHand slot rather than WEAPONS[attacker.weaponId]. */
+export function rollDamageCustom(
+  attacker: Unit,
+  defender: Unit,
+  attTile: TerrainId,
+  defTile: TerrainId,
+  dice: number,
+  faces: number,
+  bonus: number,
+  rng: () => number,
+): { dmg: number; crit: boolean } {
+  const b = terrainBonus(attacker, defender, attTile, defTile);
+  const weapon = rollDice(dice, faces, bonus, rng);
   const raw = powerOf(attacker) + weapon + b.atk - protOf(attacker, defender) - b.def;
   let dmg = Math.max(1, raw);
   const crit = rng() < 0.08;
