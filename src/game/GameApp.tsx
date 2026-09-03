@@ -557,6 +557,10 @@ export function GameApp() {
       playTheme("inn");
       return;
     }
+    if (screen === "worldMap") {
+      playTheme("worldMap");
+      return;
+    }
     if (screen === "battle" && (missionId === "muralha" || missionId === "fortaleza")) {
       playTheme("siege");
       return;
@@ -625,7 +629,7 @@ export function GameApp() {
       {screen === "testMenu" && (
         <TestMenuScreen
           onBack={() => setScreen("title")}
-          onDebug={() => setScreen("campaign")}
+          onDebug={() => setScreen("worldMap")}
           onMapEditor={() => setScreen("mapEditor")}
           onCampaignV2={() => setScreen("campaignV2")}
         />
@@ -665,7 +669,7 @@ export function GameApp() {
           completed={save.completed}
           test={testMode}
           ember={testMode ? testEmber : (save.ember ?? 0)}
-          onBack={() => (testMode ? setScreen("title") : setScreen("worldMap"))}
+          onBack={() => (testMode ? setScreen("testMenu") : setScreen("worldMap"))}
           onPick={openMission}
         />
       )}
@@ -677,14 +681,14 @@ export function GameApp() {
           missionStatus={(id) => missionStatus(id, save.completed, testMode)}
           ember={testMode ? testEmber : (save.ember ?? 0)}
           test={testMode}
-          onBack={() => setScreen("title")}
+          onBack={() => setScreen(testMode ? "testMenu" : "title")}
           onPick={openMission}
           onOpenList={() => setScreen("campaign")}
         />
       )}
 
       {screen === "briefing" && mission && (
-        <BriefingScreen mission={mission} onBack={() => setScreen(testMode ? "campaign" : "worldMap")} onStart={beginMission} />
+        <BriefingScreen mission={mission} onBack={() => setScreen("worldMap")} onStart={beginMission} />
       )}
 
       {screen === "inn" && (
@@ -700,7 +704,7 @@ export function GameApp() {
             unlockAudio();
             setMutedUi((v) => !v);
           }}
-          onLeave={() => setScreen(testMode ? "campaign" : "worldMap")}
+          onLeave={() => setScreen("worldMap")}
           onBuyWeapon={(hero: string, weaponId: string) => {
             const rec = activeSave(bank);
             const w = WEAPONS[weaponId];
@@ -843,7 +847,7 @@ export function GameApp() {
             setPaused(false);
             setSlotMode(null);
             setEngine(null);
-            setScreen(testMode ? "campaign" : "worldMap");
+            setScreen("worldMap");
           }}
         />
       )}
@@ -870,7 +874,7 @@ export function GameApp() {
               setScreen(origin === "campaignV2" ? "campaignV2" : "mapEditor");
               return;
             }
-            setScreen(testMode ? "campaign" : "worldMap");
+            setScreen("worldMap");
           }}
           mapLabel={customMission ? (customOrigin === "campaignV2" ? "Voltar à Campanha V2" : "Voltar ao editor") : undefined}
           onTitle={() => setScreen("title")}

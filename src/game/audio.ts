@@ -233,7 +233,8 @@ let siegeEl: HTMLAudioElement | null = null;
 let innEl: HTMLAudioElement | null = null;
 let hillEl: HTMLAudioElement | null = null;
 let portaoEl: HTMLAudioElement | null = null;
-type Theme = "intro" | "battle" | "early" | "temple" | "aldeia" | "siege" | "inn" | "hill" | "portao";
+let worldMapEl: HTMLAudioElement | null = null;
+type Theme = "intro" | "battle" | "early" | "temple" | "aldeia" | "siege" | "inn" | "hill" | "portao" | "worldMap";
 let currentTheme: Theme = "intro";
 
 if (typeof window !== "undefined") {
@@ -282,6 +283,10 @@ function getTrack(theme: Theme): HTMLAudioElement | null {
   if (theme === "early") {
     if (!earlyEl) earlyEl = attachTrack(new Audio("/game/music/early.mp3"), 0.4);
     return earlyEl;
+  }
+  if (theme === "worldMap") {
+    if (!worldMapEl) worldMapEl = attachTrack(new Audio("/game/music/worldmap.mp3"), 0.4);
+    return worldMapEl;
   }
   if (!battleEl) battleEl = attachTrack(new Audio("/game/music/music.mp3"), 0.4);
   return battleEl;
@@ -396,6 +401,10 @@ export function playTheme(theme: Theme): void {
     portaoEl.pause();
     portaoEl.currentTime = 0;
   }
+  if (worldMapEl && worldMapEl !== want) {
+    worldMapEl.pause();
+    worldMapEl.currentTime = 0;
+  }
   if (!want) return;
   kickPlay(want);
 }
@@ -415,6 +424,7 @@ export function playMenuMusic(): void {
   innEl?.pause();
   hillEl?.pause();
   portaoEl?.pause();
+  worldMapEl?.pause();
   const el = menuElement();
   if (!el) return;
   kickPlay(el);
@@ -449,6 +459,7 @@ export function stopMusic(): void {
   innEl?.pause();
   hillEl?.pause();
   portaoEl?.pause();
+  worldMapEl?.pause();
 }
 
 export function resumeAudio(): void {
