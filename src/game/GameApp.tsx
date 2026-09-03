@@ -461,10 +461,13 @@ export function GameApp() {
           found.push(WEAPONS[id]!.name);
         }
       }
-      const foundOffHand = engine.foundOffHand();
-      const equipment = { ...save.equipment };
-      for (const [hero, itemId] of Object.entries(foundOffHand)) {
-        equipment[hero] = { ...(equipment[hero] ?? {}), offHand: itemId };
+      // Equipment found in chests goes to the party's shared, unassigned stash — never
+      // auto-equipped onto whoever happened to open the chest — so the player assigns it to
+      // whichever hero they want from the Paperdoll picker afterward.
+      const looseEquipment = { ...save.looseEquipment };
+      for (const id of engine.lootEquipment) {
+        looseEquipment[id] = (looseEquipment[id] ?? 0) + 1;
+        found.push(EQUIPMENT[id]!.name);
       }
       setLastLoot(found);
       persistCurrent({
@@ -475,7 +478,7 @@ export function GameApp() {
         levels,
         xp,
         weapons,
-        equipment,
+        looseEquipment,
         ember: (save.ember ?? 0) + loot + engine.lootEmber,
         emberSeeded: true,
         muted,
@@ -709,6 +712,7 @@ export function GameApp() {
           }}
           onEquipItem={(hero: string, slot: EquipSlot, itemId: string) => {
             const rec = activeSave(bank);
+            if ((rec.looseEquipment[itemId] ?? 0) <= 0) return;
             persistCurrent({
               ...rec,
               equipment: { ...rec.equipment, [hero]: { ...(rec.equipment[hero] ?? {}), [slot]: itemId } },

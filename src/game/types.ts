@@ -432,8 +432,12 @@ export interface SaveData {
   weapons: Record<string, number>;
   /** Hero name → equipped WeaponDef id. */
   equipped: Record<string, string>;
-  /** Hero name → slot → equipped EquipmentDef id. Skeleton only — EQUIPMENT has no items yet. */
+  /** Hero name → slot → equipped EquipmentDef id. */
   equipment: Record<string, Partial<Record<EquipSlot, string>>>;
+  /** Owned but unassigned EquipmentDef id → count — the party's shared gear stash. Loot
+   * lands here first (never auto-equipped onto whoever found it); the player assigns it to
+   * a hero from the Paperdoll picker, same as the weapon pool already works. */
+  looseEquipment: Record<string, number>;
   ember: number;
   emberSeeded: boolean;
   muted: boolean;

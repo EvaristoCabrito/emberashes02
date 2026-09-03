@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -359,6 +359,10 @@ export class BattleEngine {
   /** Weapon ids found in chests or off an enemy kill mid-battle; folded into the save's
    * weapon stash on victory. */
   lootWeapons: string[] = [];
+  /** EquipmentDef ids found in chests mid-battle; folded into the save's shared gear stash
+   * on victory (save.looseEquipment) — never auto-equipped onto whoever opened the chest,
+   * the player assigns it to a hero afterward from the Paperdoll picker. */
+  lootEquipment: string[] = [];
   /** Every weapon id the player already owns, plus anything granted mid-battle the moment
    * it's granted — checked before every loot roll so a chest or kill drop never announces
    * a weapon the player already has (it used to: the roll didn't know about ownership at
@@ -570,16 +574,6 @@ export class BattleEngine {
     for (const u of this.units) {
       if (u.side !== "player") continue;
       out[u.name] = { ...u.bag };
-    }
-    return out;
-  }
-
-  /** Hero name → offHand EquipmentDef id, for whoever auto-equipped one from a chest this
-   * battle (see useLockpick) — folded into save.equipment on victory alongside bags. */
-  foundOffHand(): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const u of this.units) {
-      if (u.side === "player" && u.offHandId) out[u.name] = u.offHandId;
     }
     return out;
   }
@@ -1987,13 +1981,8 @@ export class BattleEngine {
           this.lootWeapons.push(drop.id);
           found.push(WEAPONS[drop.id]!.name);
         } else {
-          const item = EQUIPMENT[drop.id]!;
-          if (!u.offHandId && !offHandBlocked(u.weaponId)) {
-            u.offHandId = item.id;
-            found.push(item.name);
-          } else {
-            this.lootEmber += 15; // already full-handed or holding one — salvaged instead
-          }
+          this.lootEquipment.push(drop.id);
+          found.push(EQUIPMENT[drop.id]!.name);
         }
       }
       this.tip = `${u.name} arrombou o baú · +${gain} Ember · achou ${found.join(", ")}.`;

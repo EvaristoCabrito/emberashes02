@@ -130,6 +130,17 @@ function cleanEquipment(raw: unknown): Record<string, Partial<Record<EquipSlot, 
   return out;
 }
 
+function cleanLooseEquipment(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!EQUIPMENT[id]) continue;
+    const n = clampInt(v, 0, 99);
+    if (n > 0) out[id] = n;
+  }
+  return out;
+}
+
 function cleanHp(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, number> = {};
@@ -166,6 +177,7 @@ export function emptySave(muted = false): SaveData {
     promotions: {},
     ...starterEquipment(),
     equipment: {},
+    looseEquipment: {},
     ember: 0,
     emberSeeded: true,
     muted,
@@ -237,6 +249,7 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
     weapons,
     equipped,
     equipment: cleanEquipment(raw.equipment),
+    looseEquipment: cleanLooseEquipment(raw.looseEquipment),
     ember,
     emberSeeded,
     muted: raw.muted === true || muted,

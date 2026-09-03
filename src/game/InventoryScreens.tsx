@@ -5,11 +5,12 @@ import type { ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
 const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
 
-/** Paper-doll equipment view for one hero. "Mão Principal" reads the real weapon system;
- * every other slot is a skeleton — EQUIPMENT has no items yet, so they show "Vazio".
- * When onEquipWeapon is given, clicking a slot opens a picker of compatible owned items —
- * Mão Principal lists owned weapons for this class, other slots list EQUIPMENT of that
- * slot type (empty today; the picker is ready for whenever real items land there). */
+/** Paper-doll equipment view for one hero. Clicking a slot opens a picker of compatible
+ * OWNED items — Mão Principal lists owned weapons for this class (save.weapons), other
+ * slots list owned EQUIPMENT of that slot type from the party's shared, unassigned stash
+ * (save.looseEquipment) — gear found in chests lands there, never auto-equipped onto
+ * whoever opened the chest, so it shows up here for the player to assign wherever they
+ * want. */
 export function PaperDollScreen({
   heroName,
   classId,
@@ -153,12 +154,13 @@ export function PaperDollScreen({
                 // finger slot can wear any of them.
                 const slotKey = picker === "ring2" ? "ring1" : picker;
                 const options = Object.values(EQUIPMENT).filter(
-                  (it) => it.slot === slotKey && (!it.usableBy || it.usableBy.includes(classId)),
+                  (it) => it.slot === slotKey && (save.looseEquipment[it.id] ?? 0) > 0 && (!it.usableBy || it.usableBy.includes(classId)),
                 );
                 return options.length > 0 ? (
                   <div className="flex flex-col gap-1.5">
                     {options.map((it) => {
                       const equipped = equip[picker as EquipSlot] === it.id;
+                      const owned = save.looseEquipment[it.id] ?? 0;
                       return (
                         <button
                           key={it.id}
@@ -172,7 +174,7 @@ export function PaperDollScreen({
                         >
                           <img src={equipmentIcon(it.id)} alt="" className="size-9 rounded-sm object-cover shrink-0" />
                           <span className="flex-1 text-sm min-w-0">
-                            {it.name}
+                            {it.name} {owned > 1 ? `×${owned}` : ""}
                             <span className="block text-[11px] text-muted">
                               {it.kind === "shield"
                                 ? `Investida de Escudo · ${Math.round((it.dmgMul ?? 0.75) * 100)}% dano · 70% atordoa`
@@ -187,7 +189,7 @@ export function PaperDollScreen({
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted">Nenhum item disponível ainda.</p>
+                  <p className="text-sm text-muted">Nenhum item no baú do grupo pra esse espaço ainda.</p>
                 );
               })()
             )}
@@ -198,7 +200,7 @@ export function PaperDollScreen({
   );
 }
 
-/** Backpack overview: this hero's potions/gazuas plus the party's shared weapon stash. */
+/** Backpack overview: this hero's potions/gazuas plus the party's shared weapon and equipment stash. */
 export function BackpackScreen({
   heroName,
   save,
@@ -214,6 +216,12 @@ export function BackpackScreen({
   const weaponEntries = Object.entries(save.weapons).filter(([id]) => {
     const wielder = Object.entries(save.equipped).find(([, v]) => v === id)?.[0];
     return !wielder || heroRecruited(wielder, save.completed);
+  });
+  const wearerOf = (id: string) =>
+    Object.entries(save.equipment).find(([, slots]) => Object.values(slots).includes(id))?.[0];
+  const equipmentEntries = Object.entries(save.looseEquipment).filter(([id]) => {
+    const wearer = wearerOf(id);
+    return !wearer || heroRecruited(wearer, save.completed);
   });
 
   return (
@@ -277,6 +285,28 @@ export function BackpackScreen({
                       {w.name} {enh > 0 ? `+${enh}` : ""}
                     </p>
                     <p className="text-[11px] text-muted shrink-0">{wielder ? `em ${wielder}` : "reserva"}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {equipmentEntries.length > 0 && (
+          <>
+            <p className="text-xs uppercase tracking-[0.18em] text-muted mt-4 mb-2">Equipamento do grupo</p>
+            <div className="flex flex-col gap-1.5">
+              {equipmentEntries.map(([id, count]) => {
+                const it = EQUIPMENT[id];
+                if (!it) return null;
+                const wearer = wearerOf(id);
+                return (
+                  <div key={id} className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                    <img src={equipmentIcon(id)} alt="" className="size-6 rounded-sm object-cover shrink-0" />
+                    <p className="flex-1 text-sm truncate">
+                      {it.name} {count > 1 ? `×${count}` : ""}
+                    </p>
+                    <p className="text-[11px] text-muted shrink-0">{wearer ? `em ${wearer}` : "reserva"}</p>
                   </div>
                 );
               })}
