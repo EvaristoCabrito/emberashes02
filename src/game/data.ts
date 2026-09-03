@@ -2207,17 +2207,19 @@ export function missionById(id: string): Mission | undefined {
 /** Campaign world map markers, positioned (percent x/y, 0-100) against the real map art
  * at public/game/assets/world-map.jpg, pinned to that art's own labels per direct instruction:
  * Stone Bridge (missions 1-3: O Vau, Bosque Morto, Aldeia Queimada), the first of the two
- * "Ruins" (missions 4-6), the Inn (mission 8), Cemetery (the rest of the early/mid missions
- * not otherwise placed: Cripta de Cinzas, Colina Morta, Passagem Antiga), and the Fortified
- * Temple Complex (missions 11-12 — the approach and the temple gate itself, "Entrada do
- * Templo", both happening at the same landmark). Locations with no missionIds yet (Village,
+ * "Ruins" (missions 4-6 plus Cripta de Cinzas, mission 7 — it's set under the temple ruins
+ * above it, so it joins them as that location's 4th fight instead of Cemetery), the Inn
+ * (mission 8), Cemetery (the rest of the early/mid missions not otherwise placed: Colina
+ * Morta, Passagem Antiga), and the Fortified Temple Complex (missions 11-12 — the approach
+ * and the temple gate itself, "Entrada do Templo", both happening at the same landmark).
+ * Locations with no missionIds yet (Village,
  * Farm, the second Ruins, Dungeon, Frozen Swamp, Forest, Misty Cave — the last reserved for
  * a future troll encounter arc) render permanently locked until missions are written for
  * them — "we'll open up more as we make more missions." */
 export const WORLD_LOCATIONS: WorldLocation[] = [
   { id: "stonebridge", name: "Stone Bridge", x: 14, y: 71, missionIds: ["vau", "bosque", "aldeia"] },
-  { id: "ruins", name: "Ruins", x: 8, y: 56, missionIds: ["muralha", "fortaleza", "templo"] },
-  { id: "cemetery", name: "Cemetery", x: 46, y: 69, missionIds: ["cripta", "colina", "passagem"] },
+  { id: "ruins", name: "Ruins", x: 8, y: 56, missionIds: ["muralha", "fortaleza", "templo", "cripta"] },
+  { id: "cemetery", name: "Cemetery", x: 46, y: 69, missionIds: ["colina", "passagem"] },
   { id: "estalagem", name: "Inn", x: 48, y: 39, missionIds: ["estalagem"] },
   { id: "vertente", name: "Fortified Temple Complex", x: 78, y: 7, missionIds: ["vertente", "portao"] },
   // Named on the map, not yet assigned to any mission — visible on the map (permanently
