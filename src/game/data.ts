@@ -654,39 +654,62 @@ function priceWeight(price: number): number {
 
 export type LootDrop = { kind: "weapon"; id: string } | { kind: "equipment"; id: string };
 
-/** Price ceiling for loot on a given mission — an early mission never drops the campaign's
- * best gear. Missions aren't leveled 1:1 with the 9 weapon rungs (~11 real missions), so
- * this steps up roughly one rung every mission and a half, reaching the full price range
- * (every rung, every piece of gear) by the last couple of missions. */
-export function maxLootPrice(missionIndex: number): number {
-  const rung = Math.min(WEAPON_RUNGS.length, Math.floor(missionIndex / 1.3) + 2);
-  return WEAPON_RUNGS[rung - 1]!.price;
+/** Lowest/highest price across every lootable item (every weapon, every offHand
+ * EquipmentDef) — the endpoints of the 1-MAX_LEVEL power-level scale below. Recomputed
+ * from whatever WEAPONS/EQUIPMENT currently contain rather than hardcoded, so adding a new
+ * weapon or piece of gear (with a price, same as every existing one) automatically finds
+ * its place on the scale — nothing else to update by hand. */
+function lootPriceRange(): { min: number; max: number } {
+  const prices = [...Object.values(WEAPONS).map((w) => w.price), ...Object.values(EQUIPMENT).map((e) => e.price ?? 60)];
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+/** Maps any lootable item's price onto the same 1-MAX_LEVEL scale player levels run —
+ * log-scaled, since price itself climbs roughly exponentially from rung to rung (see
+ * WEAPON_RUNGS). A level-1 dagger and a level-30 endgame greataxe read the same way loot
+ * power reads everywhere else in the game. */
+export function gearPowerLevel(price: number): number {
+  const { min, max } = lootPriceRange();
+  if (max <= min) return 1;
+  const t = Math.log(Math.max(min, price) / min) / Math.log(max / min);
+  return Math.max(1, Math.min(MAX_LEVEL, Math.round(1 + t * (MAX_LEVEL - 1))));
+}
+
+/** How strong loot on a mission is allowed to roll, on that same 1-MAX_LEVEL scale —
+ * matched to that mission's own enemies (enemyLevelFor), scaled up from its 1-4 range to
+ * the full MAX_LEVEL so loot keeps pace with the whole campaign, not just its first
+ * quarter. An early mission's enemies are weak, so its loot table only reaches low power
+ * levels; missions near the end open up the full range. */
+export function missionGearLevel(missionIndex: number): number {
+  const enemyMax = 4; // enemyLevelFor's own ceiling
+  return Math.max(1, Math.min(MAX_LEVEL, Math.round((enemyLevelFor(missionIndex) / enemyMax) * MAX_LEVEL)));
 }
 
 /** Weighted random pick across every weapon and every offHand EquipmentDef, rarer as price
- * climbs, capped to maxPrice (see maxLootPrice) and — for weapons — excluding anything in
- * ownedWeaponIds so a drop never announces a weapon the recipient already has. Used for
- * chest loot and enemy kill drops alike. */
-export function weightedLootPick(rng: () => number, maxPrice = Infinity, ownedWeaponIds: ReadonlySet<string> = new Set()): LootDrop {
-  const build = (price: number): [LootDrop, number][] => [
+ * climbs, capped to maxLevel on the gearPowerLevel scale (see missionGearLevel) and — for
+ * weapons — excluding anything in ownedWeaponIds so a drop never announces a weapon the
+ * recipient already has. Used for chest loot and enemy kill drops alike. */
+export function weightedLootPick(rng: () => number, maxLevel = MAX_LEVEL, ownedWeaponIds: ReadonlySet<string> = new Set()): LootDrop {
+  const build = (level: number): [LootDrop, number][] => [
     ...Object.values(WEAPONS)
-      .filter((w) => w.price <= price && !ownedWeaponIds.has(w.id))
+      .filter((w) => gearPowerLevel(w.price) <= level && !ownedWeaponIds.has(w.id))
       .map((w): [LootDrop, number] => [{ kind: "weapon", id: w.id }, priceWeight(w.price)]),
     ...Object.values(EQUIPMENT)
-      .filter((e) => (e.price ?? 60) <= price)
+      .filter((e) => gearPowerLevel(e.price ?? 60) <= level)
       .map((e): [LootDrop, number] => [{ kind: "equipment", id: e.id }, priceWeight(e.price ?? 60)]),
   ];
-  // The mission-level price cap can (rarely) leave nothing eligible once owned weapons are
-  // also excluded — widen to the full price range rather than crash on an empty pool.
-  const entries = build(maxPrice);
-  return weightedPick(rng, entries.length > 0 ? entries : build(Infinity));
+  // The mission-level cap can (rarely) leave nothing eligible once owned weapons are also
+  // excluded — widen to the full range rather than crash on an empty pool.
+  const entries = build(maxLevel);
+  return weightedPick(rng, entries.length > 0 ? entries : build(MAX_LEVEL));
 }
 
-/** Weighted random pick across a given set of weapon ids, capped to maxPrice — for drop
- * sources that only ever granted a weapon before (e.g. enemy kill drops), optionally
- * restricted to a pool (e.g. "not already owned"). Defaults to every weapon in the game. */
-export function weightedWeaponPick(rng: () => number, ids: string[] = Object.keys(WEAPONS), maxPrice = Infinity): string {
-  const capped = ids.filter((id) => (WEAPONS[id]?.price ?? 100) <= maxPrice);
+/** Weighted random pick across a given set of weapon ids, capped to maxLevel on the
+ * gearPowerLevel scale — for drop sources that only ever granted a weapon before (e.g.
+ * enemy kill drops), optionally restricted to a pool (e.g. "not already owned"). Defaults
+ * to every weapon in the game. */
+export function weightedWeaponPick(rng: () => number, ids: string[] = Object.keys(WEAPONS), maxLevel = MAX_LEVEL): string {
+  const capped = ids.filter((id) => gearPowerLevel(WEAPONS[id]?.price ?? 100) <= maxLevel);
   const pool = capped.length > 0 ? capped : ids;
   const entries: [string, number][] = pool.map((id): [string, number] => [id, priceWeight(WEAPONS[id]?.price ?? 100)]);
   return weightedPick(rng, entries);

@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, maxLootPrice, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -1051,10 +1051,11 @@ export class BattleEngine {
     u.alive = false;
     sfxPlay.death();
     this.pushLog(`${u.name} foi derrotado.`);
-    // 1% per kill, capped to what this mission's progress has actually unlocked, and never
-    // a weapon already owned — a low-index mission never hands out the campaign's best gear.
+    // 1% per kill, capped to what this mission's own enemies are geared for (see
+    // missionGearLevel), and never a weapon already owned — an early mission never hands
+    // out the campaign's best gear.
     if (u.side === "enemy" && this.rng() < 0.01) {
-      const id = weightedWeaponPick(this.rng, Object.keys(WEAPONS), maxLootPrice(this.mission.index));
+      const id = weightedWeaponPick(this.rng, Object.keys(WEAPONS), missionGearLevel(this.mission.index));
       if (this.ownedWeapons.has(id)) {
         this.lootEmber += 15;
       } else {
@@ -1963,19 +1964,17 @@ export class BattleEngine {
     });
     const found: string[] = [];
     if (wasChest) {
-      // Every chest always gives a little Ember, plus at most ONE extra item — a single
-      // roll decides potion vs. gear vs. nothing (not two independent rolls, which used to
-      // let one chest hand out both), weighted so the strongest gear is the rarest and
-      // gear never exceeds what this mission's progress has unlocked (see maxLootPrice).
+      // Every chest gives Ember, a guaranteed potion (weighted so the weak tier is the
+      // common case, rarer as potency climbs), and — a separate, independent roll — a 40%
+      // chance at a piece of gear, weighted so the strongest is the rarest and capped to
+      // what this mission's own enemies are geared for (see missionGearLevel).
       const gain = 3 + Math.floor(this.rng() * 6);
       this.lootEmber += gain;
-      const roll = this.rng();
-      if (roll < 0.55) {
-        const kind = weightedPotionPick(this.rng);
-        u.bag[kind] = (u.bag[kind] ?? 0) + 1;
-        found.push(POTIONS[kind].name);
-      } else if (roll < 0.95) {
-        const drop = weightedLootPick(this.rng, maxLootPrice(this.mission.index), this.ownedWeapons);
+      const potionKind = weightedPotionPick(this.rng);
+      u.bag[potionKind] = (u.bag[potionKind] ?? 0) + 1;
+      found.push(POTIONS[potionKind].name);
+      if (this.rng() < 0.4) {
+        const drop = weightedLootPick(this.rng, missionGearLevel(this.mission.index), this.ownedWeapons);
         if (drop.kind === "weapon") {
           this.ownedWeapons.add(drop.id);
           this.lootWeapons.push(drop.id);
@@ -1990,7 +1989,7 @@ export class BattleEngine {
           }
         }
       }
-      this.tip = found.length > 0 ? `${u.name} arrombou o baú · +${gain} Ember · achou ${found.join(", ")}.` : `${u.name} arrombou o baú · +${gain} Ember.`;
+      this.tip = `${u.name} arrombou o baú · +${gain} Ember · achou ${found.join(", ")}.`;
       this.pushLog(this.tip);
     } else {
       this.tip = `${u.name} arrombou a porta.`;
