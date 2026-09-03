@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
+import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, heroRecruited, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import type { Bag, ClassId, PotionId, SaveData } from "./types";
 
@@ -205,7 +205,7 @@ export function InnScreen({
           <div className="rounded-xl border border-border bg-surface/90 p-3 flex flex-col gap-2">
             <p className="text-xs uppercase tracking-[0.16em] text-muted">Adega · quem leva</p>
             <div className="flex flex-wrap gap-1">
-              {HERO_NAMES.map((name) => (
+              {HERO_NAMES.filter((name) => heroRecruited(name, save.completed)).map((name) => (
                 <Button
                   key={name}
                   size="sm"
@@ -415,7 +415,7 @@ function SmithPanel({
         <div className="rounded-xl border border-border bg-surface/90 p-3 flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.16em] text-muted">Quem empunha</p>
           <div className="flex flex-wrap gap-1">
-            {HERO_NAMES.map((name) => (
+            {HERO_NAMES.filter((name) => heroRecruited(name, save.completed)).map((name) => (
               <Button
                 key={name}
                 size="sm"

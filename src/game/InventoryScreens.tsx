@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
+import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, heroRecruited, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
 import type { ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
 const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
@@ -179,7 +179,10 @@ export function BackpackScreen({
   onSwitchToDoll?: () => void;
 }) {
   const bag = save.bags[heroName] ?? EMPTY_BAG;
-  const weaponEntries = Object.entries(save.weapons);
+  const weaponEntries = Object.entries(save.weapons).filter(([id]) => {
+    const wielder = Object.entries(save.equipped).find(([, v]) => v === id)?.[0];
+    return !wielder || heroRecruited(wielder, save.completed);
+  });
 
   return (
     <div
@@ -188,19 +191,21 @@ export function BackpackScreen({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md max-h-[88dvh] overflow-y-auto bg-surface border border-border rounded-xl p-5">
+      <div className="relative w-full max-w-md max-h-[88dvh] overflow-y-auto border border-border rounded-xl p-5">
+        <img src="/game/backpack-bg.jpg" alt="" className="absolute inset-0 h-full w-full object-cover rounded-xl blur-[5px] scale-110 -z-10" />
+        <div className="absolute inset-0 bg-bg/55 rounded-xl -z-10" />
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <p className="font-display text-xl leading-tight">Mochila</p>
-            <p className="text-xs text-muted">{heroName}</p>
+            <p className="font-display text-xl leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">Mochila</p>
+            <p className="text-xs text-fg/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{heroName}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {onSwitchToDoll && (
-              <button type="button" onClick={onSwitchToDoll} className="h-8 px-2.5 rounded-md border border-border text-xs">
+              <button type="button" onClick={onSwitchToDoll} className="h-8 px-2.5 rounded-md border border-border bg-bg/80 text-xs">
                 Equipamento
               </button>
             )}
-            <button type="button" onClick={onClose} className="size-8 grid place-items-center rounded-md border border-border" aria-label="Fechar">
+            <button type="button" onClick={onClose} className="size-8 grid place-items-center rounded-md border border-border bg-bg/80" aria-label="Fechar">
               <X className="size-4" />
             </button>
           </div>

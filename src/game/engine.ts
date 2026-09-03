@@ -1589,6 +1589,7 @@ export class BattleEngine {
     if (!target) return;
     this.spendTier(unit, kind);
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({ type: "heal", att: unit.id, def: target.id, kind });
   }
@@ -1604,6 +1605,7 @@ export class BattleEngine {
     if (!target) return;
     this.spendTier(unit, "cureDisease");
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({ type: "cureDisease", att: unit.id, def: target.id });
   }
@@ -1631,6 +1633,7 @@ export class BattleEngine {
     if (!foe) return;
     this.spendTier(unit, "longShot");
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({
       type: "combat",
@@ -1656,6 +1659,7 @@ export class BattleEngine {
     }
     this.spendTier(unit, "piercing");
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul, spellKind: "piercing" });
   }
@@ -1671,6 +1675,7 @@ export class BattleEngine {
     if (!foe) return;
     this.spendTier(unit, "lightning");
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({
       type: "spell",
@@ -1697,6 +1702,7 @@ export class BattleEngine {
     if (!foe) return;
     this.spendTier(unit, "doubleStrike");
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({ type: "combat", att: unit.id, def: foe.id, noCounter: true });
     this.queue.push({ type: "combat", att: unit.id, def: foe.id });
@@ -1721,6 +1727,7 @@ export class BattleEngine {
     }
     this.spendTier(unit, "cleave");
     this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     this.queue.push({
       type: "spell",
@@ -2127,6 +2134,8 @@ export class BattleEngine {
       if (u && !ids.includes(u.id)) ids.push(u.id);
     }
     this.spendTier(unit, "fireball");
+    this.spellKind = null;
+    this.tip = null;
     this.mode = "locked";
     const power = fireballPower(unit.level);
     this.queue.push({

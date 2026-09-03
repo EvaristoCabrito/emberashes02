@@ -1980,3 +1980,26 @@ export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS);
 export function missionById(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
 }
+
+/** Mission index at which a hero first appears as a player spawn — computed from
+ * MISSIONS itself, not hardcoded, so a newly added hero (e.g. the next two joining the
+ * roster) gets gated automatically the moment their first mission is authored. */
+const HERO_JOIN_INDEX: Record<string, number> = (() => {
+  const out: Record<string, number> = {};
+  for (const m of MISSIONS) {
+    if (m.hub) continue;
+    for (const s of m.playerSpawns) {
+      if (out[s.name] == null || m.index < out[s.name]!) out[s.name] = m.index;
+    }
+  }
+  return out;
+})();
+
+/** Whether a hero has joined the party yet — false before the mission they first appear
+ * in has been reached, so their gear doesn't show up in party-wide UI (Ferreiro,
+ * Mochila) before the story actually recruits them. */
+export function heroRecruited(name: string, completed: string[]): boolean {
+  const joinIndex = HERO_JOIN_INDEX[name] ?? 0;
+  if (joinIndex <= 0) return true;
+  return completed.some((id) => (missionById(id)?.index ?? -1) >= joinIndex - 1);
+}

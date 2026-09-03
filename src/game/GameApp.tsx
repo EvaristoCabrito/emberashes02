@@ -287,6 +287,11 @@ export function GameApp() {
   const startBattle = useCallback(
     (id: string, carried = save.unitHp, override?: Mission, playerLevels?: Record<string, number>, enemyLevels?: Record<string, number>) => {
       if (!art) return;
+      // A real mission start (no override) always clears any leftover playtest identity —
+      // otherwise a stale customMission from an earlier Map Editor session can collide
+      // with a real campaign mission of the same id (missionToDraft now targets the real
+      // id for versioning) and reroute a normal victory back into the editor.
+      if (!override) setCustomMission(null);
       const m = override ?? resolveMission(id);
       if (!m) return;
       const levels: Record<string, number> = testMode
@@ -465,6 +470,7 @@ export function GameApp() {
 
   const openMission = (id: string) => {
     bootAudio();
+    setCustomMission(null);
     setMissionId(id);
     setScreen("briefing");
   };
