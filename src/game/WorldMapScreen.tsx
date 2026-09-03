@@ -1,9 +1,14 @@
-import { useState } from "react";
-import { Check, ChevronLeft, Lock, MapPin, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronLeft, Lock, MapPin, X, ZoomIn, ZoomOut } from "lucide-react";
 import { missionsForLocation } from "./data";
 import type { Mission, WorldLocation } from "./types";
 
 export type LocationStatus = "locked" | "available" | "done";
+
+/** Three zoom stops, as a percent width of the scroll viewport — bigger than "fit the
+ * whole map on screen" even at the lowest stop, so the map reads clearly on a phone and
+ * panning/scrolling is the normal way to explore it, not an edge case. */
+const ZOOM_STOPS = [130, 190, 260];
 
 /** Campaign world map: one marker per WorldLocation, positioned by its x/y percent over
  * the map art. A single-mission location jumps straight to its briefing on click; a
@@ -32,6 +37,17 @@ export function WorldMapScreen({
   const [open, setOpen] = useState<WorldLocation | null>(null);
   const [artOk, setArtOk] = useState(true);
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [zoomIdx, setZoomIdx] = useState(0);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  // Re-center the view on every zoom change (and on first mount) so zooming in never stalls
+  // the player at whatever corner they happened to be scrolled to.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
+  }, [zoomIdx]);
 
   return (
     <section className="relative h-dvh min-h-0 flex flex-col overflow-hidden bg-bg">
@@ -54,17 +70,23 @@ export function WorldMapScreen({
         <p className="text-sm tabular-nums text-muted border border-border rounded-md px-2 py-1 bg-bg/70">Ember {ember}</p>
       </header>
 
-      {/* Shrink-wrapped to the image's own rendered box (not the screen) so percent-based
-       * marker coordinates always land on the right spot regardless of viewport aspect —
-       * an inline-block wrapper sizes to the img's natural on-screen box, and the marker
-       * overlay exactly covers that same box. */}
-      <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden p-2">
-        <div className="relative inline-block max-w-full max-h-full">
+      {/* A real scroll viewport (not shrink-to-fit) — the map renders at ZOOM_STOPS[zoomIdx]%
+       * of this container's width and pans/scrolls natively (touch included) whenever it
+       * overflows, which at every zoom stop it does on a phone. The inner wrapper still
+       * sizes itself exactly to the image's own on-screen box (width set, height auto), so
+       * percent-based marker coordinates land correctly at any zoom level. */}
+      <div
+        ref={viewportRef}
+        className="relative z-10 flex-1 min-h-0 overflow-auto overscroll-contain touch-pan-x touch-pan-y"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="relative inline-block m-2" style={{ width: artOk ? `${ZOOM_STOPS[zoomIdx]}%` : undefined }}>
           {artOk ? (
             <img
               src="/game/world-map.jpg"
               alt=""
-              className="block max-w-full max-h-[calc(100dvh-6rem)] w-auto h-auto rounded-lg"
+              className="block w-full h-auto rounded-lg select-none"
+              draggable={false}
               onError={() => setArtOk(false)}
             />
           ) : (
@@ -96,7 +118,7 @@ export function WorldMapScreen({
                   aria-label={st === "locked" ? `${loc.name} (bloqueado)` : loc.name}
                 >
                   <span
-                    className={`relative size-9 rounded-full border-2 grid place-items-center bg-bg/80 transition-transform group-hover:scale-110 ${
+                    className={`relative size-10 rounded-full border-2 grid place-items-center bg-bg/80 transition-transform group-hover:scale-110 group-active:scale-95 ${
                       st === "locked"
                         ? `border-border opacity-50 ${loc.id === flashId ? "locked-flash" : ""}`
                         : st === "done"
@@ -125,6 +147,30 @@ export function WorldMapScreen({
           </div>
         </div>
       </div>
+
+      {artOk && (
+        <div className="absolute z-20 bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 flex flex-col gap-1 bg-bg/85 border border-border rounded-lg p-1">
+          <button
+            type="button"
+            onClick={() => setZoomIdx((i) => Math.min(ZOOM_STOPS.length - 1, i + 1))}
+            disabled={zoomIdx >= ZOOM_STOPS.length - 1}
+            className="size-11 grid place-items-center rounded-md disabled:opacity-30 active:bg-surface-2"
+            aria-label="Aproximar"
+          >
+            <ZoomIn className="size-5" />
+          </button>
+          <div className="text-center text-[10px] tabular-nums text-muted py-0.5">{zoomIdx + 1}/{ZOOM_STOPS.length}</div>
+          <button
+            type="button"
+            onClick={() => setZoomIdx((i) => Math.max(0, i - 1))}
+            disabled={zoomIdx <= 0}
+            className="size-11 grid place-items-center rounded-md disabled:opacity-30 active:bg-surface-2"
+            aria-label="Afastar"
+          >
+            <ZoomOut className="size-5" />
+          </button>
+        </div>
+      )}
 
       {open && (
         <LocationPanel
