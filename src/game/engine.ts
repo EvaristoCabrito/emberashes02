@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -915,7 +915,7 @@ export class BattleEngine {
         // line, which must never grant XP.
         if (foe.side !== att.side) {
           // Black Mage / Conjurer finishing an enemy off with one of their own single-target
-          // spells (Lightning today) doubles the XP from that kill — never for AoE/line spells.
+          // spells (Magic Missile, Lightning) doubles the XP from that kill — never for AoE/line spells.
           const isAoeSpell = a.spellKind === "fireball" || a.spellKind === "cleave" || a.spellKind === "piercing";
           const killBonus =
             foe.hp <= 0 && !isAoeSpell && (att.classId === "mage" || att.classId === "conjurer") ? 2 : 1;
@@ -1532,6 +1532,18 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startMagicMissile(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "magicMissile") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "magicMissile";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${MAGIC_MISSILE.name}: alcance ${MAGIC_MISSILE.range}, ${diceFormula(MAGIC_MISSILE.dice, MAGIC_MISSILE.faces, MAGIC_MISSILE.bonus)} − RES. Acerto garantido. Toque no inimigo.`;
+    sfxPlay.ui();
+  }
+
   startDoubleStrike(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
     if (!u || u.acted || this.tierRemaining(u, "doubleStrike") <= 0) return;
@@ -1574,6 +1586,10 @@ export class BattleEngine {
     }
     if (this.spellKind === "lightning") {
       this.castLightning(u, cell);
+      return;
+    }
+    if (this.spellKind === "magicMissile") {
+      this.castMagicMissile(u, cell);
       return;
     }
     if (this.spellKind === "doubleStrike") {
@@ -1659,6 +1675,11 @@ export class BattleEngine {
     if (this.spellKind === "lightning") {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
       if (!here || !here.alive || here.side !== "enemy" || manhattan(caster, cell) > LIGHTNING.range) return false;
+      return clearShot(caster, cell, this.tiles, this.cols, "bolt");
+    }
+    if (this.spellKind === "magicMissile") {
+      const here = occupancy(this.units).get(key(cell.x, cell.y));
+      if (!here || !here.alive || here.side !== "enemy" || manhattan(caster, cell) > MAGIC_MISSILE.range) return false;
       return clearShot(caster, cell, this.tiles, this.cols, "bolt");
     }
     if (this.spellKind === "doubleStrike") {
@@ -1822,6 +1843,32 @@ export class BattleEngine {
       label: LIGHTNING.name,
       echo: { dice: LIGHTNING.echoDice, faces: LIGHTNING.echoFaces, bonus: LIGHTNING.echoBonus },
       spellKind: "lightning",
+    });
+  }
+
+  private castMagicMissile(unit: Unit, cell: Point): void {
+    if (!this.spellAimValid(unit, cell)) {
+      this.tip = "Alvo fora de alcance.";
+      sfxPlay.ui();
+      return;
+    }
+    const occ = occupancy(this.units);
+    const foe = occ.get(key(cell.x, cell.y));
+    if (!foe) return;
+    this.spendTier(unit, "magicMissile");
+    this.spellKind = null;
+    this.tip = null;
+    this.mode = "locked";
+    this.queue.push({
+      type: "spell",
+      att: unit.id,
+      tiles: [cell],
+      ids: [foe.id],
+      dice: MAGIC_MISSILE.dice,
+      faces: MAGIC_MISSILE.faces,
+      bonus: MAGIC_MISSILE.bonus,
+      label: MAGIC_MISSILE.name,
+      spellKind: "magicMissile",
     });
   }
 
@@ -2771,6 +2818,10 @@ export class BattleEngine {
         overlay(this.healRangeTiles(selected, LIGHTNING.range), "rgba(80,120,170,0.3)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(120,170,220,0.55)");
+      } else if (selected && this.spellKind === "magicMissile") {
+        overlay(this.healRangeTiles(selected, MAGIC_MISSILE.range), "rgba(130,90,170,0.3)");
+        const cell = this.hover ?? this.spellAim;
+        if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(180,140,220,0.55)");
       } else if (selected && this.isHeal(this.spellKind)) {
         overlay(this.healRangeTiles(selected, CURES[this.spellKind].range), "rgba(90,140,100,0.34)");
         const cell = this.hover ?? this.spellAim;

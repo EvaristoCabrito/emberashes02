@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -128,7 +128,7 @@ function classSpells(classId: ClassId): SpellKind[] {
     case "swordsman":
       return ["doubleStrike", "cleave"];
     case "mage":
-      return ["fireball", "lightning"];
+      return ["magicMissile", "lightning", "fireball"];
     case "archer":
       return ["longShot", "piercing"];
     case "healer":
@@ -176,6 +176,11 @@ function slotIcon(action: SlotAction): string {
       return "/game/icons/fireball.png";
     case "lightning":
       return "/game/icons/lightning.png?v=3";
+    case "magicMissile":
+      // Reuses Piercing's icon (a single glowing projectile) as a placeholder — no dedicated
+      // Magic Missile art exists yet, and archer/mage kits never share a hotbar so the two
+      // spells never appear side by side.
+      return "/game/icons/piercing.png?v=3";
     case "longShot":
       return "/game/icons/long-shot.png?v=3";
     case "piercing":
@@ -200,6 +205,8 @@ function slotLabel(action: SlotAction): string {
       return FIREBALL.name;
     case "lightning":
       return LIGHTNING.name;
+    case "magicMissile":
+      return MAGIC_MISSILE.name;
     case "longShot":
       return LONG_SHOT.name;
     case "piercing":
@@ -2288,6 +2295,9 @@ function BattleScreen({
       case "lightning":
         engine.startLightning();
         break;
+      case "magicMissile":
+        engine.startMagicMissile();
+        break;
       case "longShot":
         engine.startLongShot();
         break;
@@ -2840,9 +2850,10 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                   {mage && (
                     <>
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                        <img src="/game/icons/fireball.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <img src="/game/icons/piercing.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
-                          Fogo {fireballFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("fireball")!)]}</span>
+                          {MAGIC_MISSILE.name} {diceFormula(MAGIC_MISSILE.dice, MAGIC_MISSILE.faces, MAGIC_MISSILE.bonus)}{" "}
+                          <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("magicMissile")!)]}</span>
                         </p>
                       </div>
                       {unit.spells[tierKey(spellTier("lightning")!)] > 0 && (
@@ -2850,6 +2861,14 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                           <img src="/game/icons/lightning.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                           <p className="text-xs truncate">
                             Raio {lightningFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("lightning")!)]}</span>
+                          </p>
+                        </div>
+                      )}
+                      {unit.spells[tierKey(spellTier("fireball")!)] > 0 && (
+                        <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                          <img src="/game/icons/fireball.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <p className="text-xs truncate">
+                            Fogo {fireballFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("fireball")!)]}</span>
                           </p>
                         </div>
                       )}

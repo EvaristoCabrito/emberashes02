@@ -1137,6 +1137,17 @@ export const CLEAVE = {
   bonusBonus: 2,
 };
 
+export const MAGIC_MISSILE = {
+  name: "Míssil Mágico",
+  range: 4,
+  // Three darts, each 1d4+1, that never miss — modeled as one roll of 3 dice-of-4 plus a
+  // flat +3 (one dart's flat bonus × 3), which is exactly equivalent to summing three
+  // separate 1d4+1 rolls.
+  dice: 3,
+  faces: 4,
+  bonus: 3,
+};
+
 export const LIGHTNING = {
   name: "Relâmpago",
   range: 4,
@@ -1357,14 +1368,15 @@ export function tierUses(classId: ClassId, tier: SpellTier, level: number): numb
 }
 
 export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
-  lightning: 1,
+  magicMissile: 1,
   longShot: 1,
   cureMinor: 1,
   doubleStrike: 1,
-  fireball: 2,
+  lightning: 2,
   piercing: 2,
   cureWounds: 2,
   cleave: 2,
+  fireball: 3,
   cureDisease: 3,
 };
 
