@@ -131,6 +131,10 @@ export interface Mission {
   playerSpawns: Spawn[];
   enemySpawns: Spawn[];
   hub?: boolean;
+  /** Which art variant to use per tile, row-major, same indexing as layout flattened.
+   * Missing/undefined index or omitted array entirely means variant 0 (the default) —
+   * existing missions never set this and keep rendering exactly as before. */
+  tileVariants?: number[];
 }
 
 export interface Unit {
@@ -315,7 +319,9 @@ export interface WalkDirs {
 }
 
 export interface GameArt {
-  tiles: Record<TerrainId, HTMLImageElement>;
+  /** Every art variant for a terrain type, e.g. tiles.plains[0]/[1] — index 0 is the
+   * default (what existing missions render with when a tile doesn't name a variant). */
+  tiles: Record<TerrainId, HTMLImageElement[]>;
   sprites: Record<SpriteId, HTMLImageElement[]>;
   attacks: Partial<Record<SpriteId, HTMLImageElement[]>>;
   idles: Partial<Record<SpriteId, HTMLImageElement[]>>;

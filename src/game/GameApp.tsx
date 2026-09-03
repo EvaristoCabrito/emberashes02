@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, Pencil, RotateCcw, Swords, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { loadGameArt } from "./assets";
+import { loadGameArt, TILE_VARIANT_COUNT } from "./assets";
 import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sfxPlay, stopMusic, unlockAudio } from "./audio";
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import {
   activeSave,
@@ -256,7 +256,7 @@ export function GameApp() {
   }, []);
 
   const [customMission, setCustomMission] = useState<Mission | null>(null);
-  const mission = customMission && customMission.id === missionId ? customMission : missionId ? missionById(missionId) : undefined;
+  const mission = customMission && customMission.id === missionId ? customMission : missionId ? resolveMission(missionId) : undefined;
   const hasProgress = hasAnySave(bank);
 
   const applySlot = (next: SaveBank) => {
@@ -275,7 +275,7 @@ export function GameApp() {
     setTestMode(false);
     setLastGrowth(null);
     setLastLoot([]);
-    if (rec.pendingMission && missionById(rec.pendingMission)) {
+    if (rec.pendingMission && resolveMission(rec.pendingMission)) {
       setMissionId(rec.pendingMission);
       setScreen("briefing");
       return;
@@ -287,7 +287,7 @@ export function GameApp() {
   const startBattle = useCallback(
     (id: string, carried = save.unitHp, override?: Mission, playerLevels?: Record<string, number>, enemyLevels?: Record<string, number>) => {
       if (!art) return;
-      const m = override ?? missionById(id);
+      const m = override ?? resolveMission(id);
       if (!m) return;
       const levels: Record<string, number> = testMode
         ? override
@@ -979,7 +979,7 @@ function TitleScreen({
       <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-xl mx-auto w-full">
         <p className="text-sm tracking-[0.28em] uppercase text-muted mb-3">Táticas em cinzas</p>
         <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight leading-none mb-4">Ember</h1>
-        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.25</p>
+        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.251</p>
         <p className="text-muted text-base leading-relaxed mb-8 max-w-md">
           Três sobreviventes. Um tabuleiro de guerra. Cada casa conta.
         </p>
@@ -1151,7 +1151,8 @@ function TestMenuScreen({ onBack, onDebug, onMapEditor }: { onBack: () => void; 
   );
 }
 
-const CUSTOM_MAPS_KEY = "ember-custom-maps";
+const MAP_VERSIONS_KEY = "ember-map-versions";
+const MAP_ACTIVE_KEY = "ember-map-active";
 const EDITOR_COLS_DEFAULT = 10;
 const EDITOR_ROWS_DEFAULT = 8;
 
@@ -1163,7 +1164,14 @@ interface DraftSpawn extends Spawn {
 }
 
 interface MapDraft {
+  /** Which campaign scenario this map authors for — matches a real Mission.id (e.g.
+   * "o-vau") to version-edit that scenario, or any free id for a standalone map with no
+   * campaign slot. Versions are grouped and saved under this id — it's the "Cenário
+   * alvo" the user assigns, not a per-edit-session unique key. */
   id: string;
+  /** Mission.index of the scenario being edited (enemy scaling, procedural terrain hash
+   * — see enemyLevelFor). 0 for a standalone map with no real campaign slot. */
+  index: number;
   title: string;
   place: string;
   briefing: string;
@@ -1173,6 +1181,9 @@ interface MapDraft {
   cols: number;
   rows: number;
   tiles: TerrainId[];
+  /** Art variant per tile (same indexing as tiles) — which numbered version (01, 02, ...)
+   * paints there. Defaults to 0 (the "01" file, safe for existing missions). */
+  tileVariants: number[];
   playerSpawns: DraftSpawn[];
   enemySpawns: DraftSpawn[];
 }
@@ -1184,6 +1195,7 @@ const DEFAULT_TEST_LEVEL = 10;
 function blankDraft(): MapDraft {
   return {
     id: `custom-${Date.now().toString(36)}`,
+    index: 0,
     title: "Mapa sem nome",
     place: "",
     briefing: "",
@@ -1193,18 +1205,23 @@ function blankDraft(): MapDraft {
     cols: EDITOR_COLS_DEFAULT,
     rows: EDITOR_ROWS_DEFAULT,
     tiles: Array.from({ length: EDITOR_COLS_DEFAULT * EDITOR_ROWS_DEFAULT }, () => "plains" as TerrainId),
+    tileVariants: Array.from({ length: EDITOR_COLS_DEFAULT * EDITOR_ROWS_DEFAULT }, () => 0),
     playerSpawns: [],
     enemySpawns: [],
   };
 }
 
-/** Loads an existing campaign mission into the editor as a NEW draft — always under a
- * different id/title, so saving/exporting it never collides with or overwrites the real
- * mission (per user request: importing must save under another name). */
+/** Loads an existing campaign mission into the editor, targeting that same mission's id —
+ * so saved versions stack up under it and "Ativar" can make one of them live for that
+ * real campaign slot. The immutable static Mission data itself is never touched; this
+ * only ever writes to the versioned localStorage store. */
 function missionToDraft(m: Mission): MapDraft {
+  const n = m.cols * m.rows;
+  const variants = m.tileVariants ?? [];
   return {
-    id: `${m.id}-edit-${Date.now().toString(36)}`,
-    title: `${m.title} (editado)`,
+    id: m.id,
+    index: m.index,
+    title: m.title,
     place: m.place,
     briefing: m.briefing,
     objective: m.objective,
@@ -1213,6 +1230,7 @@ function missionToDraft(m: Mission): MapDraft {
     cols: m.cols,
     rows: m.rows,
     tiles: parseLayout(m.layout),
+    tileVariants: Array.from({ length: n }, (_, i) => variants[i] ?? 0),
     playerSpawns: m.playerSpawns.map((s) => ({ ...s, level: DEFAULT_TEST_LEVEL })),
     enemySpawns: m.enemySpawns.map((s) => ({ ...s, level: enemyLevelFor(m.index) })),
   };
@@ -1225,21 +1243,49 @@ const DEFAULT_HEROES: { name: string; classId: ClassId }[] = [
   { name: "Salazar", classId: "healer" },
 ];
 
-function loadCustomMaps(): MapDraft[] {
+/** One saved edit of a scenario. Versions never get overwritten — every "Salvar" appends
+ * a new serial under the draft's id (the target scenario). "Ativar" a serial to make it
+ * the one real campaign play uses instead of the immutable static Mission data; the
+ * static data itself is never modified by any of this. */
+interface MapVersion {
+  serial: number;
+  draft: MapDraft;
+  savedAt: number;
+}
+
+function loadVersionStore(): Record<string, MapVersion[]> {
   try {
-    const raw = window.localStorage.getItem(CUSTOM_MAPS_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? (parsed as MapDraft[]) : [];
+    const raw = window.localStorage.getItem(MAP_VERSIONS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, MapVersion[]>) : {};
   } catch {
-    return [];
+    return {};
   }
 }
 
-function saveCustomMaps(maps: MapDraft[]) {
+function saveVersionStore(store: Record<string, MapVersion[]>) {
   try {
-    window.localStorage.setItem(CUSTOM_MAPS_KEY, JSON.stringify(maps));
+    window.localStorage.setItem(MAP_VERSIONS_KEY, JSON.stringify(store));
   } catch {
     // ignore — editor still works in-session without persistence
+  }
+}
+
+function loadActiveVersions(): Record<string, number> {
+  try {
+    const raw = window.localStorage.getItem(MAP_ACTIVE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveActiveVersions(map: Record<string, number>) {
+  try {
+    window.localStorage.setItem(MAP_ACTIVE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
   }
 }
 
@@ -1252,7 +1298,7 @@ function draftToMission(d: MapDraft): Mission {
   }
   return {
     id: d.id,
-    index: 0,
+    index: d.index,
     title: d.title,
     place: d.place,
     briefing: d.briefing,
@@ -1261,10 +1307,24 @@ function draftToMission(d: MapDraft): Mission {
     cols: d.cols,
     rows: d.rows,
     layout,
+    tileVariants: d.tileVariants.some((v) => v) ? d.tileVariants : undefined,
     playerSpawns: d.playerSpawns.map(({ level: _level, ...s }) => s),
     enemySpawns: d.enemySpawns.map(({ level: _level, ...s }) => s),
     hub: d.hub || undefined,
   };
+}
+
+/** Resolves a mission id for REAL play (not the editor's own playtest): an activated
+ * custom version takes precedence over the immutable static MISSIONS data, so authoring
+ * a scenario in the Map Editor can actually replace what the campaign plays without ever
+ * touching the shipped data. */
+function resolveMission(id: string): Mission | undefined {
+  const active = loadActiveVersions()[id];
+  if (active) {
+    const version = loadVersionStore()[id]?.find((v) => v.serial === active);
+    if (version) return draftToMission(version.draft);
+  }
+  return missionById(id);
 }
 
 const TERRAIN_SWATCH: Record<TerrainId, string> = {
@@ -1286,6 +1346,17 @@ const TERRAIN_SWATCH: Record<TerrainId, string> = {
   void: "#050505",
 };
 
+/** Hover text for a terrain type: its combat stats plus terrainNote()'s callout, so the
+ * editor documents what each tile actually does instead of just naming it. */
+function terrainHint(t: TerrainId): string {
+  const d = TERRAIN[t];
+  const parts = [d.passable ? `Mov ${d.moveCost}` : "Intransponível", `Def +${d.def}`, `Atk +${d.atk}`];
+  if (d.blocksShot) parts.push("bloqueia tiro/visão");
+  if (d.hazardDice) parts.push(`dano ${d.hazardDice}D${d.hazardFaces} por turno parado`);
+  const note = terrainNote(t);
+  return note ? `${parts.join(" · ")} — ${note}` : parts.join(" · ");
+}
+
 function MapEditorScreen({
   onBack,
   onPlaytest,
@@ -1293,19 +1364,27 @@ function MapEditorScreen({
   onBack: () => void;
   onPlaytest: (m: Mission, playerLevels: Record<string, number>, enemyLevels: Record<string, number>) => void;
 }) {
-  const [saved, setSaved] = useState<MapDraft[]>(() => loadCustomMaps());
-  const [draft, setDraft] = useState<MapDraft>(() => saved[0] ?? blankDraft());
+  const [versionStore, setVersionStore] = useState<Record<string, MapVersion[]>>(() => loadVersionStore());
+  const [activeVersions, setActiveVersions] = useState<Record<string, number>>(() => loadActiveVersions());
+  const [draft, setDraft] = useState<MapDraft>(() => blankDraft());
   const [brush, setBrush] = useState<TerrainId>("plains");
+  const [variant, setVariant] = useState(0);
   const [mode, setMode] = useState<"paint" | "player" | "enemy">("paint");
   const [gridStyle, setGridStyle] = useState<"hex" | "square">("hex");
   const [exportText, setExportText] = useState<string | null>(null);
   const [copyOk, setCopyOk] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const versions = versionStore[draft.id] ?? [];
+  const activeSerial = activeVersions[draft.id];
 
   const setTile = (i: number, t: TerrainId) => {
     setDraft((d) => {
       const tiles = d.tiles.slice();
+      const tileVariants = d.tileVariants.slice();
       tiles[i] = t;
-      return { ...d, tiles };
+      tileVariants[i] = Math.min(variant, TILE_VARIANT_COUNT[t] - 1);
+      return { ...d, tiles, tileVariants };
     });
   };
 
@@ -1340,9 +1419,12 @@ function MapEditorScreen({
     rows = Math.max(3, Math.min(40, rows));
     setDraft((d) => {
       const tiles: TerrainId[] = [];
+      const tileVariants: number[] = [];
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          tiles.push(r < d.rows && c < d.cols ? (d.tiles[r * d.cols + c] ?? "plains") : "plains");
+          const inOld = r < d.rows && c < d.cols;
+          tiles.push(inOld ? (d.tiles[r * d.cols + c] ?? "plains") : "plains");
+          tileVariants.push(inOld ? (d.tileVariants[r * d.cols + c] ?? 0) : 0);
         }
       }
       const inBounds = (s: Spawn) => s.x < cols && s.y < rows;
@@ -1351,6 +1433,7 @@ function MapEditorScreen({
         cols,
         rows,
         tiles,
+        tileVariants,
         playerSpawns: d.playerSpawns.filter(inBounds),
         enemySpawns: d.enemySpawns.filter(inBounds),
       };
@@ -1389,15 +1472,43 @@ function MapEditorScreen({
   };
 
   const doSave = () => {
-    const next = saved.some((m) => m.id === draft.id) ? saved.map((m) => (m.id === draft.id ? draft : m)) : [...saved, draft];
-    setSaved(next);
-    saveCustomMaps(next);
+    const list = versionStore[draft.id] ?? [];
+    const serial = (list[list.length - 1]?.serial ?? 0) + 1;
+    const next = { ...versionStore, [draft.id]: [...list, { serial, draft, savedAt: Date.now() }] };
+    setVersionStore(next);
+    saveVersionStore(next);
+    setNote(`Salvo como v${serial} de "${draft.id}". Use Ativar pra valer pra campanha.`);
   };
 
   const doExport = () => {
     doSave();
     setExportText(JSON.stringify(draftToMission(draft), null, 2));
     setCopyOk(false);
+  };
+
+  const doActivate = (serial: number) => {
+    const next = { ...activeVersions, [draft.id]: serial };
+    setActiveVersions(next);
+    saveActiveVersions(next);
+    setNote(`v${serial} agora é a versão valendo pra "${draft.id}" na campanha.`);
+  };
+
+  const doDeactivate = () => {
+    const next = { ...activeVersions };
+    delete next[draft.id];
+    setActiveVersions(next);
+    saveActiveVersions(next);
+    setNote(`"${draft.id}" voltou a usar o cenário original.`);
+  };
+
+  const doDeleteVersion = (serial: number) => {
+    const list = (versionStore[draft.id] ?? []).filter((v) => v.serial !== serial);
+    const next = { ...versionStore, [draft.id]: list };
+    if (list.length === 0) delete next[draft.id];
+    setVersionStore(next);
+    saveVersionStore(next);
+    if (activeVersions[draft.id] === serial) doDeactivate();
+    setNote(`v${serial} excluída.`);
   };
 
   const classOptions = Object.keys(CLASSES) as ClassId[];
@@ -1434,29 +1545,35 @@ function MapEditorScreen({
               </option>
             ))}
           </select>
-          {saved.length > 0 && (
+          {Object.keys(versionStore).length > 0 && (
             <select
               id="mapPick"
               className="flex-1 min-w-0 bg-bg border border-border rounded-md px-2 py-1.5"
-              value={draft.id}
+              value=""
+              title="Abre a versão mais recente salva para esse cenário — a lista de versões abaixo deixa escolher outra"
               onChange={(e) => {
-                const found = saved.find((m) => m.id === e.target.value);
-                if (found) setDraft(found);
+                const list = versionStore[e.target.value];
+                const latest = list?.[list.length - 1];
+                if (latest) setDraft(latest.draft);
               }}
             >
-              {!saved.some((m) => m.id === draft.id) && <option value={draft.id}>{draft.title} (não salvo)</option>}
-              {saved.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.title}
+              <option value="">Abrir cenário com versões salvas…</option>
+              {Object.entries(versionStore).map(([id, list]) => (
+                <option key={id} value={id}>
+                  {id} ({list.length} versão{list.length === 1 ? "" : "ões"}
+                  {activeVersions[id] ? `, v${activeVersions[id]} ativa` : ""})
                 </option>
               ))}
             </select>
           )}
         </div>
+        {note && (
+          <p className="text-xs text-accent bg-accent/10 border border-accent/40 rounded-md px-2 py-1.5">{note}</p>
+        )}
 
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-muted text-xs uppercase tracking-wide">Id</span>
+          <label className="flex flex-col gap-1" title="O cenário da campanha que essa edição mira. Bate com o id de uma missão real (ex.: o-vau) pra poder ativar essa versão nela, ou qualquer id livre pra um mapa avulso.">
+            <span className="text-muted text-xs uppercase tracking-wide">Cenário alvo (Id)</span>
             <input
               className="bg-bg border border-border rounded-md px-2 py-1.5"
               value={draft.id}
@@ -1567,18 +1684,40 @@ function MapEditorScreen({
         </div>
 
         {mode === "paint" && (
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(TERRAIN) as TerrainId[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setBrush(t)}
-                className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1.5 ${brush === t ? "border-accent" : "border-border"}`}
-              >
-                <span className="size-3 rounded-sm inline-block" style={{ background: TERRAIN_SWATCH[t] }} />
-                {TERRAIN[t].name}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.keys(TERRAIN) as TerrainId[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  title={terrainHint(t)}
+                  onClick={() => {
+                    setBrush(t);
+                    setVariant((v) => Math.min(v, (TILE_VARIANT_COUNT[t] ?? 1) - 1));
+                  }}
+                  className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1.5 ${brush === t ? "border-accent" : "border-border"}`}
+                >
+                  <span className="size-3 rounded-sm inline-block" style={{ background: TERRAIN_SWATCH[t] }} />
+                  {TERRAIN[t].name}
+                </button>
+              ))}
+            </div>
+            {(TILE_VARIANT_COUNT[brush] ?? 1) > 1 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-muted uppercase tracking-wide">Versão</span>
+                {Array.from({ length: TILE_VARIANT_COUNT[brush] }, (_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    title={`Pinta ${TERRAIN[brush].name} usando a arte ${String(i + 1).padStart(2, "0")}`}
+                    onClick={() => setVariant(i)}
+                    className={`size-7 rounded-md border overflow-hidden ${variant === i ? "border-accent" : "border-border"}`}
+                  >
+                    <img src={`/game/tiles/${brush}${String(i + 1).padStart(2, "0")}.png`} alt="" className="size-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {mode !== "paint" && (
@@ -1606,7 +1745,7 @@ function MapEditorScreen({
                   <button
                     key={i}
                     type="button"
-                    title={p ? p.name : e ? e.name : TERRAIN[t].name}
+                    title={p ? p.name : e ? e.name : terrainHint(t)}
                     onClick={() => onCellClick(x, y)}
                     className="size-[22px] grid place-items-center text-[9px] font-bold"
                     style={{ background: TERRAIN_SWATCH[t] }}
@@ -1637,7 +1776,7 @@ function MapEditorScreen({
                       <button
                         key={i}
                         type="button"
-                        title={p ? p.name : e ? e.name : TERRAIN[t].name}
+                        title={p ? p.name : e ? e.name : terrainHint(t)}
                         onClick={() => onCellClick(x, y)}
                         className="absolute grid place-items-center text-[8px] font-bold border border-black/20"
                         style={{
@@ -1703,6 +1842,44 @@ function MapEditorScreen({
             ))}
           </div>
         ))}
+
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs uppercase tracking-wide text-muted">
+            Versões salvas de "{draft.id}" ({versions.length})
+          </p>
+          {versions.length === 0 ? (
+            <p className="text-xs text-muted">Nenhuma ainda — Salvar cria a v1.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {versions
+                .slice()
+                .reverse()
+                .map((v) => (
+                  <div key={v.serial} className="flex items-center gap-1.5 text-xs bg-bg border border-border rounded-md px-2 py-1.5">
+                    <span className={`font-bold tabular-nums ${activeSerial === v.serial ? "text-accent" : ""}`}>v{v.serial}</span>
+                    <span className="text-muted flex-1 min-w-0 truncate">
+                      {new Date(v.savedAt).toLocaleString()}
+                      {activeSerial === v.serial ? " · ativa na campanha" : ""}
+                    </span>
+                    <Button size="sm" variant="quiet" onClick={() => setDraft(v.draft)}>
+                      Carregar
+                    </Button>
+                    <Button size="sm" variant="quiet" disabled={activeSerial === v.serial} onClick={() => doActivate(v.serial)}>
+                      Ativar
+                    </Button>
+                    <button type="button" onClick={() => doDeleteVersion(v.serial)} className="text-danger px-1" aria-label="Excluir versão">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+          {activeSerial != null && (
+            <Button size="sm" variant="ghost" onClick={doDeactivate} title="Volta esse cenário a usar os dados originais imutáveis em vez de uma versão editada">
+              Usar cenário original (desativar v{activeSerial})
+            </Button>
+          )}
+        </div>
 
         {exportText && (
           <label className="flex flex-col gap-1">

@@ -1,6 +1,27 @@
 import type { GameArt, SpriteId, TerrainId } from "./types";
 
-const TILES: TerrainId[] = ["plains", "woods", "ruins", "water", "ember", "hill", "flame", "column", "nave", "barricade", "highwood", "highruin", "chest", "door", "deadtree", "void"];
+// Number of art variants available per terrain, e.g. plains01.png/plains02.png. Index 0
+// (the "01" file) is what every mission renders with unless it names a different variant
+// in Mission.tileVariants — keep it as the tile that's safe for existing maps.
+export const TILE_VARIANT_COUNT: Record<TerrainId, number> = {
+  plains: 2,
+  woods: 2,
+  ruins: 2,
+  water: 2,
+  ember: 2,
+  hill: 2,
+  flame: 2,
+  column: 2,
+  nave: 2,
+  barricade: 2,
+  highwood: 2,
+  highruin: 2,
+  chest: 2,
+  door: 2,
+  deadtree: 1,
+  void: 1,
+};
+const TILES = Object.keys(TILE_VARIANT_COUNT) as TerrainId[];
 const SPRITES: SpriteId[] = ["kael", "nira", "voss", "salazar", "soldier", "brigand", "captain", "sorcerer", "horror", "pikeman", "wardog", "troll"];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -24,10 +45,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 const HERO_IDLE = new Set<SpriteId>(["kael", "nira", "voss", "salazar", "horror"]);
 
 export async function loadGameArt(): Promise<GameArt> {
-  const tiles = {} as Record<TerrainId, HTMLImageElement>;
+  const tiles = {} as Record<TerrainId, HTMLImageElement[]>;
   await Promise.all(
     TILES.map(async (id) => {
-      tiles[id] = await loadImage(`/game/tiles/${id}.png?v=5`);
+      const n = TILE_VARIANT_COUNT[id];
+      tiles[id] = await Promise.all(Array.from({ length: n }, (_, i) => loadImage(`/game/tiles/${id}${String(i + 1).padStart(2, "0")}.png?v=6`)));
     }),
   );
   const sprites = {} as Record<SpriteId, HTMLImageElement[]>;

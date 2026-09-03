@@ -289,6 +289,8 @@ function easeOut(t: number): number {
 export class BattleEngine {
   readonly mission: Mission;
   readonly tiles: TerrainId[];
+  /** Art variant index per tile, same indexing as tiles. Undefined/missing = variant 0. */
+  readonly tileVariants: number[];
   readonly cols: number;
   readonly rows: number;
   units: Unit[] = [];
@@ -348,6 +350,7 @@ export class BattleEngine {
     this.cols = mission.cols;
     this.rows = mission.rows;
     this.tiles = parseLayout(mission.layout);
+    this.tileVariants = mission.tileVariants ?? [];
     this.rng = mulberry32(seed + mission.index * 97);
     this.units = [
       ...mission.playerSpawns.map((s, i) => spawnUnit(s, "player", i, roster)),
@@ -2410,7 +2413,9 @@ export class BattleEngine {
         const { cx, cy } = this.hexCenter(x, y);
         if (cx < -tile * 2 || cy < -tile * 2 || cx > cssW + tile * 2 || cy > cssH + tile * 2) continue;
         const id = tileAt(this.tiles, this.cols, x, y);
-        const img = this.art.tiles[id];
+        const variants = this.art.tiles[id];
+        const variant = this.tileVariants[y * this.cols + x] ?? 0;
+        const img = variants[variant] ?? variants[0];
         ctx.save();
         this.hexPath(ctx, cx, cy, tile * 0.98);
         ctx.clip();
