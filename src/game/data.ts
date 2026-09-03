@@ -565,19 +565,26 @@ export const MAX_LEVEL = 30;
 /** XP needed to go up one level — flat at every level, Final Fantasy Tactics-style. */
 export const EXP_TO_LEVEL = 100;
 
-/** XP a hit lands when attacker and defender are the same level. */
-export const BASE_EXP_PER_HIT = 30;
+/** XP a hit, heal, or potion lands when attacker and target are the same level. */
+export const BASE_EXP_PER_HIT = 20;
+
+/** Level gap at which XP falls all the way to its floor (see expForHit) — beyond this,
+ * still worth something, just never less. */
+const EXP_FALLOFF_LEVELS = 10;
 
 /**
- * XP granted for a single damaging hit. Fighting your own level or below always pays the
- * full BASE_EXP_PER_HIT; fighting below your weight class tapers that off linearly down to 0
- * once the level gap reaches the full level range (MAX_LEVEL − 1) — e.g. a level 30 attacking
- * a level 1 gains nothing, a level 1 attacking a level 1 gains the full 30.
+ * XP granted for a single qualifying action (a damaging hit, a heal, a potion — anything
+ * that calls gainExp). Fighting your own level or below always pays the full
+ * BASE_EXP_PER_HIT; fighting below your weight class tapers that off linearly down to a
+ * floor of 1 once the level gap reaches EXP_FALLOFF_LEVELS — e.g. a level 15 attacking a
+ * level 5 (a 10-level gap) gains 1, a level 1 attacking a level 1 gains the full 20. Never
+ * drops to 0: a hit always earns something, however outmatched the target.
  */
 export function expForHit(attackerLevel: number, defenderLevel: number): number {
   const gap = Math.max(0, attackerLevel - defenderLevel);
-  const falloff = Math.max(0, 1 - gap / (MAX_LEVEL - 1));
-  return Math.round(BASE_EXP_PER_HIT * falloff);
+  if (gap >= EXP_FALLOFF_LEVELS) return 1;
+  const t = gap / EXP_FALLOFF_LEVELS;
+  return Math.round(BASE_EXP_PER_HIT - (BASE_EXP_PER_HIT - 1) * t);
 }
 
 export function statsFor(classId: ClassId, level: number) {
