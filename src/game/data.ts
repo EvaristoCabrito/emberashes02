@@ -627,6 +627,50 @@ export const POTIONS: Record<PotionId, PotionDef> = {
 
 export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1, lockpick: 3 };
 export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
+
+/** Rarity weights for loot rolls: weaker/cheaper potions and gear come up far more often
+ * than the strongest ones — "the strongest is harder to come out". */
+const POTION_LOOT_WEIGHT: Record<PotionId, number> = { weak: 50, mid: 30, potent: 12, disease: 8 };
+
+function weightedPick<T>(rng: () => number, entries: [T, number][]): T {
+  const total = entries.reduce((n, [, w]) => n + w, 0);
+  let roll = rng() * total;
+  for (const [item, w] of entries) {
+    roll -= w;
+    if (roll <= 0) return item;
+  }
+  return entries[entries.length - 1]![0];
+}
+
+export function weightedPotionPick(rng: () => number): PotionId {
+  return weightedPick(rng, Object.entries(POTION_LOOT_WEIGHT) as [PotionId, number][]);
+}
+
+/** Loot-table weight for a priced item — inversely proportional to price (sqrt-tempered so
+ * top-tier gear is meaningfully rarer without being nearly unobtainable from chest luck). */
+function priceWeight(price: number): number {
+  return 1 / Math.sqrt(Math.max(1, price));
+}
+
+export type LootDrop = { kind: "weapon"; id: string } | { kind: "equipment"; id: string };
+
+/** Weighted random pick across every weapon and every offHand EquipmentDef, rarer as price
+ * climbs. Used for chest loot and enemy kill drops alike. */
+export function weightedLootPick(rng: () => number): LootDrop {
+  const entries: [LootDrop, number][] = [
+    ...Object.values(WEAPONS).map((w): [LootDrop, number] => [{ kind: "weapon", id: w.id }, priceWeight(w.price)]),
+    ...Object.values(EQUIPMENT).map((e): [LootDrop, number] => [{ kind: "equipment", id: e.id }, priceWeight(e.price ?? 60)]),
+  ];
+  return weightedPick(rng, entries);
+}
+
+/** Weighted random pick across a given set of weapon ids (no offHand gear) — for drop
+ * sources that only ever granted a weapon before (e.g. enemy kill drops), optionally
+ * restricted to a pool (e.g. "not already owned"). Defaults to every weapon in the game. */
+export function weightedWeaponPick(rng: () => number, ids: string[] = Object.keys(WEAPONS)): string {
+  const entries: [string, number][] = ids.map((id): [string, number] => [id, priceWeight(WEAPONS[id]?.price ?? 100)]);
+  return weightedPick(rng, entries);
+}
 export const BAG_MAX = 9;
 
 export const POTION_PRICE: Record<PotionId, number> = {

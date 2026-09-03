@@ -1,3 +1,4 @@
+import { mulberry32 } from "./combat";
 import { DECORATIONS, MISSIONS, TERRAIN, TILE_CHAR } from "./data";
 import { hexNeighbors } from "./pathfinding";
 import type { DecorationPlacement, Mission, TerrainId } from "./types";
@@ -9,9 +10,16 @@ import type { DecorationPlacement, Mission, TerrainId } from "./types";
  * replaced with a modest sprinkling of the multi-hex decoration objects instead. Elevation
  * (hill, "h"), fire (flame, "f") and ember ("e") are untouched, per direct instruction.
  *
+ * Also sprinkles 1-3 lockable chests per map onto open ground ("here and there", not
+ * blanket coverage) — every existing mission had zero, despite the lockpick/chest mechanic
+ * already existing in the engine. Chest positions are deterministic (seeded by mission id)
+ * so they don't reshuffle on reload; loot itself (what a chest actually contains) rolls at
+ * open time in engine.ts's useLockpick, weighted so the strongest potions and gear are the
+ * rarest.
+ *
  * This runs once at module load over the real, already-expanded MISSIONS data (not the
  * pre-expandMaps authoring layout), so coordinates and dimensions always match what the
- * game actually renders. Every candidate decoration placement is verified with a BFS
+ * game actually renders. Every candidate decoration/chest placement is verified with a BFS
  * connectivity check — dropped if it would cut any spawn off from the rest of the board —
  * so no V2 map can end up unwinnable. The legacy MISSIONS array is never touched.
  */
@@ -79,6 +87,48 @@ function connectivityOk(grid: string[][], cols: number, rows: number, blockedExt
     }
   }
   return spawns.every(([x, y]) => seen.has(`${x},${y}`));
+}
+
+/** Stable, mission-specific seed — chest positions must not reshuffle on every reload. */
+function seedFromId(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Sprinkles a handful of lockable chests ("here and there", not blanket coverage) onto
+ * open ground, spaced apart and never where they'd cut off a spawn — same BFS check as
+ * decoration placement, since a chest is impassable terrain until picked. */
+function placeChests(grid: string[][], cols: number, rows: number, spawns: Cell[], spawnSet: Set<string>, blockedExtra: Set<string>, seed: number): void {
+  const rng = mulberry32(seed);
+  const candidates: Cell[] = [];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const k = `${x},${y}`;
+      if (spawnSet.has(k) || blockedExtra.has(k) || grid[y][x] !== ".") continue;
+      candidates.push([x, y]);
+    }
+  }
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const budget = Math.min(3, Math.max(1, Math.floor((cols * rows) / 150)));
+  const placed: Cell[] = [];
+  for (const [cx, cy] of candidates) {
+    if (placed.length >= budget) break;
+    if (placed.some(([px, py]) => Math.max(Math.abs(px - cx), Math.abs(py - cy)) < 3)) continue;
+    const candidate = new Set(blockedExtra);
+    candidate.add(`${cx},${cy}`);
+    if (connectivityOk(grid, cols, rows, candidate, spawns)) {
+      grid[cy][cx] = "k";
+      blockedExtra.add(`${cx},${cy}`);
+      placed.push([cx, cy]);
+    }
+  }
 }
 
 function stripFunkyTerrain(mission: Mission): Mission {
@@ -151,6 +201,8 @@ function stripFunkyTerrain(mission: Mission): Mission {
       if (CONVERT.has(grid[y][x])) grid[y][x] = ".";
     }
   }
+
+  placeChests(grid, cols, rows, spawns, spawnSet, blockedExtra, seedFromId(mission.id));
 
   return {
     ...mission,

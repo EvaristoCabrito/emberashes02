@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, weightedWeaponPick, type SpellTier } from "./data";
 import { MISSIONS_V2 } from "./campaignV2";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
@@ -452,7 +452,7 @@ export function GameApp() {
       const dropWeapon = () => {
         const fresh = weaponPool.filter((wid) => weapons[wid] == null);
         const pool = fresh.length > 0 ? fresh : weaponPool;
-        const id = pool[Math.floor(Math.random() * pool.length)]!;
+        const id = weightedWeaponPick(Math.random, pool);
         if (weapons[id] == null) {
           weapons[id] = 0;
           found.push(WEAPONS[id]!.name);
@@ -469,6 +469,11 @@ export function GameApp() {
           found.push(WEAPONS[id]!.name);
         }
       }
+      const foundOffHand = engine.foundOffHand();
+      const equipment = { ...save.equipment };
+      for (const [hero, itemId] of Object.entries(foundOffHand)) {
+        equipment[hero] = { ...(equipment[hero] ?? {}), offHand: itemId };
+      }
       setLastLoot(found);
       persistCurrent({
         ...save,
@@ -478,6 +483,7 @@ export function GameApp() {
         levels,
         xp,
         weapons,
+        equipment,
         ember: (save.ember ?? 0) + loot + engine.lootEmber + salvage,
         emberSeeded: true,
         muted,

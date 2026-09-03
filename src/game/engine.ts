@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses } from "./data";
+import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, offHandBlocked, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -542,6 +542,16 @@ export class BattleEngine {
     for (const u of this.units) {
       if (u.side !== "player") continue;
       out[u.name] = { ...u.bag };
+    }
+    return out;
+  }
+
+  /** Hero name → offHand EquipmentDef id, for whoever auto-equipped one from a chest this
+   * battle (see useLockpick) — folded into save.equipment on victory alongside bags. */
+  foundOffHand(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const u of this.units) {
+      if (u.side === "player" && u.offHandId) out[u.name] = u.offHandId;
     }
     return out;
   }
@@ -1881,16 +1891,33 @@ export class BattleEngine {
       frame: 0,
     });
     if (wasChest) {
+      // Every chest always gives a little Ember; a potion and a piece of gear are each
+      // their own independent roll, weighted so the strongest of either is the rarest —
+      // a lucky chest can gives all three, an unlucky one just the Ember.
       const gain = 3 + Math.floor(this.rng() * 6);
       this.lootEmber += gain;
-      if (this.rng() < 0.35) {
-        const ids = Object.keys(WEAPONS);
-        const weaponId = ids[Math.floor(this.rng() * ids.length)]!;
-        this.lootWeapons.push(weaponId);
-        this.tip = `${u.name} arrombou o baú · +${gain} Ember · achou ${WEAPONS[weaponId]!.name}.`;
-      } else {
-        this.tip = `${u.name} arrombou o baú · +${gain} Ember.`;
+      const found: string[] = [];
+      if (this.rng() < 0.55) {
+        const kind = weightedPotionPick(this.rng);
+        u.bag[kind] = (u.bag[kind] ?? 0) + 1;
+        found.push(POTIONS[kind].name);
       }
+      if (this.rng() < 0.4) {
+        const drop = weightedLootPick(this.rng);
+        if (drop.kind === "weapon") {
+          this.lootWeapons.push(drop.id);
+          found.push(WEAPONS[drop.id]!.name);
+        } else {
+          const item = EQUIPMENT[drop.id]!;
+          if (!u.offHandId && !offHandBlocked(u.weaponId)) {
+            u.offHandId = item.id;
+            found.push(item.name);
+          } else {
+            this.lootEmber += 15; // already full-handed or holding one — salvaged instead
+          }
+        }
+      }
+      this.tip = found.length > 0 ? `${u.name} arrombou o baú · +${gain} Ember · achou ${found.join(", ")}.` : `${u.name} arrombou o baú · +${gain} Ember.`;
     } else {
       this.tip = `${u.name} arrombou a porta.`;
     }
