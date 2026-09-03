@@ -2441,7 +2441,25 @@ function decorateOpenTerrain(mission: Mission): Mission {
   };
 }
 
-export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(rockifyColumns).map(decorateOpenTerrain);
+/** Missions whose open ground is meant to read as dead/scorched, not living grass — the
+ * plains tile's default art is lush green, wrong for a place whose own briefing describes
+ * it as ash-choked. Swaps every plains cell to the desaturated third art variant
+ * (plains03.png) instead. Add a mission id here rather than touching its terrain type: it's
+ * still mechanically plains (same move cost, same defense), just dressed differently. */
+const DEAD_GROUND_MISSIONS = new Set(["portao"]);
+const DEAD_GROUND_VARIANT = 2;
+
+function applyDeadGround(mission: Mission): Mission {
+  if (!DEAD_GROUND_MISSIONS.has(mission.id)) return mission;
+  const tiles = parseLayout(mission.layout);
+  const variants = mission.tileVariants ? [...mission.tileVariants] : new Array(tiles.length).fill(0);
+  for (let i = 0; i < tiles.length; i++) {
+    if (tiles[i] === "plains") variants[i] = DEAD_GROUND_VARIANT;
+  }
+  return { ...mission, tileVariants: variants };
+}
+
+export const MISSIONS: Mission[] = expandMaps(RAW_MISSIONS).map(rockifyColumns).map(decorateOpenTerrain).map(applyDeadGround);
 
 export function missionById(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);

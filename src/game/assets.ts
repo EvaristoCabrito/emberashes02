@@ -5,7 +5,7 @@ import type { GameArt, SpriteId, TerrainId } from "./types";
 // (the "01" file) is what every mission renders with unless it names a different variant
 // in Mission.tileVariants — keep it as the tile that's safe for existing maps.
 export const TILE_VARIANT_COUNT: Record<TerrainId, number> = {
-  plains: 2,
+  plains: 3,
   woods: 2,
   ruins: 2,
   water: 2,
