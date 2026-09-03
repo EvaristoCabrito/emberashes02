@@ -2209,25 +2209,25 @@ export function missionById(id: string): Mission | undefined {
  * Stone Bridge (missions 1-3: O Vau, Bosque Morto, Aldeia Queimada), the first of the two
  * "Ruins" (missions 4-6 plus Cripta de Cinzas, mission 7 — it's set under the temple ruins
  * above it, so it joins them as that location's 4th fight instead of Cemetery), the Inn
- * (mission 8), Cemetery (the rest of the early/mid missions not otherwise placed: Colina
- * Morta, Passagem Antiga), and the Fortified Temple Complex (missions 11-12 — the approach
- * and the temple gate itself, "Entrada do Templo", both happening at the same landmark).
- * Locations with no missionIds yet (Village,
- * Farm, the second Ruins, Dungeon, Frozen Swamp, Forest, Misty Cave — the last reserved for
- * a future troll encounter arc) render permanently locked until missions are written for
- * them — "we'll open up more as we make more missions." */
+ * (mission 8), Dungeon (Colina Morta and Passagem Antiga, missions 9-10 — moved here from
+ * Cemetery, which sits locked with no missions until more content backfills it), and the
+ * Fortified Temple Complex (missions 11-12 — the approach and the temple gate itself,
+ * "Entrada do Templo", both happening at the same landmark). Locations with no missionIds
+ * yet (Village, Farm, the second Ruins, Cemetery, Frozen Swamp, Forest, Misty Cave — the
+ * last reserved for a future troll encounter arc) render permanently locked until missions
+ * are written for them — "we'll open up more as we make more missions." */
 export const WORLD_LOCATIONS: WorldLocation[] = [
   { id: "stonebridge", name: "Stone Bridge", x: 14, y: 71, missionIds: ["vau", "bosque", "aldeia"] },
   { id: "ruins", name: "Ruins", x: 8, y: 56, missionIds: ["muralha", "fortaleza", "templo", "cripta"] },
-  { id: "cemetery", name: "Cemetery", x: 46, y: 69, missionIds: ["colina", "passagem"] },
   { id: "estalagem", name: "Inn", x: 48, y: 39, missionIds: ["estalagem"] },
+  { id: "dungeon", name: "Dungeon", x: 60, y: 64, missionIds: ["colina", "passagem"] },
   { id: "vertente", name: "Fortified Temple Complex", x: 78, y: 7, missionIds: ["vertente", "portao"] },
   // Named on the map, not yet assigned to any mission — visible on the map (permanently
   // locked) as a preview of the world until content is written for them.
   { id: "village", name: "Village", x: 17, y: 27, missionIds: [] },
   { id: "farm", name: "Farm", x: 89, y: 46, missionIds: [] },
   { id: "ruins2", name: "Ruins", x: 12, y: 43, missionIds: [] },
-  { id: "dungeon", name: "Dungeon", x: 60, y: 64, missionIds: [] },
+  { id: "cemetery", name: "Cemetery", x: 46, y: 69, missionIds: [] },
   { id: "frozen-swamp", name: "Frozen Swamp", x: 20, y: 86, missionIds: [] },
   { id: "forest", name: "Forest", x: 85, y: 79, missionIds: [] },
   { id: "misty-cave", name: "Misty Cave", x: 63, y: 19, missionIds: [] },
