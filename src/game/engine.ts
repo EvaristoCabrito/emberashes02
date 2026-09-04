@@ -353,6 +353,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     asleep: false,
     sleepTurns: 0,
     guaranteedDrop: side === "enemy" && !!spawn.guaranteedDrop,
+    moveBudgetUsed: 0,
   };
 }
 
@@ -1957,18 +1958,27 @@ export class BattleEngine {
     return this.webZones.some((z) => z.cells.has(key(x, y)));
   }
 
-  /** Web of Dreams' "restrained / difficult terrain" clause, applied without touching
-   * pathfinding.ts: a unit whose current cell is webbed gets a shallow clone with mov
-   * clamped to 1 for reach purposes only — same "modify one derived stat for a single calc"
-   * trick used by Piercing Thrust's armor-ignore. Reads `turnRestrained` (decided once, in
-   * beginUnitTurn, off the unit's position at the START of its turn) rather than re-checking
-   * the unit's live position — free repositioning re-derives reach from wherever the unit
-   * currently stands, and a live check would let one restrained hex out to the patch's edge
-   * un-clamp every step after it. The original path stays exactly as open as it always was
-   * (this is still real Dijkstra reach, not a free pick among neighbors) — restrained units
-   * just don't get a further step's worth of it once they've already spent their one. */
+  /** Every reach computation for a unit's own turn — including every re-derive free
+   * repositioning does after each move — funnels through here, so both of its clamps stay
+   * correct no matter how many times the player changes their mind about where to end up:
+   *
+   * 1. Web of Dreams' "restrained / difficult terrain" clause: a unit whose current cell was
+   *    webbed at the START of its turn (this.turnRestrained, decided once in beginUnitTurn,
+   *    not re-checked live — see the old note this replaced) gets mov clamped to 1.
+   * 2. moveBudgetUsed: free repositioning recomputes reach fresh from wherever the unit
+   *    currently stands, which — with the unit's real, full mov every time — would hand back
+   *    a fresh movement budget on every single move and let a unit hop across the whole map
+   *    in one turn. Subtracting what's already been spent (see commitMove) caps the turn's
+   *    real total distance at mov, same as it's always meant to be; the player still gets to
+   *    freely change their mind about WHERE within that budget to land, no clunky cancel/
+   *    reselect needed — that part is the actual point of free repositioning and stays.
+   *
+   * Both clamps use the same "shallow clone with one derived stat overridden" trick Piercing
+   * Thrust's armor-ignore calc uses — the real Unit's own mov is never touched. */
   private effectiveUnitForReach(u: Unit): Unit {
-    return this.turnRestrained ? { ...u, mov: Math.min(u.mov, 1) } : u;
+    const remaining = Math.max(0, u.mov - u.moveBudgetUsed);
+    const cap = this.turnRestrained ? Math.min(remaining, 1) : remaining;
+    return cap === u.mov ? u : { ...u, mov: cap };
   }
 
   private spellAimValid(caster: Unit, cell: Point): boolean {
@@ -2376,6 +2386,7 @@ export class BattleEngine {
       asleep: false,
       sleepTurns: 0,
       guaranteedDrop: false,
+      moveBudgetUsed: 0,
     };
     this.units.push(familiar);
     this.spendTier(unit, "summonFamiliar");
@@ -2648,6 +2659,7 @@ export class BattleEngine {
   /** Dispatches control for whoever is next in this round's initiative order. */
   private beginUnitTurn(u: Unit): void {
     this.phase = u.side;
+    u.moveBudgetUsed = 0;
     this.startOfTurnEffects(u);
     if (!u.alive) {
       this.activeUnitId = null; // force re-detection next tick, skipping the unit that just died
@@ -2919,6 +2931,12 @@ export class BattleEngine {
   private commitMove(unit: Unit, to: Point, after?: () => void): void {
     const path = reconstructPath(this.reach, to);
     if (path.length === 0) path.push({ x: unit.x, y: unit.y }, to);
+    // Cost of THIS move specifically (from wherever the unit currently stands, not from its
+    // turn-start position) — captured now, off the reach map this move was picked from,
+    // before it gets cleared/recomputed below. Folded into moveBudgetUsed so a repositioning
+    // chain's total distance is capped at the unit's own mov (see effectiveUnitForReach),
+    // not re-granted a fresh budget on every hop.
+    const stepCost = this.reach.get(key(to.x, to.y))?.cost ?? 0;
     this.mode = "locked";
     this.queue.push({ type: "move", id: unit.id, path });
     this.queue.push({ type: "delay", dur: 0.02 });
@@ -2927,6 +2945,7 @@ export class BattleEngine {
       unit.y = Math.round(to.y);
       unit.drawX = unit.x;
       unit.drawY = unit.y;
+      unit.moveBudgetUsed += stepCost;
       if (unit.acted) {
         unit.moved = true;
         this.selectedId = null;

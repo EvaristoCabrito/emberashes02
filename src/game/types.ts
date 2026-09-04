@@ -280,6 +280,15 @@ export interface Unit {
   sleepTurns: number;
   /** Mirrors Spawn.guaranteedDrop — read once in markDead, never touched afterward. */
   guaranteedDrop: boolean;
+  /** Total path cost already spent moving this unit's own turn — reset once in
+   * beginUnitTurn. Free repositioning (see effectiveUnitForReach) recomputes reach fresh
+   * from wherever the unit currently stands after every move, which without this would
+   * hand back a full, fresh `mov` budget each time and let a unit walk the length of the
+   * map in hex-by-hex hops within a single turn; subtracting what's already been spent
+   * caps the turn's real total distance at `mov`, same as it's always meant to be, while
+   * still letting the player freely change their mind about WHERE within that budget to
+   * end up (the actual point of free repositioning). */
+  moveBudgetUsed: number;
 }
 
 export interface UnitPublic {
