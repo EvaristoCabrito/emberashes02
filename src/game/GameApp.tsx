@@ -171,20 +171,15 @@ function slotIcon(action: SlotAction): string {
     case "doubleStrike":
       return "/game/icons/cleave.png";
     case "cleave":
-      return "/game/icons/cleave.png";
+      return "/game/icons/cleave-crossed-blades.png";
     case "fireball":
       return "/game/icons/fireball.png";
     case "causticVenom":
-      // Reuses the disease-cure potion's icon (a glowing green vial) as a placeholder — no
-      // dedicated Caustic Venom art exists yet, but the venomous-green look already fits.
-      return "/game/icons/potion-disease.png";
+      return "/game/icons/caustic-venom.png";
     case "lightning":
-      return "/game/icons/lightning.png?v=3";
+      return "/game/icons/lightning.png?v=4";
     case "magicMissile":
-      // Reuses Piercing's icon (a single glowing projectile) as a placeholder — no dedicated
-      // Magic Missile art exists yet, and archer/mage kits never share a hotbar so the two
-      // spells never appear side by side.
-      return "/game/icons/piercing.png?v=3";
+      return "/game/icons/magic-missile.png";
     case "longShot":
       return "/game/icons/long-shot.png?v=3";
     case "piercing":
@@ -2861,7 +2856,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                        <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <img src="/game/icons/cleave-crossed-blades.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
                           {CLEAVE.name} {CLEAVE.hexes} hex, arma + {diceFormula(CLEAVE.bonusDice, CLEAVE.bonusFaces, CLEAVE.bonusBonus)}{" "}
                           <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("cleave")!)]}</span>
@@ -2872,7 +2867,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                   {mage && (
                     <>
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                        <img src="/game/icons/piercing.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <img src="/game/icons/magic-missile.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
                           {MAGIC_MISSILE.name} {diceFormula(MAGIC_MISSILE.dice, MAGIC_MISSILE.faces, MAGIC_MISSILE.bonus)}{" "}
                           <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("magicMissile")!)]}</span>
@@ -2880,7 +2875,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                       </div>
                       {unit.spells[tierKey(spellTier("lightning")!)] > 0 && (
                         <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                          <img src="/game/icons/lightning.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <img src="/game/icons/lightning.png?v=4" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                           <p className="text-xs truncate">
                             Raio {lightningFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("lightning")!)]}</span>
                           </p>
@@ -2896,7 +2891,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                       )}
                       {unit.spells[tierKey(spellTier("causticVenom")!)] > 0 && (
                         <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                          <img src="/game/icons/potion-disease.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <img src="/game/icons/caustic-venom.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                           <p className="text-xs truncate">
                             {CAUSTIC_VENOM.name} {diceFormula(CAUSTIC_VENOM.centerDice, CAUSTIC_VENOM.centerFaces, CAUSTIC_VENOM.centerBonus)}{" "}
                             <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("causticVenom")!)]}</span>
