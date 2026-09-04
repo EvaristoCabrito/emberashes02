@@ -374,6 +374,38 @@ export function computeReachable(
   return result;
 }
 
+/** True path-cost distance from `from` to every tile on the map, ignoring who's standing
+ * where and ignoring the mover's own mov stat (ie. a Dijkstra over terrain alone, ceiling
+ * cols+rows deep, more than enough for any map this game builds). Used by AI targeting so
+ * "which reachable cell gets me closer to the player" is judged by real path distance, not
+ * straight-line hex distance — plain hexDist can't see walls/pillars, so an enemy on the far
+ * side of an obstacle can end up with every hex-closer cell actually a dead end, greedily
+ * "closest by hexDist" then never picks a move at all (every real step reads as moving away)
+ * and the enemy freezes in place turn after turn even though a real route exists. */
+export function terrainDistanceField(from: Point, tiles: TerrainId[], cols: number, rows: number): Map<string, number> {
+  const dist = new Map<string, number>();
+  const startKey = key(from.x, from.y);
+  dist.set(startKey, 0);
+  const queue: { x: number; y: number; cost: number }[] = [{ x: from.x, y: from.y, cost: 0 }];
+  while (queue.length) {
+    queue.sort((a, b) => a.cost - b.cost);
+    const cur = queue.shift()!;
+    const ck = key(cur.x, cur.y);
+    if ((dist.get(ck) ?? Infinity) < cur.cost) continue;
+    for (const n of hexNeighbors(cur.x, cur.y)) {
+      if (!inBounds(n.x, n.y, cols, rows)) continue;
+      const terr = TERRAIN[tileAt(tiles, cols, n.x, n.y)];
+      if (!terr.passable) continue;
+      const nextCost = cur.cost + terr.moveCost;
+      const nk = key(n.x, n.y);
+      if ((dist.get(nk) ?? Infinity) <= nextCost) continue;
+      dist.set(nk, nextCost);
+      queue.push({ x: n.x, y: n.y, cost: nextCost });
+    }
+  }
+  return dist;
+}
+
 export function reconstructPath(reach: Map<string, ReachCell>, to: Point): Point[] {
   const path: Point[] = [];
   let cur: ReachCell | undefined = reach.get(key(to.x, to.y));

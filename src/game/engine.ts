@@ -1,4 +1,4 @@
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, FOOTPRINT_TYPE_8, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, WEB_OF_DREAMS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, hexAreaTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CHEST_LOOT, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, FOOTPRINT_TYPE_8, KILL_DROP_CHANCE, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, WEB_OF_DREAMS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, hexAreaTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -26,6 +26,7 @@ import {
   shotKind,
   allAxisRays,
   reconstructPath,
+  terrainDistanceField,
   tileAt,
   unitSize,
   type ReachCell,
@@ -1223,7 +1224,7 @@ export class BattleEngine {
         this.lootEquipment.push(drop.id);
         this.pushLog(`Loot: ${EQUIPMENT[drop.id]?.name ?? drop.id}`);
       }
-    } else if (u.side === "enemy" && this.rng() < 0.01) {
+    } else if (u.side === "enemy" && this.rng() < KILL_DROP_CHANCE) {
       // 1% per kill, capped to what this mission's own enemies are geared for (see
       // missionGearLevel), and never a weapon already owned — an early mission never hands
       // out the campaign's best gear.
@@ -2613,11 +2614,11 @@ export class BattleEngine {
       // listed in Mission.betterChests (gated behind a locked area, say) tips both those
       // numbers up — same pool and range, not a different one.
       const better = this.mission.betterChests?.some((c) => c.x === target.x && c.y === target.y) ?? false;
-      const gain = (better ? 5 : 3) + Math.floor(this.rng() * (better ? 8 : 6));
+      const gain = (better ? CHEST_LOOT.betterEmberBase : CHEST_LOOT.emberBase) + Math.floor(this.rng() * (better ? CHEST_LOOT.betterEmberDice : CHEST_LOOT.emberDice));
       this.lootEmber += gain;
       const potionKind = weightedPotionPick(this.rng);
       if (this.givePotion(u, potionKind)) found.push(POTIONS[potionKind].name);
-      if (this.rng() < (better ? 0.55 : 0.4)) {
+      if (this.rng() < (better ? CHEST_LOOT.betterGearChance : CHEST_LOOT.gearChance)) {
         const drop = weightedLootPick(this.rng, missionGearLevel(this.mission.index), this.ownedWeapons);
         if (drop.kind === "weapon") {
           this.ownedWeapons.add(drop.id);
@@ -2757,18 +2758,26 @@ export class BattleEngine {
       this.queue.push({ type: "delay", dur: 0.12 });
       return;
     }
-    let nearest = players[0];
-    if (!nearest) {
+    if (players.length === 0) {
       next.moved = true;
       return;
     }
-    for (const p of players) {
-      if (manhattan(next, p) < manhattan(next, nearest)) nearest = p;
+    // Real path distance (walls/pillars-aware), not raw hex distance — a straight-line
+    // "closest" pick can freeze an enemy in place forever once it's on the far side of an
+    // obstacle, because every actual step first reads as moving away (see
+    // terrainDistanceField). Computed once per player and reused for both picking who to
+    // chase and which reachable cell actually closes the gap.
+    const fields = players.map((p) => ({ p, field: terrainDistanceField(p, this.tiles, this.cols, this.rows) }));
+    let nearest = fields[0]!;
+    for (const f of fields) {
+      const dCur = f.field.get(key(next.x, next.y)) ?? Infinity;
+      const dBest = nearest.field.get(key(next.x, next.y)) ?? Infinity;
+      if (dCur < dBest) nearest = f;
     }
     let closest: Point | null = null;
-    let dist = 999;
+    let dist = Infinity;
     for (const cell of reach.values()) {
-      const d = manhattan(cell, nearest);
+      const d = nearest.field.get(key(cell.x, cell.y)) ?? Infinity;
       if (d < dist) {
         dist = d;
         closest = { x: cell.x, y: cell.y };

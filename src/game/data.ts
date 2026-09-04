@@ -678,7 +678,7 @@ export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0, manaSmal
  * than the strongest ones — "the strongest is harder to come out". */
 // Mana potions are twice as hard to find as their equivalent-tier healing potion — half
 // the loot weight of weak/mid/potent respectively.
-const POTION_LOOT_WEIGHT: Record<PotionId, number> = { weak: 50, mid: 30, potent: 12, disease: 8, manaSmall: 25, manaMid: 15, manaLarge: 6 };
+export const POTION_LOOT_WEIGHT: Record<PotionId, number> = { weak: 50, mid: 30, potent: 12, disease: 8, manaSmall: 25, manaMid: 15, manaLarge: 6 };
 
 function weightedPick<T>(rng: () => number, entries: [T, number][]): T {
   const total = entries.reduce((n, [, w]) => n + w, 0);
@@ -790,6 +790,24 @@ export const POTION_PRICE: Record<PotionId, number> = {
 
 /** Preço modesto da Gazua na Estalagem (Brue). */
 export const LOCKPICK_PRICE = 6;
+
+/** Chest-loot odds (BattleEngine.useLockpick): Ember gain is emberBase + 1..emberDice, and
+ * gearChance is an independent roll for one extra weapon/equipment drop on top of the
+ * guaranteed potion. The "better" numbers are for a chest listed in Mission.betterChests
+ * (currently unused by any mission, kept for a future locked-loot-room) — same pool and
+ * price range as a normal chest, just better odds. */
+export const CHEST_LOOT = {
+  emberBase: 3,
+  emberDice: 6,
+  gearChance: 0.4,
+  betterEmberBase: 5,
+  betterEmberDice: 8,
+  betterGearChance: 0.55,
+};
+
+/** Chance a regular (non-boss) enemy drops a weapon on death — see BattleEngine.markDead.
+ * Named unique bosses (Spawn.guaranteedDrop) skip this roll entirely. */
+export const KILL_DROP_CHANCE = 0.01;
 
 // ---------------------------------------------------------------- Weapons
 // Damage dice ladder shared by every weapon pool, 1D4 (weakest) up to 2D12 (strongest).
@@ -2121,7 +2139,12 @@ const RAW_MISSIONS: Mission[] = [
       { name: "Feiticeiro", classId: "cultist", x: 6, y: 5 },
       { name: "Piqueiro", classId: "pikeman", x: 3, y: 5 },
       { name: "Troll da caverna", classId: "troll", x: 2, y: 6 },
-      { name: "Troll da caverna", classId: "troll", x: 10, y: 6 },
+      // x:10,y:7 (was x:10,y:6) — the old spot wedged this troll's own footprint
+      // (FOOTPRINT_TYPE_8 reaches 3 rows above its anchor) against a pillar, so every
+      // neighboring cell failed computeReachable's passability check and it was left with a
+      // reach of just its own tile: permanently frozen in place regardless of any AI logic,
+      // since it could never move onto anything reach-checked. One row deeper clears it.
+      { name: "Troll da caverna", classId: "troll", x: 10, y: 7 },
       { name: "Ember Starved", classId: "horror", x: 6, y: 3, guaranteedDrop: true },
     ],
   },

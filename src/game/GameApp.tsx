@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WEB_OF_DREAMS, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CHEST_LOOT, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, KILL_DROP_CHANCE, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, POTION_LOOT_WEIGHT, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WEB_OF_DREAMS, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -1183,8 +1183,58 @@ const SKILL_SPEED_GROUPS: { label: string; classes: string; classId: ClassId; ma
   },
 ];
 
+/** One row per potion in the loot-weighted pick (weightedPotionPick) — % chance is its share
+ * of the total weight across every potion, so this always matches what's actually rolled. */
+const POTION_LOOT_ROWS: { name: string; weight: number }[] = (Object.entries(POTION_LOOT_WEIGHT) as [keyof typeof POTION_LOOT_WEIGHT, number][]).map(
+  ([id, weight]) => ({ name: POTIONS[id].name, weight }),
+);
+const POTION_LOOT_TOTAL = POTION_LOOT_ROWS.reduce((n, r) => n + r.weight, 0);
+
+/** One entry per skill/spell tier slot (SPELL_TIER's own keys) — tier, damage formula (a
+ * plain string for flat skills, or a function of level for the two that scale), and a
+ * one-line effect note. Kept next to SPELL_TIER by hand since a skill's shape (splash, line,
+ * status effect) isn't data SPELL_TIER itself carries. */
+const SKILL_DAMAGE_ROWS: { name: string; tier: SpellTier; formula: string | ((level: number) => string); note: string }[] = [
+  { name: MAGIC_MISSILE.name, tier: spellTier("magicMissile")!, formula: diceFormula(MAGIC_MISSILE.dice, MAGIC_MISSILE.faces, MAGIC_MISSILE.bonus), note: "Nunca erra." },
+  { name: LONG_SHOT.name, tier: spellTier("longShot")!, formula: `arma +${diceFormula(LONG_SHOT.bonusDice, LONG_SHOT.bonusFaces, LONG_SHOT.bonus)}`, note: `Alcance ×${LONG_SHOT.rangeMul}+${LONG_SHOT.rangeBonus}.` },
+  { name: CURES.cureMinor.name, tier: spellTier("cureMinor")!, formula: `${diceFormula(CURES.cureMinor.dice, CURES.cureMinor.faces, CURES.cureMinor.bonus)} (cura)`, note: "—" },
+  { name: DOUBLE_STRIKE.name, tier: spellTier("doubleStrike")!, formula: "2× dano de arma", note: "Ataca duas vezes." },
+  { name: PIERCING_THRUST.name, tier: spellTier("piercingThrust")!, formula: `dano de arma, −${Math.round(PIERCING_THRUST.armorIgnore * 100)}% armadura`, note: "Acerta em linha; o segundo alvo recebe metade." },
+  { name: SUMMON_FAMILIAR.name, tier: spellTier("summonFamiliar")!, formula: "—", note: `Invoca aliado com ${Math.round(SUMMON_FAMILIAR.statScale * 100)}% dos atributos atuais.` },
+  {
+    name: LIGHTNING.name,
+    tier: spellTier("lightning")!,
+    formula: (level: number) => lightningFormula(level),
+    note: `Eco em outro alvo adjacente: ${diceFormula(LIGHTNING.echoDice, LIGHTNING.echoFaces, LIGHTNING.echoBonus)}. Nv8+: mais 2 dados.`,
+  },
+  { name: PIERCING.name, tier: spellTier("piercing")!, formula: `${PIERCING.dmgMul}× dano de arma`, note: "—" },
+  { name: CURES.cureWounds.name, tier: spellTier("cureWounds")!, formula: `${diceFormula(CURES.cureWounds.dice, CURES.cureWounds.faces, CURES.cureWounds.bonus)} (cura)`, note: "—" },
+  { name: CLEAVE.name, tier: spellTier("cleave")!, formula: `arma +${diceFormula(CLEAVE.bonusDice, CLEAVE.bonusFaces, CLEAVE.bonusBonus)}`, note: `Atinge até ${CLEAVE.hexes} hexes.` },
+  { name: SWEEP.name, tier: spellTier("sweep")!, formula: "dano de arma", note: `Todos os inimigos adjacentes; empurra ${SWEEP.knockback} hex.` },
+  {
+    name: WEB_OF_DREAMS.name,
+    tier: spellTier("webOfDreams")!,
+    formula: "—",
+    note: `${Math.round(WEB_OF_DREAMS.sleepChance * 100)}% de dormir por ${diceFormula(WEB_OF_DREAMS.sleepDice, WEB_OF_DREAMS.sleepFaces, 0)} turnos (+${Math.round(WEB_OF_DREAMS.sleepBonusDamage * 100)}% dano ao acordar); prende o movimento a 1 hex na área por ${WEB_OF_DREAMS.durationRounds} turnos.`,
+  },
+  { name: TRIP.name, tier: spellTier("trip")!, formula: `arma +${diceFormula(1, TRIP.bonusFaces, TRIP.bonusBonus)}`, note: `Atordoa ${TRIP.stunRounds} turnos; −${Math.round(TRIP.statPenalty * 100)}% de status pro resto da batalha.` },
+  {
+    name: FIREBALL.name,
+    tier: spellTier("fireball")!,
+    formula: (level: number) => fireballFormula(level),
+    note: "Nv5+: dados maiores. Nv9+: maiores ainda. Área de raio 2.",
+  },
+  { name: CURE_DISEASE.name, tier: spellTier("cureDisease")!, formula: "—", note: "Cura doença." },
+  {
+    name: CAUSTIC_VENOM.name,
+    tier: spellTier("causticVenom")!,
+    formula: `centro ${diceFormula(CAUSTIC_VENOM.centerDice, CAUSTIC_VENOM.centerFaces, CAUSTIC_VENOM.centerBonus)} · respingo ${diceFormula(CAUSTIC_VENOM.splashDice, CAUSTIC_VENOM.splashFaces, CAUSTIC_VENOM.splashBonus)}`,
+    note: "Envenena: 1D4 no início de cada turno do alvo, até curado. Área de raio 2.",
+  },
+].sort((a, b) => a.tier - b.tier);
+
 function HelpModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<"basicos" | "tabelas">("basicos");
+  const [tab, setTab] = useState<"basicos" | "tabelas" | "loot" | "dano">("basicos");
   return (
     <div className="absolute inset-0 z-20 bg-bg/80 flex items-end sm:items-center justify-center p-4">
       <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto bg-surface border border-border rounded-xl p-6">
@@ -1207,7 +1257,21 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             onClick={() => setTab("tabelas")}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "tabelas" ? "border-accent text-fg" : "border-transparent text-muted"}`}
           >
-            Tabelas
+            Usos
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("dano")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "dano" ? "border-accent text-fg" : "border-transparent text-muted"}`}
+          >
+            Dano
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("loot")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === "loot" ? "border-accent text-fg" : "border-transparent text-muted"}`}
+          >
+            Loot
           </button>
         </div>
         {tab === "basicos" ? (
@@ -1221,7 +1285,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             <li>Barricada (estacas, 3 hexes): ninguém passa. De trás você atira. Projéteis não acertam quem está atrás.</li>
             <li>Depois de mover, dois cliques no personagem = Esperar e passa ao próximo.</li>
           </ul>
-        ) : (
+        ) : tab === "tabelas" ? (
           <div className="space-y-5">
             <p className="text-sm text-muted leading-relaxed">
               Cada classe tem uma velocidade de conjuração — ela decide quantos usos de cada tier (1 a 5) a
@@ -1260,6 +1324,92 @@ function HelpModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ))}
+          </div>
+        ) : tab === "dano" ? (
+          <div className="space-y-5">
+            <p className="text-sm text-muted leading-relaxed">
+              Fórmula de dano (ou efeito) de cada magia/habilidade, por tier. Relâmpago e Bola de Fogo
+              escalam com o nível de quem conjura — a tabela mostra Nv 1, 5, 9 e 30 pra ver a curva inteira.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-muted">
+                    <th className="text-left font-normal pr-2 py-1">Habilidade</th>
+                    <th className="text-center font-normal px-1.5 py-1">Tier</th>
+                    <th className="text-left font-normal px-1.5 py-1">Fórmula</th>
+                    <th className="text-left font-normal pl-1.5 py-1">Efeito</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SKILL_DAMAGE_ROWS.map((row) => (
+                    <tr key={row.name} className="border-t border-border/60 align-top">
+                      <td className="text-left py-1 pr-2 font-medium whitespace-nowrap">{row.name}</td>
+                      <td className="text-center px-1.5 py-1 text-muted">T{row.tier}</td>
+                      <td className="text-left px-1.5 py-1 tabular-nums">
+                        {typeof row.formula === "string" ? (
+                          row.formula
+                        ) : (
+                          <span className="space-x-1.5">
+                            <span>Nv1: {row.formula(1)}</span>
+                            <span className="text-muted">· Nv5: {row.formula(5)}</span>
+                            <span className="text-muted">· Nv9: {row.formula(9)}</span>
+                            <span className="text-muted">· Nv30: {row.formula(30)}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="text-left pl-1.5 py-1 text-muted">{row.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <p className="text-sm text-muted leading-relaxed">
+              Chances de drop, do jeito que estão programadas agora.
+            </p>
+            <div>
+              <p className="text-sm font-medium">Poções em baú (por baú)</p>
+              <p className="text-xs text-muted leading-relaxed mb-2">
+                Todo baú dá Ember + uma poção garantida (sorteada abaixo) + uma chance separada de item.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs tabular-nums border-collapse">
+                  <thead>
+                    <tr className="text-muted">
+                      <th className="text-left font-normal pr-2 py-1">Poção</th>
+                      <th className="text-right font-normal pl-1.5 py-1">Chance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {POTION_LOOT_ROWS.map((r) => (
+                      <tr key={r.name} className="border-t border-border/60">
+                        <td className="text-left py-0.5 pr-2">{r.name}</td>
+                        <td className="text-right pl-1.5 py-0.5">{((r.weight / POTION_LOOT_TOTAL) * 100).toFixed(0)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="text-sm text-muted leading-relaxed space-y-1">
+              <p className="text-fg font-medium text-sm">Ember e item de baú</p>
+              <p>
+                Ember: {CHEST_LOOT.emberBase}–{CHEST_LOOT.emberBase + CHEST_LOOT.emberDice - 1} por baú.
+              </p>
+              <p>Chance extra de arma ou equipamento: {Math.round(CHEST_LOOT.gearChance * 100)}%.</p>
+            </div>
+            <div className="text-sm text-muted leading-relaxed space-y-1">
+              <p className="text-fg font-medium text-sm">Drop ao matar inimigo</p>
+              <p>Inimigo comum: {(KILL_DROP_CHANCE * 100).toFixed(0)}% de chance de largar uma arma.</p>
+              <p>Chefes nomeados (drop garantido): sempre largam arma ou equipamento ao morrer.</p>
+            </div>
+            <p className="text-xs text-muted leading-relaxed">
+              Toda arma/equipamento largado é sorteado por preço — quanto mais caro, mais raro — e limitado ao
+              nível de itens da missão atual, então cada trecho da campanha só solta o que faz sentido pra ele.
+            </p>
           </div>
         )}
         <Button className="mt-5 w-full" onClick={onClose}>
