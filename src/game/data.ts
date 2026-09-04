@@ -33,8 +33,11 @@ const FOOTPRINT_TYPE_3 = [
   { dx: 0, dy: -1 },
 ];
 
-/** Tipo 8 — a 2-wide/3-tall block plus one hex above the head and one at the arms row (Troll, Asherah). */
-const FOOTPRINT_TYPE_8 = [
+/** Tipo 8 — a 2-wide/3-tall block plus one hex above the head and one at the arms row (Troll, Asherah).
+ * Exported so the renderer can key its "big creature" draw-size correction off the footprint
+ * shape itself (reference equality) instead of a hardcoded classId, the same size correction
+ * applying to every Type 8 creature by default rather than needing a one-off per class. */
+export const FOOTPRINT_TYPE_8 = [
   { dx: 0, dy: 0 },
   { dx: 1, dy: 0 },
   { dx: -1, dy: -1 },

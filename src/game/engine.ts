@@ -1,4 +1,4 @@
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, WEB_OF_DREAMS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, hexAreaTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, FOOTPRINT_TYPE_8, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, WEB_OF_DREAMS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, hexAreaTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -3621,8 +3621,15 @@ export class BattleEngine {
       const fi = atk != null ? atk : this.idleFrame(u, n || 4);
       const walkDirs = moving ? this.art.walkDirs[u.sprite] : undefined;
       const img = (walkDirs ? walkDirs[u.walkPose] : undefined) ?? frames?.[fi] ?? frames?.[0];
-      const h = cell * (s >= 4 ? 3.35 : s === 2 ? 1.72 : boss ? 1.44 : 1.42) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
-      const w = cell * (s >= 4 ? 2.85 : s === 2 ? 1.85 : boss ? 1.12 : 1.11) * 1.2 * (u.classId === "troll" ? 0.75 : 1);
+      // The draw-size correction keys off the footprint SHAPE (reference equality against
+      // FOOTPRINT_TYPE_8), not a hardcoded classId — every Type 8 creature (Troll, Asherah/
+      // Ember Starved, and any future one) gets the same default correction automatically,
+      // rather than needing its own one-off case added here. Depends on that creature's own
+      // sprite frames being cropped to roughly the same canvas-fill ratio as the others —
+      // this correction assumes that, it doesn't measure it.
+      const isType8 = u.footprintOffsets === FOOTPRINT_TYPE_8;
+      const h = cell * (s >= 4 ? 3.35 : s === 2 ? 1.72 : boss ? 1.44 : 1.42) * 1.2 * (isType8 ? 0.75 : 1);
+      const w = cell * (s >= 4 ? 2.85 : s === 2 ? 1.85 : boss ? 1.12 : 1.11) * 1.2 * (isType8 ? 0.75 : 1);
       // Big creatures plant their feet at the bottom corner of their front hex (tile * 0.9,
       // matching the hex outline radius used elsewhere) instead of the smaller offset tuned
       // for normal-size sprites, so the feet don't float above the tile they stand on.
