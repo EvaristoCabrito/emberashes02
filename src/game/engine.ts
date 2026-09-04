@@ -1814,7 +1814,7 @@ export class BattleEngine {
     this.spellArmed = false;
     this.spellAim = null;
     this.hover = null;
-    this.tip = `${WEB_OF_DREAMS.name}: cria uma teia grudenta por ${WEB_OF_DREAMS.durationRounds} rodadas — quem estiver dentro fica com movimento reduzido a 1 hex, e ${Math.round(WEB_OF_DREAMS.sleepChance * 100)}% chance de adormecer por ${diceFormula(WEB_OF_DREAMS.sleepDice, WEB_OF_DREAMS.sleepFaces, 0)} turnos. Alcance ${WEB_OF_DREAMS.range}. Toque para mirar.`;
+    this.tip = `${WEB_OF_DREAMS.name}: cria uma teia grudenta por ${WEB_OF_DREAMS.durationRounds} rodadas — quem estiver dentro fica com movimento reduzido a 1 hex, e testa ${Math.round(WEB_OF_DREAMS.sleepChance * 100)}% de chance de adormecer por ${diceFormula(WEB_OF_DREAMS.sleepDice, WEB_OF_DREAMS.sleepFaces, 0)} turnos a cada turno que permanecer lá dentro (cumulativo). Alcance ${WEB_OF_DREAMS.range}. Toque para mirar.`;
     sfxPlay.ui();
   }
 
@@ -2629,6 +2629,17 @@ export class BattleEngine {
       this.tip = `${u.name} está atordoado(a) — perde o turno.`;
       this.activeUnitId = null; // force re-detection next tick, moving on to whoever's next
       return;
+    }
+    // Still standing in an active web patch at the start of your own turn means another
+    // sleepChance roll every turn you stay put, not just the one at cast — and a success
+    // stacks another 1D4 onto whatever sleepTurns you're already carrying (even mid-nap)
+    // rather than replacing it, so lingering in the web keeps digging the hole deeper.
+    if (this.isWebCell(u.x, u.y) && this.rng() < WEB_OF_DREAMS.sleepChance) {
+      const wasAsleep = u.asleep;
+      const extra = rollDice(WEB_OF_DREAMS.sleepDice, WEB_OF_DREAMS.sleepFaces, 0, this.rng);
+      u.asleep = true;
+      u.sleepTurns += extra;
+      this.pushLog(wasAsleep ? `${u.name} afunda mais fundo na teia (+${extra} turnos).` : `${u.name} adormece na teia.`);
     }
     if (u.asleep) {
       u.sleepTurns = Math.max(0, u.sleepTurns - 1);
