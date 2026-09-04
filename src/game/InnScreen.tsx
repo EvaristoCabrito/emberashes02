@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, heroRecruited, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
+import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, heroRecruited, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import type { Bag, ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
@@ -32,16 +32,19 @@ const NPCS = [
   },
 ] as const;
 
-const POTION_ORDER: PotionId[] = ["weak", "mid", "potent", "disease"];
+const POTION_ORDER: PotionId[] = ["weak", "mid", "potent", "disease", "manaSmall", "manaMid", "manaLarge"];
 
 const ICONS: Record<PotionId, string> = {
   weak: "/game/icons/potion-weak.png",
   mid: "/game/icons/potion-mid.png",
   potent: "/game/icons/potion-potent.png",
   disease: "/game/icons/potion-disease.png",
+  manaSmall: "/game/icons/potion-manaSmall.png",
+  manaMid: "/game/icons/potion-manaMid.png",
+  manaLarge: "/game/icons/potion-manaLarge.png",
 };
 
-const EMPTY_CART: Record<PotionId, number> = { weak: 0, mid: 0, potent: 0, disease: 0 };
+const EMPTY_CART: Record<PotionId, number> = { weak: 0, mid: 0, potent: 0, disease: 0, manaSmall: 0, manaMid: 0, manaLarge: 0 };
 
 export function InnScreen({
   bags,
@@ -83,7 +86,7 @@ export function InnScreen({
   const [lockpickQty, setLockpickQty] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [invView, setInvView] = useState<"doll" | "pack" | null>(null);
-  const bag = bags[hero] ?? { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
+  const bag = bags[hero] ?? { mid: 0, weak: 0, potent: 0, disease: 0, manaSmall: 0, manaMid: 0, manaLarge: 0, lockpick: 0 };
 
   const total = useMemo(
     () => POTION_ORDER.reduce((n, kind) => n + cart[kind] * POTION_PRICE[kind], 0) + lockpickQty * LOCKPICK_PRICE,
@@ -97,7 +100,7 @@ export function InnScreen({
     setCart((prev) => {
       const next = Math.max(0, (prev[kind] ?? 0) + delta);
       const have = bag[kind] ?? 0;
-      const cap = Math.max(0, BAG_MAX - have);
+      const cap = Math.max(0, POTION_CARRY_MAX[kind] - have);
       return { ...prev, [kind]: Math.min(next, cap) };
     });
   };
@@ -246,7 +249,7 @@ export function InnScreen({
                       type="button"
                       className="size-8 grid place-items-center rounded-md border border-border"
                       onClick={() => add(kind, 1)}
-                      disabled={have + qty >= BAG_MAX}
+                      disabled={have + qty >= POTION_CARRY_MAX[kind]}
                     >
                       +
                     </button>

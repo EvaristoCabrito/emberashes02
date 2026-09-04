@@ -1,4 +1,4 @@
-import { EQUIPMENT, EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, starterWeaponFor, startingBags } from "./data";
+import { EQUIPMENT, EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, POTION_CARRY_MAX, PROMOTIONS, WEAPONS, emberFromCompleted, starterWeaponFor, startingBags } from "./data";
 import { TIER_KEYS } from "./types";
 import type { Bag, ClassId, EquipSlot, SaveBank, SaveData, TierKey } from "./types";
 
@@ -35,10 +35,13 @@ function cloneBags(src?: Record<string, Bag>): Record<string, Bag> {
     const b = src[name];
     if (!b) continue;
     base[name] = {
-      mid: clampInt(b.mid, 0, 9),
-      weak: clampInt(b.weak ?? (b as { high?: number }).high, 0, 9),
-      potent: clampInt(b.potent, 0, 9),
-      disease: clampInt(b.disease, 0, 9),
+      mid: clampInt(b.mid, 0, POTION_CARRY_MAX.mid),
+      weak: clampInt(b.weak ?? (b as { high?: number }).high, 0, POTION_CARRY_MAX.weak),
+      potent: clampInt(b.potent, 0, POTION_CARRY_MAX.potent),
+      disease: clampInt(b.disease, 0, POTION_CARRY_MAX.disease),
+      manaSmall: clampInt(b.manaSmall, 0, POTION_CARRY_MAX.manaSmall),
+      manaMid: clampInt(b.manaMid, 0, POTION_CARRY_MAX.manaMid),
+      manaLarge: clampInt(b.manaLarge, 0, POTION_CARRY_MAX.manaLarge),
       lockpick: clampInt(b.lockpick, 0, 9),
     };
   }

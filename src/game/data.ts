@@ -623,7 +623,11 @@ export interface PotionDef {
   dice: number;
   faces: number;
   bonus: number;
-  effect: "heal" | "disease";
+  effect: "heal" | "disease" | "mana";
+  /** Mana potions only: restores this many uses of every spell tier the drinker's class/
+   * level has any capacity in at all (not just depleted ones), each tier capped at its own
+   * max — never used for heal/disease potions. */
+  manaRestore?: number;
 }
 
 export const POTIONS: Record<PotionId, PotionDef> = {
@@ -631,14 +635,19 @@ export const POTIONS: Record<PotionId, PotionDef> = {
   weak: { id: "weak", name: "Poção Fraca", dice: 1, faces: 8, bonus: 2, effect: "heal" },
   potent: { id: "potent", name: "Poção De Cura Potente", dice: 2, faces: 12, bonus: 6, effect: "heal" },
   disease: { id: "disease", name: "Poção De Curar Doenças", dice: 0, faces: 0, bonus: 0, effect: "disease" },
+  manaSmall: { id: "manaSmall", name: "Poção De Mana Pequena", dice: 0, faces: 0, bonus: 0, effect: "mana", manaRestore: 1 },
+  manaMid: { id: "manaMid", name: "Poção De Mana Média", dice: 0, faces: 0, bonus: 0, effect: "mana", manaRestore: 2 },
+  manaLarge: { id: "manaLarge", name: "Poção De Mana Grande", dice: 0, faces: 0, bonus: 0, effect: "mana", manaRestore: 3 },
 };
 
-export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1, lockpick: 3 };
-export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0, lockpick: 0 };
+export const STARTING_BAG: Bag = { mid: 2, weak: 2, potent: 1, disease: 1, manaSmall: 1, manaMid: 0, manaLarge: 0, lockpick: 3 };
+export const EMPTY_BAG: Bag = { mid: 0, weak: 0, potent: 0, disease: 0, manaSmall: 0, manaMid: 0, manaLarge: 0, lockpick: 0 };
 
 /** Rarity weights for loot rolls: weaker/cheaper potions and gear come up far more often
  * than the strongest ones — "the strongest is harder to come out". */
-const POTION_LOOT_WEIGHT: Record<PotionId, number> = { weak: 50, mid: 30, potent: 12, disease: 8 };
+// Mana potions are twice as hard to find as their equivalent-tier healing potion — half
+// the loot weight of weak/mid/potent respectively.
+const POTION_LOOT_WEIGHT: Record<PotionId, number> = { weak: 50, mid: 30, potent: 12, disease: 8, manaSmall: 25, manaMid: 15, manaLarge: 6 };
 
 function weightedPick<T>(rng: () => number, entries: [T, number][]): T {
   const total = entries.reduce((n, [, w]) => n + w, 0);
@@ -724,11 +733,28 @@ export function weightedWeaponPick(rng: () => number, ids: string[] = Object.key
 }
 export const BAG_MAX = 9;
 
+/** How many of each potion a single hero can carry at once — a "goes to whoever has room
+ * next" chest-loot overflow (see BattleEngine.useLockpick) keeps a full-up party from
+ * losing drops outright. */
+export const POTION_CARRY_MAX: Record<PotionId, number> = {
+  weak: 5,
+  mid: 5,
+  potent: 5,
+  disease: 4,
+  manaSmall: 2,
+  manaMid: 2,
+  manaLarge: 2,
+};
+
 export const POTION_PRICE: Record<PotionId, number> = {
   weak: 4,
   mid: 8,
   potent: 14,
   disease: 10,
+  // Mana potions cost 25% more than their equivalent-tier healing potion.
+  manaSmall: 5,
+  manaMid: 10,
+  manaLarge: 18,
 };
 
 /** Preço modesto da Gazua na Estalagem (Brue). */

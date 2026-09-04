@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -118,7 +118,7 @@ type SlotAction = { kind: "spell"; spell: SpellKind } | { kind: "potion"; potion
 const HOTBAR_SLOTS = 6;
 /** Modo teste: Ember "infinito" pra testar compras/upgrades sem travar em custo. */
 const TEST_EMBER = 900000;
-const ALL_POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
+const ALL_POTIONS: PotionId[] = ["weak", "mid", "potent", "disease", "manaSmall", "manaMid", "manaLarge"];
 const HOTBAR_KEY = "ember-hotbar-v1";
 
 function classSpells(classId: ClassId): SpellKind[] {
@@ -785,7 +785,7 @@ export function GameApp() {
             for (const kind of Object.keys(cart) as PotionId[]) {
               const qty = cart[kind] ?? 0;
               if (qty <= 0) continue;
-              if ((bag[kind] ?? 0) + qty > BAG_MAX) return false;
+              if ((bag[kind] ?? 0) + qty > POTION_CARRY_MAX[kind]) return false;
               cost += POTION_PRICE[kind] * qty;
               bag[kind] = (bag[kind] ?? 0) + qty;
             }

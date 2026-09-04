@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { CLASSES, EMPTY_BAG, EQUIPMENT, EQUIPMENT_SLOTS, WEAPONS, equipmentIcon, equipmentStatSummary, heroRecruited, offHandBlocked, potionLabel, weaponDiceLabel, weaponIcon, weaponPower, weaponRangeLabel, weaponsForClass } from "./data";
 import type { ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
-const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease"];
+const POTIONS: PotionId[] = ["weak", "mid", "potent", "disease", "manaSmall", "manaMid", "manaLarge"];
 
 /** Paper-doll equipment view for one hero. Clicking a slot opens a picker of compatible
  * OWNED items — Mão Principal lists owned weapons for this class (save.weapons), other

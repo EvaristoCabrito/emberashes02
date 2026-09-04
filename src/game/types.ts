@@ -1,10 +1,13 @@
-export type PotionId = "mid" | "weak" | "potent" | "disease";
+export type PotionId = "mid" | "weak" | "potent" | "disease" | "manaSmall" | "manaMid" | "manaLarge";
 
 export interface Bag {
   mid: number;
   weak: number;
   potent: number;
   disease: number;
+  manaSmall: number;
+  manaMid: number;
+  manaLarge: number;
   /** Gazuas: abrem baús e portas trancadas no mapa (não são poção, contam à parte). */
   lockpick: number;
 }

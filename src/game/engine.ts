@@ -1,4 +1,4 @@
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, POTION_CARRY_MAX, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -604,6 +604,23 @@ export class BattleEngine {
       out[u.name] = { ...u.bag };
     }
     return out;
+  }
+
+  /** Hands a found potion to `starter` (the one who opened the chest), or — if their bag for
+   * that kind is already full — to the next alive party member in line with room. Returns
+   * false only if the whole party is capped out on that potion, so the drop is lost. */
+  private givePotion(starter: Unit, kind: PotionId): boolean {
+    const cap = POTION_CARRY_MAX[kind];
+    const order = [starter, ...this.units.filter((x) => x !== starter)];
+    for (const target of order) {
+      if (target.side !== "player" || !target.alive) continue;
+      const have = target.bag[kind] ?? 0;
+      if (have < cap) {
+        target.bag[kind] = have + 1;
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Hero name → tier key → spell uses spent so far this scenario, for persisting into
@@ -2059,6 +2076,43 @@ export class BattleEngine {
       sfxPlay.ui();
       return;
     }
+    if (def.effect === "mana") {
+      const restore = def.manaRestore ?? 0;
+      let restored = 0;
+      for (let t = 1; t <= 10; t++) {
+        const tk = tierKey(t as SpellTier);
+        const cap = tierUses(u.classId, t as SpellTier, u.level);
+        if (cap <= 0) continue;
+        const next = Math.min(cap, u.spells[tk] + restore);
+        restored += next - u.spells[tk];
+        u.spells[tk] = next;
+      }
+      if (restored <= 0) {
+        this.tip = `${def.name} · magias já estão no máximo.`;
+        sfxPlay.ui();
+        return;
+      }
+      u.bag[kind] -= 1;
+      u.x = Math.round(u.drawX);
+      u.y = Math.round(u.drawY);
+      this.emitParticle({
+        x: u.drawX,
+        y: u.drawY - 0.35,
+        vx: 0,
+        vy: -0.18,
+        life: 0,
+        max: 2,
+        size: 1,
+        color: "#a08cd8",
+        text: `+${restored}`,
+        kind: "text",
+        frame: 0,
+      });
+      this.tip = `${def.name} · +${restored} usos de magia`;
+      this.finishAction(u);
+      sfxPlay.ui();
+      return;
+    }
     if (u.hp >= u.maxHp) return;
     const heal = rollPotion(kind, this.rng);
     const gained = Math.min(heal, u.maxHp - u.hp);
@@ -2132,8 +2186,7 @@ export class BattleEngine {
       const gain = 3 + Math.floor(this.rng() * 6);
       this.lootEmber += gain;
       const potionKind = weightedPotionPick(this.rng);
-      u.bag[potionKind] = (u.bag[potionKind] ?? 0) + 1;
-      found.push(POTIONS[potionKind].name);
+      if (this.givePotion(u, potionKind)) found.push(POTIONS[potionKind].name);
       if (this.rng() < 0.4) {
         const drop = weightedLootPick(this.rng, missionGearLevel(this.mission.index), this.ownedWeapons);
         if (drop.kind === "weapon") {
