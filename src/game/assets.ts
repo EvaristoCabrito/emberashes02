@@ -64,7 +64,8 @@ export async function loadGameArt(): Promise<GameArt> {
   await Promise.all(
     SPRITES.map(async (id) => {
       const n = HERO_IDLE.has(id) ? 12 : 4;
-      sprites[id] = await Promise.all(Array.from({ length: n }, (_, i) => loadImage(`/game/sprites/${id}/${i + 1}.png${id === "troll" ? "?v=11" : ""}`)));
+      const cacheBust = id === "troll" ? "?v=11" : id === "horror" ? "?v=2" : "";
+      sprites[id] = await Promise.all(Array.from({ length: n }, (_, i) => loadImage(`/game/sprites/${id}/${i + 1}.png${cacheBust}`)));
     }),
   );
   await Promise.all(
