@@ -877,10 +877,13 @@ export class BattleEngine {
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
-        if (target.side !== actor.side) {
+        // Only the original attacker's own strike earns XP — a successful counter deals
+        // damage but grants none, or a unit that gets ganged up on levels for free just by
+        // standing there and countering every hit.
+        if (target.side !== actor.side && a.stage === "hit") {
           // Long Shot finishing the target off also doubles the kill's XP, same as a
           // non-AoE Mage/Conjurer spell kill (see stepSpell).
-          const killBonus = target.hp <= 0 && a.stage === "hit" && a.spellKind === "longShot" ? 2 : 1;
+          const killBonus = target.hp <= 0 && a.spellKind === "longShot" ? 2 : 1;
           this.gainExp(actor, target.level, hit.dmg, killBonus);
         }
         this.spawnHit(target, hit.dmg, hit.crit);
@@ -1524,7 +1527,7 @@ export class BattleEngine {
       u &&
       this.orig &&
       (u.x !== this.orig.x || u.y !== this.orig.y) &&
-      this.mode === "awaitAction"
+      (this.mode === "awaitAction" || this.mode === "selected")
     ) {
       u.x = this.orig.x;
       u.y = this.orig.y;
@@ -2470,12 +2473,6 @@ export class BattleEngine {
     }
   }
 
-  private attacksFromHere(unit: Unit): Map<string, Point> {
-    const here = new Map<string, ReachCell>();
-    here.set(key(unit.x, unit.y), { x: unit.x, y: unit.y, cost: 0, parent: null });
-    return attackableEnemies(unit, here, this.units, this.tiles, this.cols);
-  }
-
   private commitMove(unit: Unit, to: Point, after?: () => void): void {
     const path = reconstructPath(this.reach, to);
     if (path.length === 0) path.push({ x: unit.x, y: unit.y }, to);
@@ -2499,10 +2496,13 @@ export class BattleEngine {
         this.mode = "idle";
         return;
       }
+      // Not acted yet — movement isn't a one-shot: the unit stays "selected" with a fresh
+      // reach from its new spot, so the player can keep repositioning freely until they
+      // either use a skill (see the u.acted branch above, unchanged) or end the turn.
       this.selectedId = unit.id;
-      this.mode = "awaitAction";
-      this.reach.clear();
-      this.attackFrom = this.attacksFromHere(unit);
+      this.mode = "selected";
+      this.reach = computeReachable(unit, this.tiles, this.cols, this.rows, this.units);
+      this.attackFrom = attackableEnemies(unit, this.reach, this.units, this.tiles, this.cols);
       after?.();
     };
   }
@@ -2966,13 +2966,25 @@ export class BattleEngine {
       ctx.restore();
     }
 
+    // Every selectable area (walkable ground, spell range, an aimed AoE) gets the same
+    // treatment: a soft colored glow plus a bright rim, on top of the flat fill — the flat
+    // fill alone reads as a dim tint on some terrain art and is easy to miss.
     const overlay = (cells: Iterable<Point>, fill: string) => {
+      const rgb = /rgba?\(([^),]+),([^),]+),([^),]+)/.exec(fill);
+      const [r, g, b] = rgb ? [rgb[1]!.trim(), rgb[2]!.trim(), rgb[3]!.trim()] : ["255", "255", "255"];
+      ctx.save();
+      ctx.shadowColor = `rgba(${r},${g},${b},0.9)`;
+      ctx.shadowBlur = tile * 0.4;
       ctx.fillStyle = fill;
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.95)`;
+      ctx.lineWidth = Math.max(1.5, tile * 0.06);
       for (const c of cells) {
         const { cx, cy } = this.hexCenter(c.x, c.y);
         this.hexPath(ctx, cx, cy, tile * 0.92);
         ctx.fill();
+        ctx.stroke();
       }
+      ctx.restore();
     };
 
     if (this.mode === "idle" && this.threat.length) overlay(this.threat, "rgba(163,90,74,0.44)");

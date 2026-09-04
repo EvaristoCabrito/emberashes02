@@ -493,4 +493,9 @@ export interface GrowthLine {
   fallen: boolean;
   /** XP toward the next level at the end of the mission (0..EXP_TO_LEVEL-1). */
   xp: number;
+  /** XP toward the level shown by `xp` at mission start — the ResultScreen's XP bar
+   * animates from here up to `xp` rather than snapping straight to the final value. Only
+   * meaningful (nonzero) when `to === from`; a level-up resets it to 0 since the bar is now
+   * tracking progress in a different level than the one `xpFrom` would describe. */
+  xpFrom: number;
 }

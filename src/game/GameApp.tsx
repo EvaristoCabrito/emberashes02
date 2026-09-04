@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -114,8 +114,12 @@ const HERO_PORTRAIT: Partial<Record<string, string>> = {
   salazar: "/game/portraits/salazar.png",
 };
 
+// Only the small pouch exists as a carried-bag icon so far — swap this to read the party's
+// actual pouch tier once the shared-capacity upgrade system (small/mid/large) is built.
+const BAG_ICON = "/game/icons/equipment/small-leather-pouch.png";
+
 type SlotAction = { kind: "spell"; spell: SpellKind } | { kind: "potion"; potion: PotionId };
-const HOTBAR_SLOTS = 6;
+const HOTBAR_SLOTS = 12;
 /** Modo teste: Ember "infinito" pra testar compras/upgrades sem travar em custo. */
 const TEST_EMBER = 900000;
 const ALL_POTIONS: PotionId[] = ["weak", "mid", "potent", "disease", "manaSmall", "manaMid", "manaLarge"];
@@ -219,6 +223,18 @@ function slotLabel(action: SlotAction): string {
     case "cureDisease":
       return CURE_DISEASE.name;
   }
+}
+
+function slotTooltip(action: SlotAction): string {
+  const label = slotLabel(action);
+  if (action.kind === "potion") {
+    const def = POTIONS[action.potion];
+    if (def.effect === "mana") {
+      const restore = def.manaRestore ?? 0;
+      return `${label} · restaura ${restore} uso${restore === 1 ? "" : "s"} de cada magia que ainda tem carga disponível, sem passar do máximo de cada nível.`;
+    }
+  }
+  return label;
 }
 
 function slotCount(action: SlotAction, unit: UnitPublic): number {
@@ -336,6 +352,11 @@ export function GameApp() {
           : { Kael: m.index + 1, Neera: m.index + 1, Voss: m.index + 1, Salazar: m.index + 1 }
         : save.levels;
       const bags = testMode ? startingBags() : save.bags;
+      // Partial progress toward the next level (not enough to level up yet) has to carry
+      // into the battle same as levels/bags do — otherwise every mission start quietly
+      // zeroes out whatever XP was left over from the previous one, most visibly when
+      // replaying an already-completed mission with nothing left to kill.
+      const xp = testMode ? undefined : save.xp;
       // Test mode always starts at full HP — half-HP carry-over only makes sense for real runs.
       const hp = testMode ? {} : { ...carried };
       if (!testMode) {
@@ -369,7 +390,7 @@ export function GameApp() {
       const loc = locationForMission(m.id);
       const scenarioStart = !loc || loc.id === "stonebridge" || loc.missionIds.every((mid) => !save.completed.includes(mid));
       const spellSpent = testMode || scenarioStart ? undefined : save.spellUses;
-      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, offHand, enemyLevels, ownedWeaponIds, spellSpent }, Date.now() % 100000);
+      const battle = new BattleEngine(m, art, { hp, levels, bags, xp, promotions, weapons, offHand, enemyLevels, ownedWeaponIds, spellSpent }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -444,6 +465,7 @@ export function GameApp() {
         resTo: stTo.res,
         fallen: !u.alive,
         xp: u.xp,
+        xpFrom: from === to ? (save.xp?.[u.name] ?? 0) : 0,
       });
       if (!testMode && u.alive) {
         levels[u.name] = to;
@@ -1077,7 +1099,7 @@ function TitleScreen({
       <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-xl mx-auto w-full">
         <p className="text-sm tracking-[0.28em] uppercase text-muted mb-3">Táticas em cinzas</p>
         <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight leading-none mb-4">Ember</h1>
-        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.2555</p>
+        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.2556</p>
         <p className="text-muted text-base leading-relaxed mb-8 max-w-md">
           Três sobreviventes. Um tabuleiro de guerra. Cada casa conta.
         </p>
@@ -2276,6 +2298,25 @@ function BattleScreen({
   useEffect(() => {
     if (showLog && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [showLog, hud.log.length]);
+  // Loot found (a chest opened, a kill dropped gear) jumps the footer straight to the log so
+  // it isn't missed; it reverts to the stat sheet on its own once a different unit takes its
+  // turn, same as if the player had never touched the toggle.
+  const prevLogLenRef = useRef(hud.log.length);
+  useEffect(() => {
+    if (hud.log.length > prevLogLenRef.current) {
+      const added = hud.log.slice(prevLogLenRef.current);
+      if (added.some((line) => line.startsWith("Loot:") || line.includes("achou"))) setShowLog(true);
+    }
+    prevLogLenRef.current = hud.log.length;
+  }, [hud.log.length]);
+  const activeUnitId = hud.turnQueue.find((t) => t.active)?.id ?? null;
+  const prevActiveIdRef = useRef(activeUnitId);
+  useEffect(() => {
+    if (activeUnitId !== prevActiveIdRef.current) {
+      prevActiveIdRef.current = activeUnitId;
+      setShowLog(false);
+    }
+  }, [activeUnitId]);
   const unit: UnitPublic | null = hud.selected ?? hud.pendingFoe ?? hud.inspected;
   const foe = hud.pendingFoe ?? (hud.inspected && hud.inspected.side === "enemy" && hud.selected ? hud.inspected : null);
   const showAct = hud.mode === "awaitAction" || hud.mode === "awaitAttack" || hud.mode === "selected" || hud.mode === "awaitSpell";
@@ -2335,13 +2376,37 @@ function BattleScreen({
     if (!actor || !showAct || hud.busy || actor.acted) return true;
     const count = slotCount(action, actor);
     if (count <= 0) return true;
-    if (action.kind === "potion" && action.potion !== "disease" && actor.hp >= actor.maxHp) return true;
+    if (action.kind === "potion" && POTIONS[action.potion].effect === "heal" && actor.hp >= actor.maxHp) return true;
     return false;
   }
 
   function slotActive(action: SlotAction): boolean {
     return hud.mode === "awaitSpell" && action.kind === "spell" && hud.spellKind === action.spell;
   }
+
+  function activateSlot(i: number) {
+    if (!actor || i < 0 || i >= slots.length) return;
+    const action = slots[i];
+    if (editingSlots) {
+      setPickerSlot(i);
+      return;
+    }
+    if (!action || slotDisabled(action)) return;
+    runSlot(action);
+  }
+  const activateSlotRef = useRef(activateSlot);
+  activateSlotRef.current = activateSlot;
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const m = /^F([1-9]|1[0-2])$/.exec(e.key);
+      if (!m) return;
+      e.preventDefault();
+      activateSlotRef.current(Number(m[1]) - 1);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <section className="relative h-dvh min-h-0 flex flex-col bg-bg">
       <div className="relative flex-1 min-h-0">
@@ -2455,10 +2520,10 @@ function BattleScreen({
                 {showLog ? (
                   <div ref={logRef} className="h-16 sm:h-20 overflow-y-auto pr-1">
                     {hud.log.length === 0 ? (
-                      <p className="text-[11px] text-muted">Nada aconteceu ainda.</p>
+                      <p className="text-[12.5px] text-muted">Nada aconteceu ainda.</p>
                     ) : (
                       hud.log.map((line, i) => (
-                        <p key={i} className="text-[11px] text-muted leading-snug">
+                        <p key={i} className="text-[12.5px] text-muted leading-snug">
                           {line}
                         </p>
                       ))
@@ -2550,15 +2615,15 @@ function BattleScreen({
                     key={i}
                     type="button"
                     disabled={!editingSlots && disabled}
-                    onClick={() => {
-                      if (editingSlots) setPickerSlot(i);
-                      else if (action) runSlot(action);
-                    }}
-                    title={action ? slotLabel(action) : "Slot vazio"}
+                    onClick={() => activateSlot(i)}
+                    title={`F${i + 1} · ${action ? slotTooltip(action) : "Slot vazio"}`}
                     className={`relative size-9 grid place-items-center rounded-md border ${
                       action && slotActive(action) ? "border-accent bg-accent/20" : "border-border bg-bg"
                     } ${editingSlots ? "outline outline-1 outline-dashed outline-muted" : ""} disabled:opacity-40`}
                   >
+                    <span className="absolute -top-1 -left-1 bg-surface border border-border rounded px-0.5 text-[8px] tabular-nums leading-tight text-muted">
+                      F{i + 1}
+                    </span>
                     {empty ? (
                       <span className="text-muted text-xs">+</span>
                     ) : (
@@ -2747,7 +2812,6 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
   const healer = unit.classId === "healer";
   const archer = unit.classId === "archer";
   const swordsman = unit.classId === "swordsman";
-  const potions: PotionId[] = ["weak", "mid", "potent", "disease"];
 
   return (
     <div
@@ -2795,7 +2859,8 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {onOpenInventory && (
-              <button type="button" onClick={onOpenInventory} className="h-8 px-2.5 rounded-md border border-border text-xs">
+              <button type="button" onClick={onOpenInventory} className="h-9 px-3 rounded-md border border-border text-sm flex items-center gap-1.5">
+                <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-cover" />
                 Mochila
               </button>
             )}
@@ -2829,24 +2894,10 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
           ))}
         </div>
 
-        {unit.side === "player" && (
+        {unit.side === "player" && (swordsman || mage || archer || healer) && (
           <>
-            <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Inventário</p>
-            <div className="grid grid-cols-1 gap-1.5 mb-5">
-              {potions.map((kind) => (
-                <div key={kind} className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
-                  <img src={`/game/icons/potion-${kind}.png`} alt="" className="size-5 rounded-sm object-cover shrink-0" />
-                  <p className="text-xs truncate">
-                    {potionLabel(kind)} <span className="tabular-nums text-muted">×{unit.bag[kind]}</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {(swordsman || mage || archer || healer) && (
-              <>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Magias e habilidades</p>
-                <div className="grid grid-cols-1 gap-1.5">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Magias e habilidades</p>
+            <div className="grid grid-cols-1 gap-1.5">
                   {swordsman && (
                     <>
                       <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
@@ -2941,12 +2992,26 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                     </>
                   )}
                 </div>
-              </>
-            )}
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/** XP bar on the post-mission screen: mounts at the hero's pre-battle progress, then eases
+ * up to the post-battle value on the next paint, so the gain reads as a fill instead of
+ * snapping straight to the end state. */
+function GrowthXpBar({ from, to }: { from: number; to: number }) {
+  const [pct, setPct] = useState(from);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setPct(to));
+    return () => cancelAnimationFrame(id);
+  }, [to]);
+  return (
+    <span className="h-1.5 w-24 rounded-full bg-border overflow-hidden shrink-0">
+      <span className="block h-full bg-accent transition-[width] duration-[1400ms] ease-out" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+    </span>
   );
 }
 
@@ -3009,9 +3074,7 @@ function ResultScreen({
                 </p>
                 {g.to < MAX_LEVEL ? (
                   <p className="flex items-center gap-2 mt-1 text-sm">
-                    <span className="h-1.5 w-24 rounded-full bg-border overflow-hidden">
-                      <span className="block h-full bg-accent" style={{ width: `${(g.xp / EXP_TO_LEVEL) * 100}%` }} />
-                    </span>
+                    <GrowthXpBar from={(g.xpFrom / EXP_TO_LEVEL) * 100} to={(g.xp / EXP_TO_LEVEL) * 100} />
                     <span className="text-muted tabular-nums">
                       {g.xp}/{EXP_TO_LEVEL} XP{g.to !== g.from ? " · subiu" : ""}
                     </span>

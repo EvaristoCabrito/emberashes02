@@ -5,6 +5,10 @@ import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, WE
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import type { Bag, ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
+// Only the small pouch exists as a carried-bag icon so far — swap this to read the party's
+// actual pouch tier once the shared-capacity upgrade system (small/mid/large) is built.
+const BAG_ICON = "/game/icons/equipment/small-leather-pouch.png";
+
 const NPCS = [
   {
     id: "brue",
@@ -168,8 +172,9 @@ export function InnScreen({
         <button
           type="button"
           onClick={() => setInvView("pack")}
-          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]"
+          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em] flex items-center gap-1.5"
         >
+          <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-cover" />
           Mochila
         </button>
         <button
@@ -406,8 +411,9 @@ function SmithPanel({
         <button
           type="button"
           onClick={() => setInvView("pack")}
-          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em]"
+          className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em] flex items-center gap-1.5"
         >
+          <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-cover" />
           Mochila
         </button>
         <p className="text-sm tabular-nums border border-border bg-bg/70 rounded-md px-2 py-1">Ember {ember}</p>
