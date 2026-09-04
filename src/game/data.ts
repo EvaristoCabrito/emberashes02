@@ -352,7 +352,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   // Conjurer tier 1 (Summon Familiar): every combat stat here is a fallback only — the
   // actual summoned unit's stats are computed live from its summoner (see
-  // castSummonFamiliar). "wardog" is a stand-in sprite until real art exists.
+  // castSummonFamiliar).
   familiar: {
     id: "familiar",
     name: "Familiar",
@@ -365,7 +365,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     mov: 5,
     minRange: 1,
     maxRange: 1,
-    sprite: "wardog",
+    sprite: "familiar",
     size: 1,
     init: 5,
   },
