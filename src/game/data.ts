@@ -2077,7 +2077,7 @@ const RAW_MISSIONS: Mission[] = [
     objective: "Derrote todos os inimigos",
     win: "rout",
     cols: 13,
-    rows: 13,
+    rows: 15,
     layout: [
       "ccccccccccccc",
       "cnnnnnnnnnnnc",
@@ -2089,16 +2089,19 @@ const RAW_MISSIONS: Mission[] = [
       "cnnnnnnnnnnnc",
       "cnnnnnnnnnnnc",
       "cccccoccccccc",
-      "cccnnnnnnnccc",
-      "cccnnnknnnccc",
+      "cccccnccccccc",
+      "cccccnccccccc",
+      "cccccnccccccc",
+      "ccccckccccccc",
       "ccccccccccccc",
     ],
-    // One door, one chest — a single wide corridor behind it (not the cramped one-tile
-    // pockets earlier drafts of this mission had, direct feedback: "impossible to break").
-    // The chest sealed behind the locked door at (5,9) — see betterChests below — rolls
-    // noticeably better than a normal one; hasAuthoredChest (see decorateOpenTerrain) skips
-    // the usual auto-sprinkle on this map since it already places its own.
-    betterChests: [{ x: 6, y: 11 }],
+    // Exactly one door (never more, direct instruction) opening onto a single one-wide
+    // corridor with the chest at its true dead end, not partway into a room — a straight
+    // shot down, nothing to get lost in. The chest sealed behind it — see betterChests
+    // below — rolls noticeably better than a normal one; hasAuthoredChest (see
+    // decorateOpenTerrain) skips the usual auto-sprinkle on this map since it already
+    // places its own.
+    betterChests: [{ x: 5, y: 13 }],
     playerSpawns: [
       { name: "Kael", classId: "swordsman", x: 5, y: 7 },
       { name: "Neera", classId: "archer", x: 4, y: 7 },
