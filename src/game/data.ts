@@ -942,6 +942,8 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   "shield-heater": { id: "shield-heater", name: "Escudo em Coração", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 2, dmgMul: 0.8, price: 220 },
   "shield-kite": { id: "shield-kite", name: "Escudo em Pipa", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 3, dmgMul: 0.9, price: 320 },
   "shield-tower": { id: "shield-tower", name: "Escudo Torre", slot: "offHand", kind: "shield", usableBy: ["swordsman", "heavyKnight", "paladin"], def: 4, dmgMul: 1, price: 450 },
+  "cross-kite-shield": { id: "cross-kite-shield", name: "Escudo em Cunha com Cruz", slot: "offHand", kind: "shield", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, dmgMul: 0.85, price: 380 },
+  "ancient-round-shield": { id: "ancient-round-shield", name: "Escudo Redondo Ancestral", slot: "offHand", kind: "shield", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 2, dmgMul: 0.7, price: 260 },
   // ---- offHand: light weapon (off-hand attack, no Shield Bash)
   "adaga-secundaria": { id: "adaga-secundaria", name: "Adaga Secundária", slot: "offHand", kind: "weapon", usableBy: ARCHER_TRIO, dice: 1, faces: 4, bonus: 0, minRange: 1, maxRange: 1, price: 70 },
 
@@ -953,6 +955,29 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   sallet: { id: "sallet", name: "Elmo Salade", slot: "head", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, price: 140 },
   "heavy-war-helmet": { id: "heavy-war-helmet", name: "Elmo de Guerra Pesado", slot: "head", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 4, price: 200 },
   "great-helm": { id: "great-helm", name: "Elmo de Grande Porte", slot: "head", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 5, price: 260 },
+  "full-helm": { id: "full-helm", name: "Elmo Completo Gótico", slot: "head", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 4, price: 210 },
+  "worn-woolen-hood": { id: "worn-woolen-hood", name: "Capuz de Lã Gasto", slot: "head", usableBy: [...ARCANE_ALL, ...ARCHER_TRIO], res: 1, price: 35 },
+
+  // ---- chest: cloth for casters, leather for scouts/rogues, chain for clerics, plate for
+  // the frontline — same material camps as every other slot, now with somewhere to wear it.
+  "leather-steel-cuirass": { id: "leather-steel-cuirass", name: "Couraça de Couro e Aço", slot: "chest", usableBy: [...ARCHER_TRIO, "rogue"], def: 2, mov: 1, price: 140 },
+  "chainmail-hauberk": { id: "chainmail-hauberk", name: "Cota de Malha", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO, ...HEAL_TRIO], def: 2, price: 150 },
+  "heavy-brigandine": { id: "heavy-brigandine", name: "Brigantina Pesada", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, price: 200 },
+  "scale-armor": { id: "scale-armor", name: "Armadura Escamada Medieval", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, res: 1, price: 220 },
+  "plate-cuirass": { id: "plate-cuirass", name: "Couraça de Placas", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 4, price: 260 },
+  "gothic-plate-cuirass": { id: "gothic-plate-cuirass", name: "Couraça Gótica", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 4, res: 1, price: 280 },
+  "knights-cuirass": { id: "knights-cuirass", name: "Couraça de Cavaleiro", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 4, price: 270 },
+  "dark-scale-cuirass": { id: "dark-scale-cuirass", name: "Couraça Escamada Sombria", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 4, res: 1, price: 300 },
+  "brutal-knight-cuirass": { id: "brutal-knight-cuirass", name: "Couraça Brutal de Cavaleiro Pesado", slot: "chest", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 5, price: 340 },
+
+  // ---- shoulders (pauldrons/mantles — leather for the archer line, steel for the frontline)
+  "leather-shoulder-guards": { id: "leather-shoulder-guards", name: "Protetores de Ombro de Couro", slot: "shoulders", usableBy: [...ARCHER_TRIO, "rogue"], def: 1, mov: 1, price: 90 },
+  "chainmail-mantle": { id: "chainmail-mantle", name: "Manto de Malha", slot: "shoulders", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO, ...HEAL_TRIO], def: 1, res: 1, price: 120 },
+  "armored-shoulder-mantle": { id: "armored-shoulder-mantle", name: "Manto de Ombro Blindado", slot: "shoulders", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 2, price: 150 },
+  "massive-pauldrons": { id: "massive-pauldrons", name: "Ombreiras Maciças", slot: "shoulders", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 2, price: 150 },
+  "spiked-shoulder-armor": { id: "spiked-shoulder-armor", name: "Ombreira Pesada Assimétrica", slot: "shoulders", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 1, atk: 1, price: 160 },
+  "gothic-shoulder-plates": { id: "gothic-shoulder-plates", name: "Placas de Ombro Góticas", slot: "shoulders", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, price: 210 },
+  "gothic-pauldrons-exceptional": { id: "gothic-pauldrons-exceptional", name: "Ombreiras Góticas Excepcionais", slot: "shoulders", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, price: 230 },
 
   // ---- legs: leather for the archer line, steel/mail for the frontline — same two
   // material camps as head gear, no caster-tier leg armor exists yet.
@@ -973,9 +998,21 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   "chainmail-gloves": { id: "chainmail-gloves", name: "Luvas de Malha", slot: "hands", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 1, mag: 1, price: 65 },
   "plate-gauntlets": { id: "plate-gauntlets", name: "Manoplas de Placas", slot: "hands", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO, ...HEAL_TRIO], atk: 1, def: 2, price: 150 },
   "spiked-gauntlet": { id: "spiked-gauntlet", name: "Manopla Cravada Brutal", slot: "hands", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO, ...HEAL_TRIO], atk: 3, def: 1, price: 220 },
+  "dark-steel-gauntlets": { id: "dark-steel-gauntlets", name: "Manoplas de Aço Sombrio", slot: "hands", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO, ...HEAL_TRIO], atk: 1, def: 1, price: 170 },
+  "engraved-vambrace": { id: "engraved-vambrace", name: "Braçadeira de Aço Gravada", slot: "hands", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 2, price: 140 },
 
-  // ---- back (cloak)
+  // ---- feet
+  "heavy-armored-boots": { id: "heavy-armored-boots", name: "Botas Blindadas Pesadas", slot: "feet", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 3, mov: -1, price: 160 },
+
+  // ---- back (cloaks — cloth for casters/scouts, armored mantles for the frontline)
   "ornamental-cloak-clasp": { id: "ornamental-cloak-clasp", name: "Fivela de Capa Ornamentada", slot: "back", mov: 1, res: 1, price: 90 },
+  "travelers-cloak": { id: "travelers-cloak", name: "Capa de Viajante", slot: "back", usableBy: [...ARCANE_ALL, ...ARCHER_TRIO], res: 1, price: 60 },
+  "leather-cape": { id: "leather-cape", name: "Capa Curta de Couro", slot: "back", usableBy: [...ARCHER_TRIO, "rogue"], res: 1, price: 70 },
+  "wine-cloak": { id: "wine-cloak", name: "Capa Tingida de Vinho", slot: "back", usableBy: [...ARCANE_ALL, ...ARCHER_TRIO], res: 1, mov: 1, price: 80 },
+  "tattered-war-cloak": { id: "tattered-war-cloak", name: "Capa de Guerra Esfarrapada", slot: "back", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 1, res: 1, price: 110 },
+  "noble-war-cloak": { id: "noble-war-cloak", name: "Capa Nobre de Guerra Esfarrapada", slot: "back", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 1, atk: 1, price: 180 },
+  "fur-trimmed-cloak": { id: "fur-trimmed-cloak", name: "Capa de Inverno com Pele", slot: "back", res: 2, price: 130 },
+  "ornate-noble-cloak": { id: "ornate-noble-cloak", name: "Capa Nobre Ornamentada", slot: "back", usableBy: ARCANE_ALL, mag: 2, price: 200 },
 
   // ---- waist
   "plain-leather-belt": { id: "plain-leather-belt", name: "Cinto de Couro Simples", slot: "waist", hp: 2, price: 30 },
@@ -989,6 +1026,13 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   amulet: { id: "amulet", name: "Amuleto de Cordão de Couro", slot: "neck", mag: 1, price: 70 },
   "weathered-medallion": { id: "weathered-medallion", name: "Medalhão Desgastado", slot: "neck", res: 2, price: 80 },
   "heavy-metal-pendant": { id: "heavy-metal-pendant", name: "Pingente de Metal Pesado", slot: "neck", def: 1, res: 1, price: 100 },
+  "silver-necklace": { id: "silver-necklace", name: "Colar de Prata Simples", slot: "neck", res: 1, price: 55 },
+  "runic-amulet": { id: "runic-amulet", name: "Amuleto Rúnico", slot: "neck", mag: 1, price: 65 },
+  "leather-gorget": { id: "leather-gorget", name: "Goguete de Couro Pesado", slot: "neck", usableBy: [...ARCHER_TRIO, ...WARRIOR_TRIO, "rogue"], def: 1, price: 70 },
+  "iron-talisman": { id: "iron-talisman", name: "Talismã de Ferro Pesado", slot: "neck", def: 1, price: 95 },
+  "steel-gorget": { id: "steel-gorget", name: "Goguete de Aço Medieval", slot: "neck", usableBy: [...WARRIOR_TRIO, ...LANCER_TRIO], def: 2, price: 110 },
+  "ornate-pendant": { id: "ornate-pendant", name: "Pingente Medieval Ornamentado", slot: "neck", res: 1, mag: 1, price: 130 },
+  "ancient-pendant": { id: "ancient-pendant", name: "Pingente Ancestral", slot: "neck", mag: 2, price: 240 },
 
   // ---- rings (magic items, ring1/ring2 share this pool — see offHandBlocked usage note)
   "plain-iron-ring": { id: "plain-iron-ring", name: "Anel de Ferro Simples", slot: "ring1", hp: 3, price: 40 },
@@ -996,6 +1040,7 @@ export const EQUIPMENT: Record<string, EquipmentDef> = {
   "heavy-steel-ring": { id: "heavy-steel-ring", name: "Anel de Aço Pesado", slot: "ring1", def: 1, res: 1, price: 150 },
   "blackened-iron-ring": { id: "blackened-iron-ring", name: "Anel de Ferro Enegrecido", slot: "ring1", mag: 2, price: 220 },
   "ancient-gold-ring": { id: "ancient-gold-ring", name: "Anel de Ouro Ancestral", slot: "ring1", atk: 1, mag: 1, def: 1, price: 320 },
+  "black-metal-ring": { id: "black-metal-ring", name: "Anel de Metal Negro Ornamentado", slot: "ring1", atk: 1, def: 1, price: 280 },
 };
 
 /** Whether a class's main-hand weapon choice blocks the offHand slot — true when it's a
