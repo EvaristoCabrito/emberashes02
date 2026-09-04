@@ -2077,7 +2077,7 @@ const RAW_MISSIONS: Mission[] = [
     objective: "Derrote todos os inimigos",
     win: "rout",
     cols: 13,
-    rows: 12,
+    rows: 13,
     layout: [
       "ccccccccccccc",
       "cnnnnnnnnnnnc",
@@ -2089,12 +2089,16 @@ const RAW_MISSIONS: Mission[] = [
       "cnnnnnnnnnnnc",
       "cnnnnnnnnnnnc",
       "cccccoccccccc",
-      "ccccckccccccc",
+      "cccnnnnnnnccc",
+      "cccnnnknnnccc",
       "ccccccccccccc",
     ],
+    // One door, one chest — a single wide corridor behind it (not the cramped one-tile
+    // pockets earlier drafts of this mission had, direct feedback: "impossible to break").
     // The chest sealed behind the locked door at (5,9) — see betterChests below — rolls
-    // noticeably better than the 1-3 chests sprinkled automatically on the open floor.
-    betterChests: [{ x: 5, y: 10 }],
+    // noticeably better than a normal one; hasAuthoredChest (see decorateOpenTerrain) skips
+    // the usual auto-sprinkle on this map since it already places its own.
+    betterChests: [{ x: 6, y: 11 }],
     playerSpawns: [
       { name: "Kael", classId: "swordsman", x: 5, y: 7 },
       { name: "Neera", classId: "archer", x: 4, y: 7 },
@@ -2703,7 +2707,13 @@ function decorateOpenTerrain(mission: Mission): Mission {
     }
   }
 
-  placeChests(grid, cols, rows, playerSpawns, enemySpawns, spawnSet, blockedExtra, seedFromId(mission.id), floorChar);
+  // Skip the auto-sprinkle entirely on a map that already hand-places its own chest(s) in
+  // the raw layout — piling more on top made a mission with its own locked/gated chest feel
+  // stuffed with more locks than lockpicks could realistically cover.
+  const hasAuthoredChest = mission.layout.some((row) => row.includes("k"));
+  if (!hasAuthoredChest) {
+    placeChests(grid, cols, rows, playerSpawns, enemySpawns, spawnSet, blockedExtra, seedFromId(mission.id), floorChar);
+  }
 
   return {
     ...mission,
