@@ -350,6 +350,25 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     size: 1,
     init: 6,
   },
+  // Conjurer tier 1 (Summon Familiar): every combat stat here is a fallback only — the
+  // actual summoned unit's stats are computed live from its summoner (see
+  // castSummonFamiliar). "wardog" is a stand-in sprite until real art exists.
+  familiar: {
+    id: "familiar",
+    name: "Familiar",
+    role: "Invocação",
+    hp: 10,
+    atk: 3,
+    mag: 3,
+    def: 1,
+    res: 1,
+    mov: 5,
+    minRange: 1,
+    maxRange: 1,
+    sprite: "wardog",
+    size: 1,
+    init: 5,
+  },
   paladin: {
     id: "paladin",
     name: "Paladino",
@@ -552,6 +571,10 @@ export const GROWTH: Record<ClassId, { hp: number; atk: number; mag: number; def
   // Same shape as mage's growth (atk/mag/def) but hp grows slower and res grows faster,
   // matching CLASSES.conjurer's base-stat deltas — see the note there.
   conjurer: { hp: 2, atk: 0, mag: 3, def: 1, res: 4 },
+  // Never actually used to level up — a familiar's stats are recomputed from its summoner
+  // every time one is cast, not from a level table. Present only because GROWTH is keyed by
+  // every ClassId.
+  familiar: { hp: 0, atk: 0, mag: 0, def: 0, res: 0 },
   paladin: { hp: 5, atk: 1, mag: 1, def: 3, res: 2 },
   heavyKnight: { hp: 5, atk: 1, mag: 0, def: 3, res: 1 },
   // Provisório — copiado da classe base (ver nota em CLASSES acima).
@@ -1268,6 +1291,16 @@ export const MAGIC_MISSILE = {
   bonus: 3,
 };
 
+/** Conjurer tier 1: summons a controllable ally at half the conjurer's current stats
+ * (recomputed from the conjurer at cast time, so a later-battle or higher-level cast comes
+ * in stronger) anywhere within range, passable and unoccupied. Stays until the battle ends —
+ * no duration to track, no re-cast limit beyond the tier's own uses per scenario. */
+export const SUMMON_FAMILIAR = {
+  name: "Invocar Familiar",
+  range: 6,
+  statScale: 0.5,
+};
+
 export const LIGHTNING = {
   name: "Relâmpago",
   range: 4,
@@ -1499,6 +1532,7 @@ export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
   cleave: 2,
   sweep: 2,
   trip: 3,
+  summonFamiliar: 1,
   fireball: 3,
   cureDisease: 3,
   causticVenom: 4,

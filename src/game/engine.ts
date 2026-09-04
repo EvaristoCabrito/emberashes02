@@ -1,4 +1,4 @@
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SWEEP, TRIP, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -232,6 +232,7 @@ function pub(u: Unit): UnitPublic {
     stunned: u.stunned,
     crippled: u.crippled,
     offHandId: u.offHandId,
+    summoned: u.summoned,
   };
 }
 
@@ -346,6 +347,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     stunTurns: 0,
     crippled: false,
     offHandId,
+    summoned: false,
   };
 }
 
@@ -557,7 +559,7 @@ export class BattleEngine {
       turn: this.turn,
       objective: this.mission.objective,
       missionTitle: this.mission.title,
-      playerAlive: this.units.filter((u) => u.side === "player" && u.alive).length,
+      playerAlive: this.units.filter((u) => u.side === "player" && u.alive && !u.summoned).length,
       enemyAlive: this.units.filter((u) => u.side === "enemy" && u.alive).length,
       busy: this.mode === "locked" || !!this.active || this.queue.length > 0,
       result: this.result,
@@ -1492,7 +1494,7 @@ export class BattleEngine {
 
   private evaluateEnd(): void {
     if (this.result) return;
-    const p = this.units.some((u) => u.side === "player" && u.alive);
+    const p = this.units.some((u) => u.side === "player" && u.alive && !u.summoned);
     const bossAlive = this.units.some((u) => u.side === "enemy" && u.alive && u.classId === "captain");
     const anyEnemy = this.units.some((u) => u.side === "enemy" && u.alive);
     const won = this.mission.win === "boss" ? !bossAlive : !anyEnemy;
@@ -1771,6 +1773,18 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startSummonFamiliar(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "summonFamiliar") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "summonFamiliar";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${SUMMON_FAMILIAR.name}: convoca um aliado com metade dos seus atributos atuais, até ${SUMMON_FAMILIAR.range} hexes. Toque num espaço livre.`;
+    sfxPlay.ui();
+  }
+
   confirmSpell(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
     const cell = this.hover;
@@ -1797,6 +1811,10 @@ export class BattleEngine {
     }
     if (this.spellKind === "trip") {
       this.castTrip(u, cell);
+      return;
+    }
+    if (this.spellKind === "summonFamiliar") {
+      this.castSummonFamiliar(u, cell);
       return;
     }
     if (this.spellKind === "lightning") {
@@ -1902,6 +1920,12 @@ export class BattleEngine {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
       if (!here || !here.alive || here.side !== "enemy" || manhattan(caster, cell) > MAGIC_MISSILE.range) return false;
       return clearShot(caster, cell, this.tiles, this.cols, "bolt");
+    }
+    if (this.spellKind === "summonFamiliar") {
+      if (manhattan(caster, cell) > SUMMON_FAMILIAR.range) return false;
+      if (!inBounds(cell.x, cell.y, this.cols, this.rows)) return false;
+      if (!TERRAIN[tileAt(this.tiles, this.cols, cell.x, cell.y)].passable) return false;
+      return !occupancy(this.units).get(key(cell.x, cell.y));
     }
     if (this.spellKind === "doubleStrike" || this.spellKind === "trip") {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
@@ -2204,6 +2228,88 @@ export class BattleEngine {
       bonusFlat: TRIP.bonusBonus,
       spellKind: "trip",
     });
+  }
+
+  /** Summon Familiar (Conjurer tier 1): spawns a new player-side unit directly into
+   * `this.units` — no queued animation step, it just appears. It has no slot in this round's
+   * `turnOrder` (that's rebuilt from `this.units` fresh every round in startNewRound), so it
+   * waits for the round after this one to act, same as any other reinforcement would. */
+  private castSummonFamiliar(unit: Unit, cell: Point): void {
+    if (!this.spellAimValid(unit, cell)) {
+      this.tip = "Escolha um espaço livre ao alcance.";
+      sfxPlay.ui();
+      return;
+    }
+    const cls = CLASSES.familiar;
+    const scale = SUMMON_FAMILIAR.statScale;
+    const maxHp = Math.max(1, Math.round(unit.maxHp * scale));
+    const familiar: Unit = {
+      id: `player-familiar-${this.units.length}`,
+      name: `Familiar de ${unit.name}`,
+      classId: "familiar",
+      className: cls.name,
+      role: cls.role,
+      side: "player",
+      sprite: cls.sprite,
+      x: cell.x,
+      y: cell.y,
+      hp: maxHp,
+      maxHp,
+      atk: Math.round(unit.atk * scale),
+      mag: Math.round(unit.mag * scale),
+      def: Math.round(unit.def * scale),
+      res: Math.round(unit.res * scale),
+      mov: cls.mov,
+      minRange: cls.minRange,
+      maxRange: cls.maxRange,
+      moved: false,
+      acted: false,
+      facing: 1,
+      walkPose: "front",
+      alive: true,
+      drawX: cell.x,
+      drawY: cell.y,
+      flash: 0,
+      fade: 1,
+      bob: 0,
+      level: unit.level,
+      xp: 0,
+      bag: { ...EMPTY_BAG },
+      spells: { tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, tier6: 0, tier7: 0, tier8: 0, tier9: 0, tier10: 0 },
+      weaponId: null,
+      weaponEnh: 0,
+      size: cls.size,
+      footprintW: cls.footprintW,
+      footprintH: cls.footprintH,
+      footprintOffsets: cls.footprintOffsets,
+      shock: null,
+      diseased: false,
+      diseaseBase: null,
+      poisoned: false,
+      stunned: false,
+      stunTurns: 0,
+      crippled: false,
+      offHandId: null,
+      summoned: true,
+    };
+    this.units.push(familiar);
+    this.spendTier(unit, "summonFamiliar");
+    this.spellKind = null;
+    this.emitParticle({
+      x: cell.x,
+      y: cell.y - 0.2,
+      vx: 0,
+      vy: -0.3,
+      life: 0,
+      max: 0.5,
+      size: 1.4,
+      color: "#8c6cd8",
+      kind: "impact",
+      frame: 0,
+    });
+    this.tip = `${unit.name} invocou ${familiar.name}.`;
+    sfxPlay.spell();
+    this.finishAction(unit);
   }
 
   private castCleave(unit: Unit, cell: Point): void {
@@ -3219,6 +3325,10 @@ export class BattleEngine {
         const cell = this.hover ?? this.spellAim;
         const arc = cell ? cleaveHexes(selected, cell, CLEAVE.hexes, this.cols, this.rows) : [];
         if (arc.length) overlay(arc, "rgba(196,90,50,0.55)");
+      } else if (selected && this.spellKind === "summonFamiliar") {
+        overlay(this.healRangeTiles(selected, SUMMON_FAMILIAR.range), "rgba(140,110,200,0.28)");
+        const cell = this.hover ?? this.spellAim;
+        if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(180,150,230,0.55)");
       } else if (selected && this.spellKind === "lightning") {
         overlay(this.healRangeTiles(selected, LIGHTNING.range), "rgba(80,120,170,0.3)");
         const cell = this.hover ?? this.spellAim;

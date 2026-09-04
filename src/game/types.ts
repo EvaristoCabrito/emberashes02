@@ -59,7 +59,11 @@ export type ClassId =
   | "bishop"
   | "ranger"
   | "sentinel"
-  | "templar";
+  | "templar"
+  // Conjurer tier 1 (Summon Familiar): not a recruitable class — its combat stats are
+  // computed live from its summoner (see castSummonFamiliar), CLASSES.familiar only
+  // supplies a sprite/size/range fallback and satisfies the ClassId-keyed tables below.
+  | "familiar";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "malrec" | "aldric" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
 export type SpellKind =
@@ -75,7 +79,8 @@ export type SpellKind =
   | "cureDisease"
   | "piercingThrust"
   | "sweep"
-  | "trip";
+  | "trip"
+  | "summonFamiliar";
 export type ScreenId = "boot" | "title" | "campaign" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitOffHand" | "awaitSpell" | "locked";
@@ -251,6 +256,11 @@ export interface Unit {
   crippled: boolean;
   /** Equipped off-hand EquipmentDef id (kind "weapon" or "shield"), or null. */
   offHandId: string | null;
+  /** Summon Familiar (Conjurer tier 1): a player-side unit that doesn't count toward "any
+   * hero still alive" for the defeat check or the playerAlive HUD figure — the party can't
+   * survive a wipe on a pet alone. Everything else about it (selecting, moving, acting,
+   * being targeted) works exactly like any other player unit. */
+  summoned: boolean;
 }
 
 export interface UnitPublic {
@@ -286,6 +296,7 @@ export interface UnitPublic {
   stunned: boolean;
   crippled: boolean;
   offHandId: string | null;
+  summoned: boolean;
 }
 
 export interface WeaponDef {

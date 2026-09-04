@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -134,8 +134,11 @@ function classSpells(classId: ClassId): SpellKind[] {
     case "swordsman":
       return ["doubleStrike", "cleave"];
     case "mage":
-    case "conjurer":
       return ["magicMissile", "lightning", "fireball", "causticVenom"];
+    case "conjurer":
+      // Web of Dreams / Phantasmal Force / Summon Swarm (tiers 2-4) join this list as
+      // they're built — see SPELL_TIER for the intended tier assignment.
+      return ["summonFamiliar"];
     case "archer":
       return ["longShot", "piercing"];
     case "healer":
@@ -207,6 +210,8 @@ function slotIcon(action: SlotAction): string {
       return "/game/icons/cleave-crossed-blades.png";
     case "trip":
       return "/game/icons/cleave.png";
+    case "summonFamiliar":
+      return "/game/icons/magic-missile.png";
   }
 }
 
@@ -241,6 +246,8 @@ function slotLabel(action: SlotAction): string {
       return SWEEP.name;
     case "trip":
       return TRIP.name;
+    case "summonFamiliar":
+      return SUMMON_FAMILIAR.name;
   }
 }
 
@@ -2397,6 +2404,9 @@ function BattleScreen({
       case "trip":
         engine.startTrip();
         break;
+      case "summonFamiliar":
+        engine.startSummonFamiliar();
+        break;
     }
   }
 
@@ -2837,7 +2847,8 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
     ["Alcance", rangeLabel(unit.minRange, unit.maxRange)],
   ];
   const base = PROMOTED_BASE[unit.classId] ?? unit.classId;
-  const mage = base === "mage" || base === "conjurer";
+  const mage = base === "mage";
+  const conjurer = base === "conjurer";
   const healer = base === "healer";
   const archer = base === "archer";
   const swordsman = base === "swordsman";
@@ -2924,7 +2935,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
           ))}
         </div>
 
-        {unit.side === "player" && (swordsman || mage || archer || healer) && (
+        {unit.side === "player" && (swordsman || mage || conjurer || archer || healer || lancer) && (
           <>
             <p className="text-xs uppercase tracking-[0.18em] text-muted mb-2">Magias e habilidades</p>
             <div className="grid grid-cols-1 gap-1.5">
@@ -2979,6 +2990,16 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                           </p>
                         </div>
                       )}
+                    </>
+                  )}
+                  {conjurer && (
+                    <>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/magic-missile.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          {SUMMON_FAMILIAR.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("summonFamiliar")!)]}</span>
+                        </p>
+                      </div>
                     </>
                   )}
                   {archer && (
