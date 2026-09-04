@@ -382,6 +382,10 @@ export class BattleEngine {
   /** Active Web of Dreams patches (Conjurer tier 2) — cast, not terrain, so they live here
    * rather than on the map. Ticks down by one every startNewRound and is dropped at 0. */
   webZones: { cells: Set<string>; roundsLeft: number }[] = [];
+  /** Whether the unit whose turn is currently active was standing in a web zone at the
+   * START of that turn — decided once in beginUnitTurn and left alone for the rest of it
+   * (see effectiveUnitForReach). */
+  private turnRestrained = false;
   /** All alive units for this round, sorted by CLASSES[classId].init (lower first, ties favor the player). */
   private turnOrder: string[] = [];
   /** id of the unit whose turn we've already dispatched — lets the tick loop react only on change. */
@@ -1938,9 +1942,15 @@ export class BattleEngine {
   /** Web of Dreams' "restrained / difficult terrain" clause, applied without touching
    * pathfinding.ts: a unit whose current cell is webbed gets a shallow clone with mov
    * clamped to 1 for reach purposes only — same "modify one derived stat for a single calc"
-   * trick used by Piercing Thrust's armor-ignore. */
+   * trick used by Piercing Thrust's armor-ignore. Reads `turnRestrained` (decided once, in
+   * beginUnitTurn, off the unit's position at the START of its turn) rather than re-checking
+   * the unit's live position — free repositioning re-derives reach from wherever the unit
+   * currently stands, and a live check would let one restrained hex out to the patch's edge
+   * un-clamp every step after it. The original path stays exactly as open as it always was
+   * (this is still real Dijkstra reach, not a free pick among neighbors) — restrained units
+   * just don't get a further step's worth of it once they've already spent their one. */
   private effectiveUnitForReach(u: Unit): Unit {
-    return this.isWebCell(u.x, u.y) ? { ...u, mov: Math.min(u.mov, 1) } : u;
+    return this.turnRestrained ? { ...u, mov: Math.min(u.mov, 1) } : u;
   }
 
   private spellAimValid(caster: Unit, cell: Point): boolean {
@@ -2650,6 +2660,10 @@ export class BattleEngine {
       this.activeUnitId = null; // force re-detection next tick, moving on to whoever's next
       return;
     }
+    // Decided once, off the unit's position right now (the start of its turn) — every
+    // reach computation for the rest of this turn (repositioning included) uses this same
+    // verdict instead of re-checking, see effectiveUnitForReach.
+    this.turnRestrained = this.isWebCell(u.x, u.y);
     if (u.side === "player") {
       u.acted = false;
       this.selectedId = u.id;
