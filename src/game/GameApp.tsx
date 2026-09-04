@@ -134,6 +134,7 @@ function classSpells(classId: ClassId): SpellKind[] {
     case "swordsman":
       return ["doubleStrike", "cleave"];
     case "mage":
+    case "conjurer":
       return ["magicMissile", "lightning", "fireball", "causticVenom"];
     case "archer":
       return ["longShot", "piercing"];
@@ -2810,10 +2811,11 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
     ["MOV", unit.mov],
     ["Alcance", rangeLabel(unit.minRange, unit.maxRange)],
   ];
-  const mage = unit.classId === "mage";
-  const healer = unit.classId === "healer";
-  const archer = unit.classId === "archer";
-  const swordsman = unit.classId === "swordsman";
+  const base = PROMOTED_BASE[unit.classId] ?? unit.classId;
+  const mage = base === "mage" || base === "conjurer";
+  const healer = base === "healer";
+  const archer = base === "archer";
+  const swordsman = base === "swordsman";
 
   return (
     <div
