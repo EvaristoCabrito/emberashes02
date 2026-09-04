@@ -2351,6 +2351,23 @@ function BattleScreen({
     }
   }, [activeUnitId]);
   const unit: UnitPublic | null = hud.selected ?? hud.pendingFoe ?? hud.inspected;
+  // The Mochila/Equipamento screens read straight off `save`, which is only the roster
+  // snapshot from before this mission started — a chest opened mid-battle mutates the live
+  // BattleEngine unit (and engine.lootEmber/lootWeapons/lootEquipment), not `save`, so those
+  // finds never showed up until the mission ended. Patch a live view in for the duration of
+  // the battle instead of touching the screens themselves, which are also used from the Inn
+  // (no `engine` there, where `save` genuinely is the whole truth).
+  const liveWeapons = { ...save.weapons };
+  for (const id of engine.lootWeapons) if (!(id in liveWeapons)) liveWeapons[id] = 0;
+  const liveLooseEquipment = { ...save.looseEquipment };
+  for (const id of engine.lootEquipment) liveLooseEquipment[id] = (liveLooseEquipment[id] ?? 0) + 1;
+  const liveSave: SaveData = {
+    ...save,
+    ember: save.ember + engine.lootEmber,
+    bags: { ...save.bags, ...Object.fromEntries(engine.units.filter((u) => u.side === "player").map((u) => [u.name, u.bag])) },
+    weapons: liveWeapons,
+    looseEquipment: liveLooseEquipment,
+  };
   const foe = hud.pendingFoe ?? (hud.inspected && hud.inspected.side === "enemy" && hud.selected ? hud.inspected : null);
   const showAct = hud.mode === "awaitAction" || hud.mode === "awaitAttack" || hud.mode === "selected" || hud.mode === "awaitSpell";
   const actor = hud.selected?.side === "player" ? hud.selected : null;
@@ -2766,7 +2783,7 @@ function BattleScreen({
         <PaperDollScreen
           heroName={unit.name}
           classId={unit.classId}
-          save={save}
+          save={liveSave}
           onClose={() => setInvView(null)}
           onSwitchToBackpack={() => setInvView("pack")}
         />
@@ -2774,7 +2791,7 @@ function BattleScreen({
       {invView === "pack" && unit && unit.side === "player" && (
         <BackpackScreen
           heroName={unit.name}
-          save={save}
+          save={liveSave}
           onClose={() => setInvView(null)}
           onSwitchToDoll={() => setInvView("doll")}
         />
@@ -2911,7 +2928,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
           <div className="flex items-center gap-2 shrink-0">
             {onOpenInventory && (
               <button type="button" onClick={onOpenInventory} className="h-9 px-3 rounded-md border border-border text-sm flex items-center gap-1.5">
-                <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-cover" />
+                <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-contain" />
                 Mochila
               </button>
             )}

@@ -174,7 +174,7 @@ export function InnScreen({
           onClick={() => setInvView("pack")}
           className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em] flex items-center gap-1.5"
         >
-          <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-cover" />
+          <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-contain" />
           Mochila
         </button>
         <button
@@ -413,7 +413,7 @@ function SmithPanel({
           onClick={() => setInvView("pack")}
           className="h-10 px-3 rounded-md border border-border bg-bg/70 text-xs uppercase tracking-[0.14em] flex items-center gap-1.5"
         >
-          <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-cover" />
+          <img src={BAG_ICON} alt="" className="size-5 rounded-sm object-contain" />
           Mochila
         </button>
         <p className="text-sm tabular-nums border border-border bg-bg/70 rounded-md px-2 py-1">Ember {ember}</p>
