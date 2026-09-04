@@ -3,7 +3,7 @@ import { L as require_react, v as require_jsx_runtime } from "../_libs/@tanstack
 import { a as Volume2, c as RotateCcw, d as Lock, f as ChevronLeft, i as VolumeX, l as Pencil, n as ZoomOut, p as Check, r as X, s as Swords, t as ZoomIn, u as MapPin } from "../_libs/lucide-react.mjs";
 import { n as clsx, t as cva } from "../_libs/class-variance-authority+clsx.mjs";
 import { t as twMerge } from "../_libs/tailwind-merge.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-Cyd3J5OS.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-DyFE0lyf.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 function cn(...inputs) {
@@ -13085,7 +13085,7 @@ function TitleScreen({ ready, error, hasProgress, muted, help, onMute, onHelp, o
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4",
-						children: "V. 2.57"
+						children: "V. 2.58"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-muted text-base leading-relaxed mb-8 max-w-md",
