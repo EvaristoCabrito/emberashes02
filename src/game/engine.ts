@@ -1,4 +1,4 @@
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, WEAPONS, WEB_OF_DREAMS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, hexAreaTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -198,7 +198,7 @@ type Active =
   | { type: "banner"; text: string; t: number; dur: number }
   | { type: "delay"; t: number; dur: number };
 
-function pub(u: Unit): UnitPublic {
+function pub(u: Unit, restrained: boolean): UnitPublic {
   return {
     id: u.id,
     name: u.name,
@@ -233,6 +233,8 @@ function pub(u: Unit): UnitPublic {
     crippled: u.crippled,
     offHandId: u.offHandId,
     summoned: u.summoned,
+    asleep: u.asleep,
+    restrained,
   };
 }
 
@@ -348,6 +350,8 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     crippled: false,
     offHandId,
     summoned: false,
+    asleep: false,
+    sleepTurns: 0,
   };
 }
 
@@ -375,6 +379,9 @@ export class BattleEngine {
   cursor: Point = { x: 0, y: 0 };
   reach: Map<string, ReachCell> = new Map();
   attackFrom: Map<string, Point> = new Map();
+  /** Active Web of Dreams patches (Conjurer tier 2) — cast, not terrain, so they live here
+   * rather than on the map. Ticks down by one every startNewRound and is dropped at 0. */
+  webZones: { cells: Set<string>; roundsLeft: number }[] = [];
   /** All alive units for this round, sorted by CLASSES[classId].init (lower first, ties favor the player). */
   private turnOrder: string[] = [];
   /** id of the unit whose turn we've already dispatched — lets the tick loop react only on change. */
@@ -538,8 +545,8 @@ export class BattleEngine {
     return {
       phase: this.phase,
       banner: this.banner,
-      selected: selected ? pub(selected) : null,
-      hoveredUnit: hoverUnit ? pub(hoverUnit) : null,
+      selected: selected ? pub(selected, this.isWebCell(selected.x, selected.y)) : null,
+      hoveredUnit: hoverUnit ? pub(hoverUnit, this.isWebCell(hoverUnit.x, hoverUnit.y)) : null,
       terrain: terr
         ? {
             id: terr.id,
@@ -567,8 +574,12 @@ export class BattleEngine {
       zoom: this.zoom,
       speedMode: this.speedMode,
       tip: this.tip,
-      inspected: inspected ? pub(inspected) : pendingFoe ? pub(pendingFoe) : null,
-      pendingFoe: pendingFoe ? pub(pendingFoe) : null,
+      inspected: inspected
+        ? pub(inspected, this.isWebCell(inspected.x, inspected.y))
+        : pendingFoe
+          ? pub(pendingFoe, this.isWebCell(pendingFoe.x, pendingFoe.y))
+          : null,
+      pendingFoe: pendingFoe ? pub(pendingFoe, this.isWebCell(pendingFoe.x, pendingFoe.y)) : null,
       spellReady:
         this.mode === "awaitSpell" &&
         !!selected &&
@@ -884,6 +895,11 @@ export class BattleEngine {
           target.stunTurns = 1;
           sfxPlay.stun();
         }
+        if (target.asleep) {
+          hit.dmg = Math.max(1, Math.round(hit.dmg * (1 + WEB_OF_DREAMS.sleepBonusDamage)));
+          target.asleep = false;
+          target.sleepTurns = 0;
+        }
         target.hp = Math.max(0, target.hp - hit.dmg);
         target.flash = 1;
         // Only the original attacker's own strike earns XP — a successful counter deals
@@ -1028,6 +1044,11 @@ export class BattleEngine {
           if (a.weaponBonusDice > 0) dmg += rollDice(a.weaponBonusDice, a.weaponBonusFaces, a.weaponBonusBonus, this.rng);
         }
         if (a.dmgMul > 1) dmg = Math.max(1, dmg * a.dmgMul);
+        if (foe.asleep) {
+          dmg = Math.max(1, Math.round(dmg * (1 + WEB_OF_DREAMS.sleepBonusDamage)));
+          foe.asleep = false;
+          foe.sleepTurns = 0;
+        }
         foe.hp = Math.max(0, foe.hp - dmg);
         foe.flash = 1;
         if (a.poison) foe.poisoned = true;
@@ -1267,7 +1288,7 @@ export class BattleEngine {
     }
     this.selectedId = u.id;
     this.orig = { x: u.x, y: u.y };
-    this.reach = computeReachable(u, this.tiles, this.cols, this.rows, this.units);
+    this.reach = computeReachable(this.effectiveUnitForReach(u), this.tiles, this.cols, this.rows, this.units);
     this.mode = "selected";
   }
 
@@ -1541,7 +1562,7 @@ export class BattleEngine {
     this.pendingFoeId = null;
     this.inspectedId = null;
     this.orig = { x: unit.x, y: unit.y };
-    this.reach = computeReachable(unit, this.tiles, this.cols, this.rows, this.units);
+    this.reach = computeReachable(this.effectiveUnitForReach(unit), this.tiles, this.cols, this.rows, this.units);
     this.attackFrom = unit.acted ? new Map() : attackableEnemies(unit, this.reach, this.units, this.tiles, this.cols);
     this.threat = [];
     this.mode = "selected";
@@ -1785,6 +1806,18 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startWebOfDreams(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "webOfDreams") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "webOfDreams";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${WEB_OF_DREAMS.name}: cria uma teia grudenta por ${WEB_OF_DREAMS.durationRounds} rodadas — quem estiver dentro fica com movimento reduzido a 1 hex, e ${Math.round(WEB_OF_DREAMS.sleepChance * 100)}% chance de adormecer por ${diceFormula(WEB_OF_DREAMS.sleepDice, WEB_OF_DREAMS.sleepFaces, 0)} turnos. Alcance ${WEB_OF_DREAMS.range}. Toque para mirar.`;
+    sfxPlay.ui();
+  }
+
   confirmSpell(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
     const cell = this.hover;
@@ -1815,6 +1848,10 @@ export class BattleEngine {
     }
     if (this.spellKind === "summonFamiliar") {
       this.castSummonFamiliar(u, cell);
+      return;
+    }
+    if (this.spellKind === "webOfDreams") {
+      this.castWebOfDreams(u, cell);
       return;
     }
     if (this.spellKind === "lightning") {
@@ -1893,6 +1930,19 @@ export class BattleEngine {
     return u.maxRange * LONG_SHOT.rangeMul + LONG_SHOT.rangeBonus + extra;
   }
 
+  /** True while (x,y) sits inside any still-active Web of Dreams patch. */
+  private isWebCell(x: number, y: number): boolean {
+    return this.webZones.some((z) => z.cells.has(key(x, y)));
+  }
+
+  /** Web of Dreams' "restrained / difficult terrain" clause, applied without touching
+   * pathfinding.ts: a unit whose current cell is webbed gets a shallow clone with mov
+   * clamped to 1 for reach purposes only — same "modify one derived stat for a single calc"
+   * trick used by Piercing Thrust's armor-ignore. */
+  private effectiveUnitForReach(u: Unit): Unit {
+    return this.isWebCell(u.x, u.y) ? { ...u, mov: Math.min(u.mov, 1) } : u;
+  }
+
   private spellAimValid(caster: Unit, cell: Point): boolean {
     if (!this.spellKind) return false;
     if (this.spellKind === "fireball") {
@@ -1926,6 +1976,10 @@ export class BattleEngine {
       if (!inBounds(cell.x, cell.y, this.cols, this.rows)) return false;
       if (!TERRAIN[tileAt(this.tiles, this.cols, cell.x, cell.y)].passable) return false;
       return !occupancy(this.units).get(key(cell.x, cell.y));
+    }
+    if (this.spellKind === "webOfDreams") {
+      if (manhattan(caster, cell) > WEB_OF_DREAMS.range) return false;
+      return clearShot(caster, fireballOrigin(cell, this.cols, this.rows), this.tiles, this.cols, "bolt");
     }
     if (this.spellKind === "doubleStrike" || this.spellKind === "trip") {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
@@ -2291,6 +2345,8 @@ export class BattleEngine {
       crippled: false,
       offHandId: null,
       summoned: true,
+      asleep: false,
+      sleepTurns: 0,
     };
     this.units.push(familiar);
     this.spendTier(unit, "summonFamiliar");
@@ -2308,6 +2364,44 @@ export class BattleEngine {
       frame: 0,
     });
     this.tip = `${unit.name} invocou ${familiar.name}.`;
+    sfxPlay.spell();
+    this.finishAction(unit);
+  }
+
+  private castWebOfDreams(unit: Unit, click: Point): void {
+    if (!this.spellAimValid(unit, click)) {
+      this.tip = "Escolha um espaço ao alcance.";
+      sfxPlay.ui();
+      return;
+    }
+    const cells = hexAreaTiles(click, WEB_OF_DREAMS.size, this.cols, this.rows);
+    const cellKeys = new Set(cells.map((p) => key(p.x, p.y)));
+    this.webZones.push({ cells: cellKeys, roundsLeft: WEB_OF_DREAMS.durationRounds });
+    let asleepCount = 0;
+    for (const u of this.units) {
+      if (!u.alive || !cellKeys.has(key(u.x, u.y))) continue;
+      if (this.rng() < WEB_OF_DREAMS.sleepChance) {
+        u.asleep = true;
+        u.sleepTurns = rollDice(WEB_OF_DREAMS.sleepDice, WEB_OF_DREAMS.sleepFaces, 0, this.rng);
+        asleepCount++;
+      }
+    }
+    this.spendTier(unit, "webOfDreams");
+    this.spellKind = null;
+    this.emitParticle({
+      x: click.x,
+      y: click.y - 0.2,
+      vx: 0,
+      vy: -0.3,
+      life: 0,
+      max: 0.5,
+      size: 1.4,
+      color: "#8c6cd8",
+      kind: "impact",
+      frame: 0,
+    });
+    this.tip = `${unit.name} conjurou ${WEB_OF_DREAMS.name}${asleepCount > 0 ? ` — ${asleepCount} adormeceu(ram)` : ""}.`;
+    this.pushLog(`${unit.name} conjura ${WEB_OF_DREAMS.name}.`);
     sfxPlay.spell();
     this.finishAction(unit);
   }
@@ -2536,13 +2630,22 @@ export class BattleEngine {
       this.activeUnitId = null; // force re-detection next tick, moving on to whoever's next
       return;
     }
+    if (u.asleep) {
+      u.sleepTurns = Math.max(0, u.sleepTurns - 1);
+      u.asleep = u.sleepTurns > 0;
+      u.moved = true;
+      u.acted = true;
+      this.tip = `${u.name} está adormecido(a) — perde o turno.`;
+      this.activeUnitId = null; // force re-detection next tick, moving on to whoever's next
+      return;
+    }
     if (u.side === "player") {
       u.acted = false;
       this.selectedId = u.id;
       this.pendingFoeId = null;
       this.inspectedId = null;
       this.orig = { x: u.x, y: u.y };
-      this.reach = computeReachable(u, this.tiles, this.cols, this.rows, this.units);
+      this.reach = computeReachable(this.effectiveUnitForReach(u), this.tiles, this.cols, this.rows, this.units);
       this.attackFrom = attackableEnemies(u, this.reach, this.units, this.tiles, this.cols);
       this.threat = [];
       this.mode = "selected";
@@ -2567,6 +2670,8 @@ export class BattleEngine {
       u.moved = false;
       u.acted = false;
     }
+    for (const z of this.webZones) z.roundsLeft -= 1;
+    this.webZones = this.webZones.filter((z) => z.roundsLeft > 0);
     this.turnOrder = this.sortByInitiative(this.units.filter((u) => u.alive));
     this.turn += 1;
     this.activeUnitId = null;
@@ -2574,7 +2679,7 @@ export class BattleEngine {
 
   private runAiFor(next: Unit): void {
     this.smashBarricades(next);
-    const reach = computeReachable(next, this.tiles, this.cols, this.rows, this.units);
+    const reach = computeReachable(this.effectiveUnitForReach(next), this.tiles, this.cols, this.rows, this.units);
     const players = this.units.filter((u) => u.side === "player" && u.alive);
     let best: { foe: Unit; from: Point; score: number } | null = null;
     for (const cell of reach.values()) {
@@ -2792,7 +2897,7 @@ export class BattleEngine {
       // either use a skill (see the u.acted branch above, unchanged) or end the turn.
       this.selectedId = unit.id;
       this.mode = "selected";
-      this.reach = computeReachable(unit, this.tiles, this.cols, this.rows, this.units);
+      this.reach = computeReachable(this.effectiveUnitForReach(unit), this.tiles, this.cols, this.rows, this.units);
       this.attackFrom = attackableEnemies(unit, this.reach, this.units, this.tiles, this.cols);
       after?.();
     };
@@ -3278,6 +3383,14 @@ export class BattleEngine {
       ctx.restore();
     };
 
+    for (const zone of this.webZones) {
+      const cells = [...zone.cells].map((k) => {
+        const [x, y] = k.split(",").map(Number);
+        return { x: x!, y: y! };
+      });
+      overlay(cells, "rgba(130,100,190,0.3)");
+    }
+
     if (this.mode === "idle" && this.threat.length) overlay(this.threat, "rgba(163,90,74,0.44)");
 
     if (this.mode === "awaitSpell") {
@@ -3329,6 +3442,12 @@ export class BattleEngine {
         overlay(this.healRangeTiles(selected, SUMMON_FAMILIAR.range), "rgba(140,110,200,0.28)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(180,150,230,0.55)");
+      } else if (selected && this.spellKind === "webOfDreams") {
+        overlay(this.healRangeTiles(selected, WEB_OF_DREAMS.range), "rgba(120,90,170,0.28)");
+        const cell = this.hover ?? this.spellAim;
+        if (cell && manhattan(selected, cell) <= WEB_OF_DREAMS.range) {
+          overlay(hexAreaTiles(cell, WEB_OF_DREAMS.size, this.cols, this.rows), "rgba(150,110,210,0.5)");
+        }
       } else if (selected && this.spellKind === "lightning") {
         overlay(this.healRangeTiles(selected, LIGHTNING.range), "rgba(80,120,170,0.3)");
         const cell = this.hover ?? this.spellAim;

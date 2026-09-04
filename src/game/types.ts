@@ -80,7 +80,8 @@ export type SpellKind =
   | "piercingThrust"
   | "sweep"
   | "trip"
-  | "summonFamiliar";
+  | "summonFamiliar"
+  | "webOfDreams";
 export type ScreenId = "boot" | "title" | "campaign" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitOffHand" | "awaitSpell" | "locked";
@@ -261,6 +262,12 @@ export interface Unit {
    * survive a wipe on a pet alone. Everything else about it (selecting, moving, acting,
    * being targeted) works exactly like any other player unit. */
   summoned: boolean;
+  /** Web of Dreams (Conjurer tier 2) victim: skips its own upcoming turns just like
+   * `stunned`, but decrements on a separate counter (`sleepTurns`, set by a 1D4 roll) and
+   * clears early — mid-round, not just at its own next turn — the instant it takes a hit,
+   * which also applies that hit's `sleepBonusDamage` multiplier. */
+  asleep: boolean;
+  sleepTurns: number;
 }
 
 export interface UnitPublic {
@@ -297,6 +304,10 @@ export interface UnitPublic {
   crippled: boolean;
   offHandId: string | null;
   summoned: boolean;
+  asleep: boolean;
+  /** True while this unit's current cell sits inside an active Web of Dreams zone — purely a
+   * display flag; the movement penalty it implies is computed live off the zone, not stored. */
+  restrained: boolean;
 }
 
 export interface WeaponDef {

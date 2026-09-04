@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SUMMON_FAMILIAR, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WEB_OF_DREAMS, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -136,9 +136,9 @@ function classSpells(classId: ClassId): SpellKind[] {
     case "mage":
       return ["magicMissile", "lightning", "fireball", "causticVenom"];
     case "conjurer":
-      // Web of Dreams / Phantasmal Force / Summon Swarm (tiers 2-4) join this list as
-      // they're built — see SPELL_TIER for the intended tier assignment.
-      return ["summonFamiliar"];
+      // Phantasmal Force / Summon Swarm (tiers 3-4) join this list as they're built — see
+      // SPELL_TIER for the intended tier assignment.
+      return ["summonFamiliar", "webOfDreams"];
     case "archer":
       return ["longShot", "piercing"];
     case "healer":
@@ -212,6 +212,11 @@ function slotIcon(action: SlotAction): string {
       return "/game/icons/cleave.png";
     case "summonFamiliar":
       return "/game/icons/magic-missile.png";
+    // No dedicated web/mist art yet — the caustic-venom cloud icon is the closest existing
+    // placeholder for a hazy area effect, and doesn't collide with anything else in the
+    // Conjurer's own hotbar (their kit no longer shares Mage's spell list).
+    case "webOfDreams":
+      return "/game/icons/caustic-venom.png";
   }
 }
 
@@ -248,6 +253,8 @@ function slotLabel(action: SlotAction): string {
       return TRIP.name;
     case "summonFamiliar":
       return SUMMON_FAMILIAR.name;
+    case "webOfDreams":
+      return WEB_OF_DREAMS.name;
   }
 }
 
@@ -2407,6 +2414,9 @@ function BattleScreen({
       case "summonFamiliar":
         engine.startSummonFamiliar();
         break;
+      case "webOfDreams":
+        engine.startWebOfDreams();
+        break;
     }
   }
 
@@ -2998,6 +3008,12 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                         <img src="/game/icons/magic-missile.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                         <p className="text-xs truncate">
                           {SUMMON_FAMILIAR.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("summonFamiliar")!)]}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/caustic-venom.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          {WEB_OF_DREAMS.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("webOfDreams")!)]}</span>
                         </p>
                       </div>
                     </>

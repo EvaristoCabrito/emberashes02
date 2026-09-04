@@ -1301,6 +1301,23 @@ export const SUMMON_FAMILIAR = {
   statScale: 0.5,
 };
 
+/** Conjurer tier 2: drops a sticky patch of webbing centered on the target cell. Every unit
+ * (either side) standing in it at cast time rolls sleepChance to fall asleep for 1D4 of its
+ * own turns (early wake + sleepBonusDamage on the hit that wakes it). While the zone lasts,
+ * anyone whose current cell is inside it — caught at cast time or wandered in after — has
+ * their movement clamped to 1 hex for the turn (see BattleEngine.effectiveUnitForReach): the
+ * "difficult terrain / restrained" part of the spell, folded into one mechanic. */
+export const WEB_OF_DREAMS = {
+  name: "Teia dos Sonhos",
+  range: 5,
+  size: 1,
+  durationRounds: 3,
+  sleepChance: 0.25,
+  sleepDice: 1,
+  sleepFaces: 4,
+  sleepBonusDamage: 0.25,
+};
+
 export const LIGHTNING = {
   name: "Relâmpago",
   range: 4,
@@ -1533,6 +1550,7 @@ export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
   sweep: 2,
   trip: 3,
   summonFamiliar: 1,
+  webOfDreams: 2,
   fireball: 3,
   cureDisease: 3,
   causticVenom: 4,
@@ -1560,6 +1578,25 @@ export function fireballOrigin(click: { x: number; y: number }, _cols: number, _
 export function fireballTiles(origin: { x: number; y: number }, cols: number, rows: number): { x: number; y: number }[] {
   const out: { x: number; y: number }[] = [];
   const radius = FIREBALL.size;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const Aq = x - (y - (y & 1)) / 2;
+      const Ar = y;
+      const As = -Aq - Ar;
+      const Bq = origin.x - (origin.y - (origin.y & 1)) / 2;
+      const Br = origin.y;
+      const Bs = -Bq - Br;
+      const d = (Math.abs(Aq - Bq) + Math.abs(Ar - Br) + Math.abs(As - Bs)) / 2;
+      if (d <= radius) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+/** Generic hex-radius area, same cube-distance math as fireballTiles but parameterized —
+ * used by Web of Dreams (and anything else with its own AoE size) instead of FIREBALL.size. */
+export function hexAreaTiles(origin: { x: number; y: number }, radius: number, cols: number, rows: number): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const Aq = x - (y - (y & 1)) / 2;
