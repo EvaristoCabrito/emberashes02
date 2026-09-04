@@ -3413,20 +3413,6 @@ export class BattleEngine {
     this.drawDecorations(ctx, tile, cssW, cssH);
     for (const { cx, cy } of barricades) this.drawBarricadeMark(ctx, cx, cy, tile);
 
-    const active = this.activeTurnUnit();
-    if (active) {
-      const { cx, cy } = this.hexCenter(active.x, active.y);
-      const pulse = 0.75 + Math.sin(this.time * 4) * 0.25;
-      const glowColor = active.side === "enemy" ? "230,120,90" : "255,215,140";
-      ctx.save();
-      ctx.shadowColor = `rgba(${glowColor},${0.9 * pulse})`;
-      ctx.shadowBlur = tile * 0.7 * pulse;
-      ctx.strokeStyle = `rgba(${glowColor},${0.95 * pulse})`;
-      ctx.lineWidth = Math.max(2, tile * 0.09);
-      this.hexPath(ctx, cx, cy, tile * 0.94);
-      ctx.stroke();
-      ctx.restore();
-    }
 
     // Every selectable area (walkable ground, spell range, an aimed AoE) gets the same
     // treatment: a soft colored glow plus a bright rim, on top of the flat fill — the flat
@@ -3552,6 +3538,27 @@ export class BattleEngine {
         const foe = this.units.find((u) => u.id === this.pendingFoeId);
         if (foe) overlay(footprint(foe), "rgba(181,74,50,0.55)");
       }
+    }
+
+    // Whose turn it is, drawn last (after the walkable/attack overlays above) so it's never
+    // washed out underneath them — the active unit always stands on its own reach overlay,
+    // and a thin ring alone got lost under that blue fill. A full golden hex fill, not just
+    // a rim, per direct feedback ("the whole hex must get golden").
+    const active = this.activeTurnUnit();
+    if (active) {
+      const { cx, cy } = this.hexCenter(active.x, active.y);
+      const pulse = 0.75 + Math.sin(this.time * 4) * 0.25;
+      const glowColor = active.side === "enemy" ? "230,120,90" : "255,215,140";
+      ctx.save();
+      ctx.shadowColor = `rgba(${glowColor},${0.9 * pulse})`;
+      ctx.shadowBlur = tile * 0.7 * pulse;
+      ctx.fillStyle = `rgba(${glowColor},${(0.34 + 0.18 * pulse).toFixed(3)})`;
+      ctx.strokeStyle = `rgba(${glowColor},${0.95 * pulse})`;
+      ctx.lineWidth = Math.max(2, tile * 0.09);
+      this.hexPath(ctx, cx, cy, tile * 0.94);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     }
 
     const cur = this.hover ?? this.cursor;
