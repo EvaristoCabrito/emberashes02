@@ -1219,6 +1219,32 @@ export const PIERCING = {
   dmgMul: 2,
 };
 
+/** Lancer tier 1: a short-reach line thrust (weapon range + 1 hex) that ignores a slice of
+ * the target's armor and hits everyone caught in the line — 1st target full damage, every
+ * one behind it half. */
+export const PIERCING_THRUST = {
+  name: "Investida Perfurante",
+  armorIgnore: 0.2,
+};
+
+/** Lancer tier 2: an instant, unaimed swing that hits every enemy on an adjacent hex for
+ * plain weapon damage and shoves each one back a hex to reopen reach. */
+export const SWEEP = {
+  name: "Varredura",
+  knockback: 1,
+};
+
+/** Lancer tier 3: a single-target hook-the-legs strike — weapon damage + 1D8, stuns for 2 of
+ * the target's own turns, and knocks 10% off every stat for the rest of the battle (not
+ * cured by anything, unlike Doente). */
+export const TRIP = {
+  name: "Rasteira",
+  bonusFaces: 8,
+  bonusBonus: 0,
+  stunRounds: 2,
+  statPenalty: 0.1,
+};
+
 export const DOUBLE_STRIKE = {
   name: "Corte Duplo",
 };
@@ -1466,10 +1492,13 @@ export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
   longShot: 1,
   cureMinor: 1,
   doubleStrike: 1,
+  piercingThrust: 1,
   lightning: 2,
   piercing: 2,
   cureWounds: 2,
   cleave: 2,
+  sweep: 2,
+  trip: 3,
   fireball: 3,
   cureDisease: 3,
   causticVenom: 4,

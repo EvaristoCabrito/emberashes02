@@ -62,7 +62,20 @@ export type ClassId =
   | "templar";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "malrec" | "aldric" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
-export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "magicMissile" | "causticVenom" | "doubleStrike" | "cleave" | "cureDisease";
+export type SpellKind =
+  | "fireball"
+  | HealId
+  | "longShot"
+  | "piercing"
+  | "lightning"
+  | "magicMissile"
+  | "causticVenom"
+  | "doubleStrike"
+  | "cleave"
+  | "cureDisease"
+  | "piercingThrust"
+  | "sweep"
+  | "trip";
 export type ScreenId = "boot" | "title" | "campaign" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitOffHand" | "awaitSpell" | "locked";
@@ -229,6 +242,13 @@ export interface Unit {
   poisoned: boolean;
   /** Shield Bash victim: loses their entire next turn, then clears automatically. */
   stunned: boolean;
+  /** How many of this unit's own upcoming turns `stunned` still eats — Shield Bash sets this
+   * to 1, Trip (Lancer tier 3) to 2. Decremented each time it costs a turn; `stunned` only
+   * clears once this reaches 0. */
+  stunTurns: number;
+  /** Trip (Lancer tier 3) victim: a permanent (this battle) −10% to ATK/MAG/DEF/RES/MOV,
+   * applied once and never restored — unlike `diseased`, nothing cures it. */
+  crippled: boolean;
   /** Equipped off-hand EquipmentDef id (kind "weapon" or "shield"), or null. */
   offHandId: string | null;
 }
@@ -264,6 +284,7 @@ export interface UnitPublic {
   diseased: boolean;
   poisoned: boolean;
   stunned: boolean;
+  crippled: boolean;
   offHandId: string | null;
 }
 

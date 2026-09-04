@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, PIERCING_THRUST, MAX_LEVEL, MISSIONS, POTIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, SWEEP, TRIP, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -140,6 +140,8 @@ function classSpells(classId: ClassId): SpellKind[] {
       return ["longShot", "piercing"];
     case "healer":
       return ["cureMinor", "cureWounds", "cureDisease"];
+    case "lancer":
+      return ["piercingThrust", "sweep", "trip"];
     default:
       return [];
   }
@@ -197,6 +199,14 @@ function slotIcon(action: SlotAction): string {
       return "/game/icons/cure-wounds.png?v=5";
     case "cureDisease":
       return "/game/icons/cure-minor.png?v=5";
+    // Lancer's kit has no dedicated art yet — borrowed placeholders, distinct from each
+    // other within Aldric's own hotbar even though they overlap other classes' icons.
+    case "piercingThrust":
+      return "/game/icons/piercing.png?v=3";
+    case "sweep":
+      return "/game/icons/cleave-crossed-blades.png";
+    case "trip":
+      return "/game/icons/cleave.png";
   }
 }
 
@@ -225,6 +235,12 @@ function slotLabel(action: SlotAction): string {
       return CURES.cureWounds.name;
     case "cureDisease":
       return CURE_DISEASE.name;
+    case "piercingThrust":
+      return PIERCING_THRUST.name;
+    case "sweep":
+      return SWEEP.name;
+    case "trip":
+      return TRIP.name;
   }
 }
 
@@ -2372,6 +2388,15 @@ function BattleScreen({
       case "cureDisease":
         engine.startCureDisease();
         break;
+      case "piercingThrust":
+        engine.startPiercingThrust();
+        break;
+      case "sweep":
+        engine.startSweep();
+        break;
+      case "trip":
+        engine.startTrip();
+        break;
     }
   }
 
@@ -2816,6 +2841,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
   const healer = base === "healer";
   const archer = base === "archer";
   const swordsman = base === "swordsman";
+  const lancer = base === "lancer";
 
   return (
     <div
@@ -2990,6 +3016,32 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                           <img src="/game/icons/cure-minor.png?v=5" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                           <p className="text-xs truncate">
                             {CURE_DISEASE.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("cureDisease")!)]}</span>
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {lancer && (
+                    <>
+                      <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                        <img src="/game/icons/piercing.png?v=3" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                        <p className="text-xs truncate">
+                          {PIERCING_THRUST.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("piercingThrust")!)]}</span>
+                        </p>
+                      </div>
+                      {unit.spells[tierKey(spellTier("sweep")!)] > 0 && (
+                        <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                          <img src="/game/icons/cleave-crossed-blades.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <p className="text-xs truncate">
+                            {SWEEP.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("sweep")!)]}</span>
+                          </p>
+                        </div>
+                      )}
+                      {unit.spells[tierKey(spellTier("trip")!)] > 0 && (
+                        <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                          <img src="/game/icons/cleave.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <p className="text-xs truncate">
+                            {TRIP.name} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("trip")!)]}</span>
                           </p>
                         </div>
                       )}

@@ -222,6 +222,19 @@ export const sfxPlay = {
     beep(880, 0.06, "triangle", 0.2);
     setTimeout(() => beep(1180, 0.09, "triangle", 0.18), 70);
   },
+  thrust: () => {
+    noise(0.05, 0.16);
+    beep(260, 0.09, "sawtooth", 0.2, 260);
+  },
+  sweep: () => {
+    beep(180, 0.16, "sawtooth", 0.2, 90);
+    noise(0.12, 0.22);
+  },
+  trip: () => {
+    noise(0.09, 0.24);
+    beep(160, 0.2, "square", 0.2, -140);
+    setTimeout(() => beep(90, 0.18, "sawtooth", 0.18, -60), 90);
+  },
 };
 
 let introEl: HTMLAudioElement | null = null;

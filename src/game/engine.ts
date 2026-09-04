@@ -1,4 +1,4 @@
-import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, POTION_CARRY_MAX, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, PIERCING_THRUST, POTION_CARRY_MAX, POTIONS, SWEEP, TRIP, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -8,7 +8,9 @@ import {
   computeReachable,
   computeThreat,
   cleaveHexes,
+  cubeAdd,
   cubeRound,
+  cubeToOddr,
   footprint,
   footprintFrontRow,
   hexNeighbors,
@@ -19,6 +21,7 @@ import {
   manhattan,
   occupancy,
   occupies,
+  oddrToCube,
   piercingLine,
   shotKind,
   allAxisRays,
@@ -227,6 +230,7 @@ function pub(u: Unit): UnitPublic {
     diseased: u.diseased,
     poisoned: u.poisoned,
     stunned: u.stunned,
+    crippled: u.crippled,
     offHandId: u.offHandId,
   };
 }
@@ -339,6 +343,8 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     diseaseBase: null,
     poisoned: false,
     stunned: false,
+    stunTurns: 0,
+    crippled: false,
     offHandId,
   };
 }
@@ -873,6 +879,7 @@ export class BattleEngine {
         }
         if (a.stage === "hit" && a.stunChance > 0 && this.rng() < a.stunChance) {
           target.stunned = true;
+          target.stunTurns = 1;
           sfxPlay.stun();
         }
         target.hp = Math.max(0, target.hp - hit.dmg);
@@ -893,6 +900,20 @@ export class BattleEngine {
         } else {
           sfxPlay.hit();
           if (a.stage === "hit") this.maybeInflictDisease(actor, target);
+          if (a.stage === "hit" && a.spellKind === "trip") {
+            target.stunned = true;
+            target.stunTurns = TRIP.stunRounds;
+            if (!target.crippled) {
+              target.crippled = true;
+              const keep = 1 - TRIP.statPenalty;
+              target.atk = Math.round(target.atk * keep);
+              target.mag = Math.round(target.mag * keep);
+              target.def = Math.round(target.def * keep);
+              target.res = Math.round(target.res * keep);
+              target.mov = Math.max(1, Math.round(target.mov * keep));
+            }
+            sfxPlay.trip();
+          }
         }
         if (!this.reducedMotion) this.trauma = Math.min(1, this.trauma + 0.28);
         this.hitstop = 0.06;
@@ -943,6 +964,9 @@ export class BattleEngine {
       // that in the same cast grants half — hitting a whole group shouldn't out-earn
       // picking them off one at a time, but the first one still counts fully.
       let firstAoeEnemyHit = true;
+      // Piercing Thrust: front-to-back falloff along the line — the first body it hits eats
+      // the full hit, everyone skewered behind them takes half.
+      let thrustHitIndex = 0;
       for (const id of a.ids) {
         const foe = this.units.find((u) => u.id === id && u.alive);
         if (!foe) continue;
@@ -976,6 +1000,19 @@ export class BattleEngine {
           dmg = rollDice(a.extraDice, a.extraFaces, a.extraBonus, this.rng);
           if (a.moreDice > 0) dmg += rollDice(a.moreDice, a.moreFaces, 0, this.rng);
           dmg = Math.max(1, dmg - foe.res + attTile.atk - (defTile.cover ?? 0));
+        } else if (a.spellKind === "piercingThrust") {
+          // Armor-piercing: the defender's DEF is treated as 20% lower for this hit only.
+          const softened = { ...foe, def: Math.max(0, Math.floor(foe.def * (1 - PIERCING_THRUST.armorIgnore))) };
+          const hit = rollDamage(
+            att,
+            softened,
+            tileAt(this.tiles, this.cols, att.x, att.y),
+            tileAt(this.tiles, this.cols, foe.x, foe.y),
+            this.rng,
+          );
+          dmg = thrustHitIndex === 0 ? hit.dmg : Math.max(1, Math.floor(hit.dmg * 0.5));
+          crit = hit.crit;
+          thrustHitIndex++;
         } else {
           const hit = rollDamage(
             att,
@@ -999,7 +1036,13 @@ export class BattleEngine {
           // Black Mage / Conjurer finishing an enemy off with one of their own single-target
           // spells (Magic Missile, Lightning) doubles the XP from that kill — never for AoE/line
           // spells, where only the first enemy hit grants full XP and the rest grant half.
-          const isAoeSpell = a.spellKind === "fireball" || a.spellKind === "cleave" || a.spellKind === "piercing" || a.spellKind === "causticVenom";
+          const isAoeSpell =
+            a.spellKind === "fireball" ||
+            a.spellKind === "cleave" ||
+            a.spellKind === "piercing" ||
+            a.spellKind === "causticVenom" ||
+            a.spellKind === "piercingThrust" ||
+            a.spellKind === "sweep";
           const xpMul =
             foe.hp <= 0 && !isAoeSpell && (att.classId === "mage" || att.classId === "conjurer")
               ? 2
@@ -1016,6 +1059,7 @@ export class BattleEngine {
         } else {
           sfxPlay.hit();
           if (a.echo) foe.shock = { ...a.echo };
+          if (a.spellKind === "sweep") this.knockBack(att, foe);
         }
       }
       if (!this.reducedMotion) this.trauma = Math.min(1, this.trauma + 0.45);
@@ -1681,6 +1725,52 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startPiercingThrust(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "piercingThrust") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "piercingThrust";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${PIERCING_THRUST.name}: reta curta, ignora ${Math.round(PIERCING_THRUST.armorIgnore * 100)}% da defesa. 1º alvo dano cheio, os demais metade.`;
+    sfxPlay.ui();
+  }
+
+  /** Sweep (Lancer tier 2) needs no target — it always hits every enemy on an adjacent hex
+   * and resolves immediately, same as Esperar/Arrombar rather than the aim-then-Lançar flow
+   * every other spell uses. */
+  startSweep(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "sweep") <= 0) return;
+    const tiles = hexNeighbors(u.x, u.y);
+    const ids: string[] = [];
+    for (const t of tiles) {
+      const who = this.units.find((x) => x.alive && occupies(x, t.x, t.y));
+      if (who && who.id !== u.id && who.side !== u.side && !ids.includes(who.id)) ids.push(who.id);
+    }
+    this.spendTier(u, "sweep");
+    this.spellKind = null;
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.tip = null;
+    this.mode = "locked";
+    this.queue.push({ type: "spell", att: u.id, tiles, ids, label: SWEEP.name, spellKind: "sweep" });
+    sfxPlay.sweep();
+  }
+
+  startTrip(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "trip") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "trip";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${TRIP.name}: dano da arma + ${diceFormula(1, TRIP.bonusFaces, TRIP.bonusBonus)}, atordoa por ${TRIP.stunRounds} turnos e reduz stats em ${Math.round(TRIP.statPenalty * 100)}% até o fim do combate. Toque no inimigo.`;
+    sfxPlay.ui();
+  }
+
   confirmSpell(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
     const cell = this.hover;
@@ -1699,6 +1789,14 @@ export class BattleEngine {
     }
     if (this.spellKind === "piercing") {
       this.castPiercing(u, cell);
+      return;
+    }
+    if (this.spellKind === "piercingThrust") {
+      this.castPiercingThrust(u, cell);
+      return;
+    }
+    if (this.spellKind === "trip") {
+      this.castTrip(u, cell);
       return;
     }
     if (this.spellKind === "lightning") {
@@ -1721,6 +1819,7 @@ export class BattleEngine {
       this.castCureDisease(u, cell);
       return;
     }
+    if (this.spellKind === "sweep") return; // instant, resolved by startSweep — never reaches here
     this.castHeal(u, cell, this.spellKind);
   }
 
@@ -1793,6 +1892,7 @@ export class BattleEngine {
       return clearShot(caster, cell, this.tiles, this.cols, "arrow");
     }
     if (this.spellKind === "piercing") return this.piercingRay(caster, cell) !== null;
+    if (this.spellKind === "piercingThrust") return this.piercingThrustRay(caster, cell) !== null;
     if (this.spellKind === "lightning") {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
       if (!here || !here.alive || here.side !== "enemy" || manhattan(caster, cell) > LIGHTNING.range) return false;
@@ -1803,7 +1903,7 @@ export class BattleEngine {
       if (!here || !here.alive || here.side !== "enemy" || manhattan(caster, cell) > MAGIC_MISSILE.range) return false;
       return clearShot(caster, cell, this.tiles, this.cols, "bolt");
     }
-    if (this.spellKind === "doubleStrike") {
+    if (this.spellKind === "doubleStrike" || this.spellKind === "trip") {
       const here = occupancy(this.units).get(key(cell.x, cell.y));
       return !!here && here.alive && here.side !== caster.side && canHitFrom(caster, caster, here, this.tiles, this.cols);
     }
@@ -1826,6 +1926,46 @@ export class BattleEngine {
       out.push(p);
     }
     return out.length ? out : null;
+  }
+
+  /** Piercing Thrust (Lancer tier 1): the same straight-line traversal as Piercing, capped
+   * to the caster's own weapon reach + 1 hex — a short lunge, not an arrow flying the length
+   * of the board. */
+  private piercingThrustRay(caster: Unit, through: Point): Point[] | null {
+    const raw = this.piercingRay(caster, through);
+    if (!raw) return null;
+    const capped = raw.slice(0, caster.maxRange + 1);
+    return capped.length ? capped : null;
+  }
+
+  /** Sweep (Lancer tier 2): shoves `foe` one hex further along the line from `att` through
+   * `foe`, silently doing nothing if that hex is off the board, impassable, or already
+   * occupied — a blocked shove just fails, it never displaces someone else instead. */
+  private knockBack(att: Unit, foe: Unit): void {
+    const from = oddrToCube(att.x, att.y);
+    const at = oddrToCube(foe.x, foe.y);
+    const dir = { q: at.q - from.q, r: at.r - from.r, s: at.s - from.s };
+    const pushed = cubeAdd(at, dir);
+    const dest = cubeToOddr(pushed.q, pushed.r);
+    if (!inBounds(dest.x, dest.y, this.cols, this.rows)) return;
+    if (!TERRAIN[tileAt(this.tiles, this.cols, dest.x, dest.y)].passable) return;
+    if (this.units.some((u) => u.alive && occupies(u, dest.x, dest.y))) return;
+    foe.x = dest.x;
+    foe.y = dest.y;
+    foe.drawX = dest.x;
+    foe.drawY = dest.y;
+    this.emitParticle({
+      x: foe.drawX,
+      y: foe.drawY + 0.3,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      max: 0.35,
+      size: 1,
+      color: "#c9b28a",
+      kind: "impact",
+      frame: 0,
+    });
   }
 
   private validHealTarget(caster: Unit, cell: Point): boolean {
@@ -1952,6 +2092,26 @@ export class BattleEngine {
     this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING.name, dmgMul: PIERCING.dmgMul, spellKind: "piercing" });
   }
 
+  private castPiercingThrust(unit: Unit, cell: Point): void {
+    const line = this.piercingThrustRay(unit, cell);
+    if (!line) {
+      this.tip = "Escolha uma reta na frente.";
+      sfxPlay.ui();
+      return;
+    }
+    const ids: string[] = [];
+    for (const t of line) {
+      const who = this.units.find((x) => x.alive && occupies(x, t.x, t.y));
+      if (who && who.id !== unit.id && !ids.includes(who.id)) ids.push(who.id);
+    }
+    this.spendTier(unit, "piercingThrust");
+    this.spellKind = null;
+    this.tip = null;
+    this.mode = "locked";
+    sfxPlay.thrust();
+    this.queue.push({ type: "spell", att: unit.id, tiles: line, ids, label: PIERCING_THRUST.name, spellKind: "piercingThrust" });
+  }
+
   private castLightning(unit: Unit, cell: Point): void {
     if (!this.spellAimValid(unit, cell)) {
       this.tip = "Alvo fora de alcance.";
@@ -2020,6 +2180,30 @@ export class BattleEngine {
     this.mode = "locked";
     this.queue.push({ type: "combat", att: unit.id, def: foe.id, noCounter: true });
     this.queue.push({ type: "combat", att: unit.id, def: foe.id });
+  }
+
+  private castTrip(unit: Unit, cell: Point): void {
+    if (!this.spellAimValid(unit, cell)) {
+      this.tip = "Toque no inimigo.";
+      sfxPlay.ui();
+      return;
+    }
+    const occ = occupancy(this.units);
+    const foe = occ.get(key(cell.x, cell.y));
+    if (!foe) return;
+    this.spendTier(unit, "trip");
+    this.spellKind = null;
+    this.tip = null;
+    this.mode = "locked";
+    this.queue.push({
+      type: "combat",
+      att: unit.id,
+      def: foe.id,
+      noCounter: true,
+      bonusDice: TRIP.bonusFaces,
+      bonusFlat: TRIP.bonusBonus,
+      spellKind: "trip",
+    });
   }
 
   private castCleave(unit: Unit, cell: Point): void {
@@ -2238,7 +2422,8 @@ export class BattleEngine {
       return;
     }
     if (u.stunned) {
-      u.stunned = false;
+      u.stunTurns = Math.max(0, u.stunTurns - 1);
+      u.stunned = u.stunTurns > 0;
       u.moved = true;
       u.acted = true;
       this.tip = `${u.name} está atordoado(a) — perde o turno.`;
@@ -3020,7 +3205,12 @@ export class BattleEngine {
         const cell = this.hover ?? this.spellAim;
         const line = cell ? this.piercingRay(selected, cell) : null;
         if (line) overlay(line, "rgba(196,120,50,0.55)");
-      } else if (selected && this.spellKind === "doubleStrike") {
+      } else if (selected && this.spellKind === "piercingThrust") {
+        overlay(this.healRangeTiles(selected, selected.maxRange + 1), "rgba(180,120,60,0.28)");
+        const cell = this.hover ?? this.spellAim;
+        const line = cell ? this.piercingThrustRay(selected, cell) : null;
+        if (line) overlay(line, "rgba(220,150,70,0.55)");
+      } else if (selected && (this.spellKind === "doubleStrike" || this.spellKind === "trip")) {
         overlay(this.healRangeTiles(selected, selected.maxRange), "rgba(160,90,50,0.3)");
         const cell = this.hover ?? this.spellAim;
         if (cell && this.spellAimValid(selected, cell)) overlay([cell], "rgba(196,90,50,0.55)");
