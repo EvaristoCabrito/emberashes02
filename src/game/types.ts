@@ -22,6 +22,9 @@ export interface Spells {
   tier10: number;
 }
 
+export const TIER_KEYS = ["tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7", "tier8", "tier9", "tier10"] as const;
+export type TierKey = (typeof TIER_KEYS)[number];
+
 export type TerrainId = "plains" | "woods" | "ruins" | "water" | "ember" | "hill" | "flame" | "column" | "nave" | "barricade" | "highwood" | "highruin" | "chest" | "door" | "deadtree" | "void";
 export type Side = "player" | "enemy";
 export type ClassId =
@@ -443,6 +446,12 @@ export interface SaveData {
    * lands here first (never auto-equipped onto whoever found it); the player assigns it to
    * a hero from the Paperdoll picker, same as the weapon pool already works. */
   looseEquipment: Record<string, number>;
+  /** Hero name → tier key → spell uses spent so far in the current scenario (a world-map
+   * location's whole run of missions) — carried between missions within one location so
+   * charges don't refill until that scenario ends. Cleared back to {} whenever a mission
+   * starts a fresh scenario (see startBattle in GameApp.tsx); Stone Bridge always resets,
+   * being the tutorial. */
+  spellUses: Record<string, Partial<Record<TierKey, number>>>;
   ember: number;
   emberSeeded: boolean;
   muted: boolean;

@@ -1,4 +1,5 @@
-import type { Bag, ClassDef, ClassId, DecorationDef, DecorationPlacement, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, Unit, WeaponDef, WorldLocation } from "./types";
+import { TIER_KEYS } from "./types";
+import type { Bag, ClassDef, ClassId, DecorationDef, DecorationPlacement, EquipmentDef, EquipSlot, HealId, Mission, PotionId, SpellKind, TerrainDef, TerrainId, TierKey, Unit, WeaponDef, WorldLocation } from "./types";
 
 export const TERRAIN: Record<TerrainId, TerrainDef> = {
   plains: { id: "plains", name: "Planície", moveCost: 1, def: 0, atk: 0, passable: true },
@@ -1446,9 +1447,6 @@ export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
 export function spellTier(kind: SpellKind): SpellTier | null {
   return SPELL_TIER[kind] ?? null;
 }
-
-export const TIER_KEYS = ["tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7", "tier8", "tier9", "tier10"] as const;
-export type TierKey = (typeof TIER_KEYS)[number];
 
 export function tierKey(tier: SpellTier): TierKey {
   return TIER_KEYS[tier - 1];

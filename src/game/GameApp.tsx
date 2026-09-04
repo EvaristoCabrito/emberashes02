@@ -367,7 +367,14 @@ export function GameApp() {
               .filter((entry): entry is [string, string] => !!entry[1]),
           );
       const ownedWeaponIds = testMode ? undefined : Object.keys(save.weapons);
-      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, offHand, enemyLevels, ownedWeaponIds }, Date.now() % 100000);
+      // Spell tier uses don't refill between missions within the same world-map location's
+      // run (a "scenario") — only once the whole scenario is done, per direct instruction.
+      // Stone Bridge (the tutorial) always resets, and so does the very first mission of any
+      // scenario (nothing to carry over yet).
+      const loc = locationForMission(m.id);
+      const scenarioStart = !loc || loc.id === "stonebridge" || loc.missionIds.every((mid) => !save.completed.includes(mid));
+      const spellSpent = testMode || scenarioStart ? undefined : save.spellUses;
+      const battle = new BattleEngine(m, art, { hp, levels, bags, promotions, weapons, offHand, enemyLevels, ownedWeaponIds, spellSpent }, Date.now() % 100000);
       if (typeof window !== "undefined" && window.innerWidth < 720) battle.zoom = 0;
       awardedRef.current = null;
       setEngine(battle);
@@ -492,6 +499,10 @@ export function GameApp() {
         xp,
         weapons,
         looseEquipment,
+        // engine.spentTiers() already reflects the full scenario-cumulative total (it was
+        // seeded from save.spellUses at battle start unless this mission reset the
+        // scenario) — a straight overwrite, not a merge.
+        spellUses: engine.spentTiers(),
         ember: (save.ember ?? 0) + loot + engine.lootEmber,
         emberSeeded: true,
         muted,

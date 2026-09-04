@@ -1,5 +1,6 @@
 import { EQUIPMENT, EXP_TO_LEVEL, MAX_LEVEL, MISSIONS, PROMOTIONS, WEAPONS, emberFromCompleted, starterWeaponFor, startingBags } from "./data";
-import type { Bag, ClassId, EquipSlot, SaveBank, SaveData } from "./types";
+import { TIER_KEYS } from "./types";
+import type { Bag, ClassId, EquipSlot, SaveBank, SaveData, TierKey } from "./types";
 
 export const SLOT_COUNT = 5;
 export const SAVE_VERSION = 10;
@@ -141,6 +142,22 @@ function cleanLooseEquipment(raw: unknown): Record<string, number> {
   return out;
 }
 
+function cleanSpellUses(raw: unknown): Record<string, Partial<Record<TierKey, number>>> {
+  const out: Record<string, Partial<Record<TierKey, number>>> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [hero, tiers] of Object.entries(raw as Record<string, unknown>)) {
+    if (!HEROES.includes(hero as (typeof HEROES)[number]) || !tiers || typeof tiers !== "object") continue;
+    const cleanTiers: Partial<Record<TierKey, number>> = {};
+    for (const [key, v] of Object.entries(tiers as Record<string, unknown>)) {
+      if (!TIER_KEYS.includes(key as TierKey)) continue;
+      const n = clampInt(v, 0, 99);
+      if (n > 0) cleanTiers[key as TierKey] = n;
+    }
+    if (Object.keys(cleanTiers).length > 0) out[hero] = cleanTiers;
+  }
+  return out;
+}
+
 function cleanHp(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, number> = {};
@@ -178,6 +195,7 @@ export function emptySave(muted = false): SaveData {
     ...starterEquipment(),
     equipment: {},
     looseEquipment: {},
+    spellUses: {},
     ember: 0,
     emberSeeded: true,
     muted,
@@ -250,6 +268,7 @@ function migrateRecord(raw: Record<string, unknown>, muted: boolean): SaveData {
     equipped,
     equipment: cleanEquipment(raw.equipment),
     looseEquipment: cleanLooseEquipment(raw.looseEquipment),
+    spellUses: cleanSpellUses(raw.spellUses),
     ember,
     emberSeeded,
     muted: raw.muted === true || muted,

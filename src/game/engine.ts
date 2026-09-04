@@ -43,6 +43,7 @@ import type {
   PotionId,
   SpellKind,
   TerrainId,
+  TierKey,
   Unit,
   UnitPublic,
 } from "./types";
@@ -249,6 +250,22 @@ interface Roster {
   /** Every weapon id already in the player's save — chest and kill-drop loot rolls exclude
    * these so a drop never announces a weapon the player already has. */
   ownedWeaponIds?: string[];
+  /** Hero name → tier key → spell uses already spent so far this scenario (a world-map
+   * location's whole run of missions) — carried in from the previous mission(s) so spell
+   * charges don't refill until the scenario ends, per direct instruction. Undefined/omitted
+   * means "reset to full," used for a scenario's first mission and for Stone Bridge, which
+   * always resets (it's the tutorial). See GameApp.tsx's startBattle for who computes this. */
+  spellSpent?: Record<string, Partial<Record<TierKey, number>>>;
+}
+
+/** Remaining uses for one spell tier at spawn — the class/level cap minus whatever the
+ * roster says this hero already spent so far this scenario (see Roster.spellSpent), never
+ * below 0. Always 0 for enemies, matching the previous unconditional side-check inline. */
+function remainingTier(classId: ClassId, tier: SpellTier, key: TierKey, level: number, side: Unit["side"], roster: Roster | undefined, name: string): number {
+  if (side !== "player") return 0;
+  const cap = tierUses(classId, tier, level);
+  const spent = roster?.spellSpent?.[name]?.[key] ?? 0;
+  return Math.max(0, cap - spent);
 }
 
 function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i: number, roster?: Roster, enemyLevel = 1): Unit {
@@ -300,16 +317,16 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     xp: side === "player" ? (roster?.xp?.[spawn.name] ?? 0) : 0,
     bag: side === "player" ? { ...(roster?.bags?.[spawn.name] ?? (cls.id === "healer" ? EMPTY_BAG : STARTING_BAG)) } : { ...EMPTY_BAG },
     spells: {
-      tier1: side === "player" ? tierUses(cls.id, 1, level) : 0,
-      tier2: side === "player" ? tierUses(cls.id, 2, level) : 0,
-      tier3: side === "player" ? tierUses(cls.id, 3, level) : 0,
-      tier4: side === "player" ? tierUses(cls.id, 4, level) : 0,
-      tier5: side === "player" ? tierUses(cls.id, 5, level) : 0,
-      tier6: side === "player" ? tierUses(cls.id, 6, level) : 0,
-      tier7: side === "player" ? tierUses(cls.id, 7, level) : 0,
-      tier8: side === "player" ? tierUses(cls.id, 8, level) : 0,
-      tier9: side === "player" ? tierUses(cls.id, 9, level) : 0,
-      tier10: side === "player" ? tierUses(cls.id, 10, level) : 0,
+      tier1: remainingTier(cls.id, 1, "tier1", level, side, roster, spawn.name),
+      tier2: remainingTier(cls.id, 2, "tier2", level, side, roster, spawn.name),
+      tier3: remainingTier(cls.id, 3, "tier3", level, side, roster, spawn.name),
+      tier4: remainingTier(cls.id, 4, "tier4", level, side, roster, spawn.name),
+      tier5: remainingTier(cls.id, 5, "tier5", level, side, roster, spawn.name),
+      tier6: remainingTier(cls.id, 6, "tier6", level, side, roster, spawn.name),
+      tier7: remainingTier(cls.id, 7, "tier7", level, side, roster, spawn.name),
+      tier8: remainingTier(cls.id, 8, "tier8", level, side, roster, spawn.name),
+      tier9: remainingTier(cls.id, 9, "tier9", level, side, roster, spawn.name),
+      tier10: remainingTier(cls.id, 10, "tier10", level, side, roster, spawn.name),
     },
     weaponId: weapon?.id ?? null,
     weaponEnh: weapon?.enh ?? 0,
@@ -585,6 +602,25 @@ export class BattleEngine {
     for (const u of this.units) {
       if (u.side !== "player") continue;
       out[u.name] = { ...u.bag };
+    }
+    return out;
+  }
+
+  /** Hero name → tier key → spell uses spent so far this scenario, for persisting into
+   * save.spellUses (see Roster.spellSpent) — recomputed as the current class/level cap
+   * minus whatever's left, so a level-up mid-battle naturally reflects the bigger cap
+   * instead of needing its own bookkeeping. */
+  spentTiers(): Record<string, Partial<Record<TierKey, number>>> {
+    const out: Record<string, Partial<Record<TierKey, number>>> = {};
+    for (const u of this.units) {
+      if (u.side !== "player") continue;
+      const perTier: Partial<Record<TierKey, number>> = {};
+      for (let t = 1; t <= 10; t++) {
+        const key = tierKey(t as SpellTier);
+        const cap = tierUses(u.classId, t as SpellTier, u.level);
+        perTier[key] = Math.max(0, cap - u.spells[key]);
+      }
+      out[u.name] = perTier;
     }
     return out;
   }
