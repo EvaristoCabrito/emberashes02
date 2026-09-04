@@ -2077,7 +2077,7 @@ const RAW_MISSIONS: Mission[] = [
     objective: "Derrote todos os inimigos",
     win: "rout",
     cols: 13,
-    rows: 15,
+    rows: 9,
     layout: [
       "ccccccccccccc",
       "cnnnnnnnnnnnc",
@@ -2086,22 +2086,16 @@ const RAW_MISSIONS: Mission[] = [
       "cncnnncnnncnc",
       "cnnnnnnnnnnnc",
       "cnnncnnncnnnc",
+      "nnnnnnnnnnnnc",
       "cnnnnnnnnnnnc",
-      "cnnnnnnnnnnnc",
-      "cccccoccccccc",
-      "cccccnccccccc",
-      "cccccnccccccc",
-      "cccccnccccccc",
-      "ccccckccccccc",
-      "ccccccccccccc",
     ],
-    // Exactly one door (never more, direct instruction) opening onto a single one-wide
-    // corridor with the chest at its true dead end, not partway into a room — a straight
-    // shot down, nothing to get lost in. The chest sealed behind it — see betterChests
-    // below — rolls noticeably better than a normal one; hasAuthoredChest (see
-    // decorateOpenTerrain) skips the usual auto-sprinkle on this map since it already
-    // places its own.
-    betterChests: [{ x: 5, y: 13 }],
+    // No locked door/chest room on this map — dropped per direct instruction. Row 7's open
+    // west wall (the "n" where every other row has "c") is the entrance the party actually
+    // walked in through — non-functional (it doesn't lead anywhere off-map, there's nowhere
+    // for it to lead), but a dungeon needs a visible way in for the room to read as coherent
+    // rather than a sealed box the party spawned inside of. The map's own normal chest
+    // auto-sprinkle (see decorateOpenTerrain/placeChests) still applies here same as any
+    // other mission, capped at 1 for a map this size.
     playerSpawns: [
       { name: "Kael", classId: "swordsman", x: 5, y: 7 },
       { name: "Neera", classId: "archer", x: 4, y: 7 },
@@ -2468,6 +2462,11 @@ function seedFromId(id: string): number {
 
 const TREE_DECOS = ["dense-forest", "dead-tree-large"];
 const RUIN_DECOS = ["ruined-cottage", "broken-tower", "ruined-chapel", "broken-wall-segment", "boulder-cluster", "abandoned-mansion"];
+// Fallback dressing for an indoor/underground map (floorChar "n") with nothing of its own to
+// convert — no trees, no buildings, just loose rock. The buildings in RUIN_DECOS also read as
+// extra doorways/entrances when scattered around a cave, easy to mistake for actual lockable
+// doors on top of it looking wrong on its own.
+const INDOOR_DECOS = ["boulder-cluster"];
 const CONVERT_TO_OPEN = new Set(["w", "r"]);
 const KEEP_HOST = new Set([".", "h", "f", "n"]);
 
@@ -2679,7 +2678,10 @@ function decorateOpenTerrain(mission: Mission): Mission {
 
   // A map with no wood/ruin clutter to begin with got zero decorations above — cap is 0
   // when there's nothing to convert. Top it up straight onto open ground so every map ends
-  // up dressed, not just the ones that already had funky tiles to work with.
+  // up dressed, not just the ones that already had funky tiles to work with. Indoor/
+  // underground maps (floorChar "n" — see its own doc comment above) never get trees or
+  // buildings out of this fallback pool, direct feedback: "there are never houses inside a
+  // cave" — just loose rock clutter, which reads fine anywhere.
   if (placedTrees + placedRuins < 3) {
     const openGround: Cell[] = [];
     for (let y = 0; y < rows; y++) {
@@ -2693,7 +2695,7 @@ function decorateOpenTerrain(mission: Mission): Mission {
       const j = Math.floor(rng() * (i + 1));
       [openGround[i], openGround[j]] = [openGround[j]!, openGround[i]!];
     }
-    const pool = [...TREE_DECOS, ...RUIN_DECOS];
+    const pool = floorChar === "n" ? INDOOR_DECOS : [...TREE_DECOS, ...RUIN_DECOS];
     let placed = 0;
     const budget = 4;
     for (const anchor of openGround) {
