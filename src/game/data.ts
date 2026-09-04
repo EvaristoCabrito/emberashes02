@@ -2102,13 +2102,16 @@ const RAW_MISSIONS: Mission[] = [
       { name: "Voss", classId: "mage", x: 6, y: 7 },
       { name: "Salazar", classId: "healer", x: 7, y: 7 },
     ],
-    // Ember Starved sits at the back (y:2, the row farthest from the y:7 entrance the
-    // cultist that used to be here moved down to y:5 to make room) — the party has to
-    // fight through the rest of the room to reach it, not run into it turn 1.
+    // Ember Starved is size:4 with FOOTPRINT_TYPE_8, which extends 3 rows above its own
+    // anchor tile — y:1 (tried earlier) pushed part of that footprint to negative y, off
+    // the map entirely, which is why it wasn't rendering/showing up at all rather than just
+    // looking wrong. y:3 keeps the whole footprint in bounds (top edge lands exactly on the
+    // y:0 border row, same as the two trolls at y:6 do lower down) while still sitting
+    // noticeably deeper than them (distance 4 from the y:7 entrance vs. their 1).
     enemySpawns: [
       { name: "Feiticeiro", classId: "cultist", x: 3, y: 1 },
       { name: "Feiticeiro", classId: "cultist", x: 9, y: 1 },
-      { name: "Piqueiro", classId: "pikeman", x: 6, y: 2 },
+      { name: "Piqueiro", classId: "pikeman", x: 8, y: 2 },
       { name: "Soldado", classId: "soldier", x: 2, y: 3 },
       { name: "Soldado", classId: "soldier", x: 10, y: 3 },
       { name: "Besteiro", classId: "brigand", x: 7, y: 4 },
@@ -2116,7 +2119,7 @@ const RAW_MISSIONS: Mission[] = [
       { name: "Piqueiro", classId: "pikeman", x: 3, y: 5 },
       { name: "Troll da caverna", classId: "troll", x: 2, y: 6 },
       { name: "Troll da caverna", classId: "troll", x: 10, y: 6 },
-      { name: "Ember Starved", classId: "horror", x: 6, y: 1, guaranteedDrop: true },
+      { name: "Ember Starved", classId: "horror", x: 6, y: 3, guaranteedDrop: true },
     ],
   },
   {
