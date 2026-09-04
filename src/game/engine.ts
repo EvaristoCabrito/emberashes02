@@ -1,4 +1,4 @@
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DISEASE, DOUBLE_STRIKE, EMPTY_BAG, EQUIPMENT, EXP_TO_LEVEL, expForHit, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, MAX_LEVEL, PIERCING, POTIONS, WEAPONS, cureSpan, decorationCells, diceFormula, effectiveMaxRange, enemyLevelFor, fireballFormula, fireballOrigin, fireballPower, fireballRangeTiles, fireballTiles, isProjectile, lightningDice, lightningFormula, missionGearLevel, parseLayout, potionLabel, rollCure, rollDice, rollPotion, spellTier, starterWeaponFor, STARTING_BAG, statsFor, terrainNote, TERRAIN, tierKey, tierUses, weightedLootPick, weightedPotionPick, weightedWeaponPick } from "./data";
 import type { SpellTier } from "./data";
 import { canCounter, makeForecast, mulberry32, rollDamage, rollDamageCustom } from "./combat";
 import {
@@ -108,7 +108,7 @@ type Seq =
        * next turn. */
       stunChance?: number;
     }
-  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number; spellKind?: SpellKind }
+  | { type: "spell"; att: string; tiles: Point[]; ids: string[]; dice?: number; faces?: number; bonus?: number; moreDice?: number; moreFaces?: number; label?: string; echo?: { dice: number; faces: number; bonus: number }; dmgMul?: number; weaponBonusDice?: number; weaponBonusFaces?: number; weaponBonusBonus?: number; spellKind?: SpellKind; centerId?: string; centerDice?: number; centerFaces?: number; centerBonus?: number; poison?: boolean }
   | { type: "heal"; att: string; def: string; kind: HealId }
   | { type: "cureDisease"; att: string; def: string }
   | { type: "banner"; text: string; dur: number }
@@ -157,6 +157,15 @@ interface SpellAnim {
   weaponBonusFaces: number;
   weaponBonusBonus: number;
   spellKind: SpellKind | null;
+  /** Caustic Venom: the one unit in `ids` that takes the bigger centerDice/Faces/Bonus roll
+   * instead of the regular extraDice/Faces/Bonus splash roll — null for every other spell. */
+  centerId: string | null;
+  centerDice: number;
+  centerFaces: number;
+  centerBonus: number;
+  /** Whether landing a hit also poisons the target (see startOfTurnEffects) — both sides,
+   * Caustic Venom's splash spares no one. */
+  poison: boolean;
 }
 
 interface HealAnim {
@@ -215,6 +224,7 @@ function pub(u: Unit): UnitPublic {
     weaponEnh: u.weaponEnh,
     size: u.size,
     diseased: u.diseased,
+    poisoned: u.poisoned,
     stunned: u.stunned,
     offHandId: u.offHandId,
   };
@@ -310,6 +320,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     shock: null,
     diseased: false,
     diseaseBase: null,
+    poisoned: false,
     stunned: false,
     offHandId,
   };
@@ -679,6 +690,11 @@ export class BattleEngine {
         weaponBonusFaces: step.weaponBonusFaces ?? 8,
         weaponBonusBonus: step.weaponBonusBonus ?? 0,
         spellKind: step.spellKind ?? null,
+        centerId: step.centerId ?? null,
+        centerDice: step.centerDice ?? 0,
+        centerFaces: step.centerFaces ?? 8,
+        centerBonus: step.centerBonus ?? 0,
+        poison: step.poison ?? false,
       };
       this.banner = step.label ?? "";
       sfxPlay.crit();
@@ -867,6 +883,10 @@ export class BattleEngine {
     if (!a.hit && a.t >= 0.18) {
       a.hit = true;
       sfxPlay.spell();
+      // AoE/line spells: the first enemy actually hit grants full XP, every enemy after
+      // that in the same cast grants half — hitting a whole group shouldn't out-earn
+      // picking them off one at a time, but the first one still counts fully.
+      let firstAoeEnemyHit = true;
       for (const id of a.ids) {
         const foe = this.units.find((u) => u.id === id && u.alive);
         if (!foe) continue;
@@ -889,7 +909,12 @@ export class BattleEngine {
         }
         let dmg: number;
         let crit = false;
-        if (a.extraDice > 0) {
+        if (a.centerId && foe.id === a.centerId) {
+          const attTile = TERRAIN[tileAt(this.tiles, this.cols, att.x, att.y)];
+          const defTile = TERRAIN[tileAt(this.tiles, this.cols, foe.x, foe.y)];
+          dmg = rollDice(a.centerDice, a.centerFaces, a.centerBonus, this.rng);
+          dmg = Math.max(1, dmg - foe.res + attTile.atk - (defTile.cover ?? 0));
+        } else if (a.extraDice > 0) {
           const attTile = TERRAIN[tileAt(this.tiles, this.cols, att.x, att.y)];
           const defTile = TERRAIN[tileAt(this.tiles, this.cols, foe.x, foe.y)];
           dmg = rollDice(a.extraDice, a.extraFaces, a.extraBonus, this.rng);
@@ -910,16 +935,23 @@ export class BattleEngine {
         if (a.dmgMul > 1) dmg = Math.max(1, dmg * a.dmgMul);
         foe.hp = Math.max(0, foe.hp - dmg);
         foe.flash = 1;
+        if (a.poison) foe.poisoned = true;
         // AoE/line abilities (fireball, cleave, piercing...) run this once per unit actually
         // hit, so every landed hit grants its own XP — piercing can also clip an ally in the
         // line, which must never grant XP.
         if (foe.side !== att.side) {
           // Black Mage / Conjurer finishing an enemy off with one of their own single-target
-          // spells (Magic Missile, Lightning) doubles the XP from that kill — never for AoE/line spells.
-          const isAoeSpell = a.spellKind === "fireball" || a.spellKind === "cleave" || a.spellKind === "piercing";
-          const killBonus =
-            foe.hp <= 0 && !isAoeSpell && (att.classId === "mage" || att.classId === "conjurer") ? 2 : 1;
-          this.gainExp(att, foe.level, dmg, killBonus);
+          // spells (Magic Missile, Lightning) doubles the XP from that kill — never for AoE/line
+          // spells, where only the first enemy hit grants full XP and the rest grant half.
+          const isAoeSpell = a.spellKind === "fireball" || a.spellKind === "cleave" || a.spellKind === "piercing" || a.spellKind === "causticVenom";
+          const xpMul =
+            foe.hp <= 0 && !isAoeSpell && (att.classId === "mage" || att.classId === "conjurer")
+              ? 2
+              : isAoeSpell && !firstAoeEnemyHit
+                ? 0.5
+                : 1;
+          if (isAoeSpell) firstAoeEnemyHit = false;
+          this.gainExp(att, foe.level, dmg, xpMul);
         }
         this.spawnHit(foe, dmg, crit);
         this.pushLog(`${att.name} atingiu ${foe.name} com magia: ${dmg} dano${crit ? " (crítico)" : ""}`);
@@ -1096,6 +1128,7 @@ export class BattleEngine {
   }
 
   private curePlayerDisease(u: Unit): void {
+    u.poisoned = false;
     if (!u.diseaseBase) {
       u.diseased = false;
       return;
@@ -1238,6 +1271,18 @@ export class BattleEngine {
       this.spawnHit(u, dmg, false);
       this.tip = `Relâmpago · ${diceFormula(echo.dice, echo.faces, echo.bonus)} − RES`;
       this.pushLog(`Eco de relâmpago em ${u.name}: ${dmg} dano`);
+      sfxPlay.hit();
+      if (u.hp <= 0) {
+        this.markDead(u);
+      }
+    }
+    if (u.alive && u.poisoned) {
+      const dmg = rollDice(1, 4, 0, this.rng);
+      u.hp = Math.max(0, u.hp - dmg);
+      u.flash = 1;
+      this.spawnHit(u, dmg, false);
+      this.tip = `Veneno · 1D4 dano`;
+      this.pushLog(`Veneno consome ${u.name}: ${dmg} dano`);
       sfxPlay.hit();
       if (u.hp <= 0) {
         this.markDead(u);
@@ -1414,7 +1459,7 @@ export class BattleEngine {
       unit.classId === "troll" ? " · parte barricadas" : ""
     }${
       unit.shock ? ` · Relâmpago ${diceFormula(unit.shock.dice, unit.shock.faces, unit.shock.bonus)} − RES no turno` : ""
-    }${unit.diseased ? " · Doente (−10% em todos os stats)" : ""}`;
+    }${unit.diseased ? " · Doente (−10% em todos os stats)" : ""}${unit.poisoned ? " · Envenenado (1D4 dano por turno)" : ""}`;
     this.ensureVisible(unit.x, unit.y);
     sfxPlay.ui();
   }
@@ -1496,6 +1541,18 @@ export class BattleEngine {
     sfxPlay.ui();
   }
 
+  startCausticVenom(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    if (!u || u.acted || this.tierRemaining(u, "causticVenom") <= 0) return;
+    this.mode = "awaitSpell";
+    this.spellKind = "causticVenom";
+    this.spellArmed = false;
+    this.spellAim = null;
+    this.hover = null;
+    this.tip = `${CAUSTIC_VENOM.name}: alcance ${CAUSTIC_VENOM.range}, alvo ${diceFormula(CAUSTIC_VENOM.centerDice, CAUSTIC_VENOM.centerFaces, CAUSTIC_VENOM.centerBonus)} − RES, respingo ${diceFormula(CAUSTIC_VENOM.splashDice, CAUSTIC_VENOM.splashFaces, CAUSTIC_VENOM.splashBonus)} − RES em área — envenena todos atingidos, até aliados. Toque para mirar, toque de novo para lançar.`;
+    sfxPlay.ui();
+  }
+
   startLongShot(): void {
     const u = this.units.find((x) => x.id === this.selectedId);
     if (!u || u.acted || this.tierRemaining(u, "longShot") <= 0) return;
@@ -1574,6 +1631,10 @@ export class BattleEngine {
     if (!u || this.mode !== "awaitSpell" || !cell || !this.spellKind) return;
     if (this.spellKind === "fireball") {
       this.confirmFireball();
+      return;
+    }
+    if (this.spellKind === "causticVenom") {
+      this.confirmCausticVenom();
       return;
     }
     if (this.spellKind === "longShot") {
@@ -1665,6 +1726,10 @@ export class BattleEngine {
       if (manhattan(caster, cell) > FIREBALL.range) return false;
       return clearShot(caster, fireballOrigin(cell, this.cols, this.rows), this.tiles, this.cols, "bolt");
     }
+    if (this.spellKind === "causticVenom") {
+      if (manhattan(caster, cell) > CAUSTIC_VENOM.range) return false;
+      return clearShot(caster, fireballOrigin(cell, this.cols, this.rows), this.tiles, this.cols, "bolt");
+    }
     if (this.spellKind === "longShot") {
       const d = manhattan(caster, cell);
       const here = occupancy(this.units).get(key(cell.x, cell.y));
@@ -1720,7 +1785,7 @@ export class BattleEngine {
     if (manhattan(caster, cell) > CURE_DISEASE.range) return false;
     const occ = occupancy(this.units);
     const who = occ.get(key(cell.x, cell.y));
-    return !!who && who.side === "player" && who.alive && who.diseased;
+    return !!who && who.side === "player" && who.alive && (who.diseased || who.poisoned);
   }
 
   private healRangeTiles(from: Point, range: number): Point[] {
@@ -1775,6 +1840,18 @@ export class BattleEngine {
       return;
     }
     this.castFireball(u, cell);
+  }
+
+  confirmCausticVenom(): void {
+    const u = this.units.find((x) => x.id === this.selectedId);
+    const cell = this.hover;
+    if (!u || this.mode !== "awaitSpell" || !cell) return;
+    if (manhattan(u, cell) > CAUSTIC_VENOM.range) {
+      this.tip = "Fora de alcance.";
+      sfxPlay.ui();
+      return;
+    }
+    this.castCausticVenom(u, cell);
   }
 
   private castLongShot(unit: Unit, cell: Point): void {
@@ -1932,7 +2009,7 @@ export class BattleEngine {
     if (u.bag[kind] <= 0) return;
     const def = POTIONS[kind];
     if (def.effect === "disease") {
-      if (!u.diseased) {
+      if (!u.diseased && !u.poisoned) {
         this.tip = `${def.name} · ${u.name} não está doente.`;
         sfxPlay.ui();
         return;
@@ -2405,6 +2482,37 @@ export class BattleEngine {
     });
   }
 
+  private castCausticVenom(unit: Unit, click: Point): void {
+    const origin = fireballOrigin(click, this.cols, this.rows);
+    const tiles = fireballTiles(origin, this.cols, this.rows);
+    const ids: string[] = [];
+    for (const t of tiles) {
+      const u = this.units.find((x) => x.alive && occupies(x, t.x, t.y));
+      if (u && !ids.includes(u.id)) ids.push(u.id);
+    }
+    const center = this.units.find((x) => x.alive && occupies(x, origin.x, origin.y));
+    this.spendTier(unit, "causticVenom");
+    this.spellKind = null;
+    this.tip = null;
+    this.mode = "locked";
+    this.queue.push({
+      type: "spell",
+      att: unit.id,
+      tiles,
+      ids,
+      dice: CAUSTIC_VENOM.splashDice,
+      faces: CAUSTIC_VENOM.splashFaces,
+      bonus: CAUSTIC_VENOM.splashBonus,
+      centerId: center?.id,
+      centerDice: CAUSTIC_VENOM.centerDice,
+      centerFaces: CAUSTIC_VENOM.centerFaces,
+      centerBonus: CAUSTIC_VENOM.centerBonus,
+      poison: true,
+      label: CAUSTIC_VENOM.name,
+      spellKind: "causticVenom",
+    });
+  }
+
   panBy(dx: number, dy: number): void {
     this.camX += dx;
     this.camY += dy;
@@ -2787,6 +2895,12 @@ export class BattleEngine {
         const cell = this.hover ?? this.spellAim;
         if (cell && manhattan(selected, cell) <= FIREBALL.range) {
           overlay(fireballTiles(fireballOrigin(cell, this.cols, this.rows), this.cols, this.rows), "rgba(196,90,50,0.5)");
+        }
+      } else if (selected && this.spellKind === "causticVenom") {
+        overlay(fireballRangeTiles(selected, this.cols, this.rows), "rgba(110,150,60,0.3)");
+        const cell = this.hover ?? this.spellAim;
+        if (cell && manhattan(selected, cell) <= CAUSTIC_VENOM.range) {
+          overlay(fireballTiles(fireballOrigin(cell, this.cols, this.rows), this.cols, this.rows), "rgba(140,190,70,0.5)");
         }
       } else if (selected && this.spellKind === "longShot") {
         const reach: Point[] = [];

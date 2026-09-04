@@ -1156,6 +1156,23 @@ export const FIREBALL = {
   bonus: 4,
 };
 
+export const CAUSTIC_VENOM = {
+  name: "Veneno Cáustico",
+  // Same radius-2 splash shape as Fireball (reuses fireballOrigin/fireballTiles) — the
+  // clicked point takes the bigger centerDice roll, every other unit caught in the splash
+  // (either side — it spares no one) takes the smaller splashDice roll, and every landed
+  // hit poisons its target: 1D4 at the start of each of their own turns until cured by
+  // Cure Disease or the disease potion (see startOfTurnEffects/curePlayerDisease).
+  size: 2,
+  range: 4,
+  centerDice: 4,
+  centerFaces: 8,
+  centerBonus: 0,
+  splashDice: 2,
+  splashFaces: 8,
+  splashBonus: 0,
+};
+
 export const LONG_SHOT = {
   name: "Tiro Longo",
   rangeMul: 2,
@@ -1423,6 +1440,7 @@ export const SPELL_TIER: Partial<Record<SpellKind, SpellTier>> = {
   cleave: 2,
   fireball: 3,
   cureDisease: 3,
+  causticVenom: 4,
 };
 
 export function spellTier(kind: SpellKind): SpellTier | null {

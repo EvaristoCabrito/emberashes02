@@ -56,7 +56,7 @@ export type ClassId =
   | "templar";
 export type SpriteId = "kael" | "nira" | "voss" | "salazar" | "soldier" | "brigand" | "captain" | "sorcerer" | "horror" | "pikeman" | "wardog" | "troll";
 export type HealId = "cureMinor" | "cureWounds";
-export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "magicMissile" | "doubleStrike" | "cleave" | "cureDisease";
+export type SpellKind = "fireball" | HealId | "longShot" | "piercing" | "lightning" | "magicMissile" | "causticVenom" | "doubleStrike" | "cleave" | "cureDisease";
 export type ScreenId = "boot" | "title" | "campaign" | "worldMap" | "briefing" | "cutscene" | "epilogue" | "battle" | "victory" | "defeat" | "inn" | "testMenu" | "mapEditor";
 export type Phase = "player" | "enemy";
 export type InputMode = "idle" | "selected" | "awaitAction" | "awaitAttack" | "awaitOffHand" | "awaitSpell" | "locked";
@@ -217,6 +217,10 @@ export interface Unit {
   shock: { dice: number; faces: number; bonus: number } | null;
   diseased: boolean;
   diseaseBase: { atk: number; mag: number; def: number; res: number; mov: number } | null;
+  /** Caustic Venom residue: 1D4 damage at the start of every one of this unit's own turns
+   * (see startOfTurnEffects) until cured — same cure trigger as diseased (Cure Disease
+   * spell or the disease potion), but no stat penalty of its own. */
+  poisoned: boolean;
   /** Shield Bash victim: loses their entire next turn, then clears automatically. */
   stunned: boolean;
   /** Equipped off-hand EquipmentDef id (kind "weapon" or "shield"), or null. */
@@ -252,6 +256,7 @@ export interface UnitPublic {
   weaponEnh: number;
   size: number;
   diseased: boolean;
+  poisoned: boolean;
   stunned: boolean;
   offHandId: string | null;
 }

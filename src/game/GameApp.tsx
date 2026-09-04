@@ -6,7 +6,7 @@ import { installAudioUnlock, playMenuMusic, playTheme, resumeAudio, setMuted, sf
 import { BattleCanvas } from "./BattleCanvas";
 import { InnScreen } from "./InnScreen";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
-import { CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
+import { CAUSTIC_VENOM, CLASSES, CLEAVE, CURE_DISEASE, CURES, DECORATIONS, DOUBLE_STRIKE, EQUIPMENT, EXP_TO_LEVEL, FIREBALL, LIGHTNING, LONG_SHOT, MAGIC_MISSILE, PIERCING, MAX_LEVEL, MISSIONS, PROMOTE_LEVEL, PROMOTED_BASE, PROMOTIONS, TERRAIN, TILE_CHAR, WEAPONS, WEAPON_MAX_ENH, WORLD_LOCATIONS, BAG_MAX, LOCKPICK_PRICE, POTION_PRICE, decorationCells, decorationImage, diceFormula, emberForKill, enemyLevelFor, fireballFormula, lightningFormula, locationForMission, missionById, missionsForLocation, parseLayout, potionLabel, rangeLabel, sheetLine, spellTier, startingBags, statsFor, terrainNote, tierKey, tierUses, weaponEnhCost, weaponSellValue, type SpellTier } from "./data";
 import { BattleEngine } from "./engine";
 import { WorldMapScreen } from "./WorldMapScreen";
 import {
@@ -128,7 +128,7 @@ function classSpells(classId: ClassId): SpellKind[] {
     case "swordsman":
       return ["doubleStrike", "cleave"];
     case "mage":
-      return ["magicMissile", "lightning", "fireball"];
+      return ["magicMissile", "lightning", "fireball", "causticVenom"];
     case "archer":
       return ["longShot", "piercing"];
     case "healer":
@@ -174,6 +174,10 @@ function slotIcon(action: SlotAction): string {
       return "/game/icons/cleave.png";
     case "fireball":
       return "/game/icons/fireball.png";
+    case "causticVenom":
+      // Reuses the disease-cure potion's icon (a glowing green vial) as a placeholder — no
+      // dedicated Caustic Venom art exists yet, but the venomous-green look already fits.
+      return "/game/icons/potion-disease.png";
     case "lightning":
       return "/game/icons/lightning.png?v=3";
     case "magicMissile":
@@ -203,6 +207,8 @@ function slotLabel(action: SlotAction): string {
       return CLEAVE.name;
     case "fireball":
       return FIREBALL.name;
+    case "causticVenom":
+      return CAUSTIC_VENOM.name;
     case "lightning":
       return LIGHTNING.name;
     case "magicMissile":
@@ -1065,7 +1071,7 @@ function TitleScreen({
       <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-xl mx-auto w-full">
         <p className="text-sm tracking-[0.28em] uppercase text-muted mb-3">Táticas em cinzas</p>
         <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight leading-none mb-4">Ember</h1>
-        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.254</p>
+        <p className="text-[11px] tracking-[0.18em] uppercase text-muted -mt-3 mb-4">V. 0.2555</p>
         <p className="text-muted text-base leading-relaxed mb-8 max-w-md">
           Três sobreviventes. Um tabuleiro de guerra. Cada casa conta.
         </p>
@@ -2292,6 +2298,9 @@ function BattleScreen({
       case "fireball":
         engine.startFireball();
         break;
+      case "causticVenom":
+        engine.startCausticVenom();
+        break;
       case "lightning":
         engine.startLightning();
         break;
@@ -2463,6 +2472,7 @@ function BattleScreen({
                       <p className={`text-xs ${unit.side === "enemy" ? "text-danger" : "text-muted"}`}>
                         {unit.className}
                         {unit.diseased && <span className="text-danger"> · Doente</span>}
+                        {unit.poisoned && <span className="text-danger"> · Envenenado</span>}
                       </p>
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
@@ -2758,6 +2768,7 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                 {unit.className} · Nv {unit.level}
               </p>
               {unit.diseased && <p className="text-xs text-danger mt-0.5">Doente · −10% em todos os stats</p>}
+              {unit.poisoned && <p className="text-xs text-danger mt-0.5">Envenenado · 1D4 dano por turno</p>}
               {unit.side === "player" && (
                 <div className="mt-1.5 max-w-[9rem]">
                   {unit.level >= MAX_LEVEL ? (
@@ -2869,6 +2880,15 @@ function StatusPanel({ unit, onClose, onOpenInventory }: { unit: UnitPublic; onC
                           <img src="/game/icons/fireball.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
                           <p className="text-xs truncate">
                             Fogo {fireballFormula(unit.level)} <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("fireball")!)]}</span>
+                          </p>
+                        </div>
+                      )}
+                      {unit.spells[tierKey(spellTier("causticVenom")!)] > 0 && (
+                        <div className="flex items-center gap-1.5 bg-bg border border-border rounded-md px-2 py-1.5">
+                          <img src="/game/icons/potion-disease.png" alt="" className="size-5 rounded-sm object-cover shrink-0" />
+                          <p className="text-xs truncate">
+                            {CAUSTIC_VENOM.name} {diceFormula(CAUSTIC_VENOM.centerDice, CAUSTIC_VENOM.centerFaces, CAUSTIC_VENOM.centerBonus)}{" "}
+                            <span className="tabular-nums text-muted">×{unit.spells[tierKey(spellTier("causticVenom")!)]}</span>
                           </p>
                         </div>
                       )}
