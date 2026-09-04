@@ -352,6 +352,7 @@ function spawnUnit(spawn: Mission["playerSpawns"][number], side: Unit["side"], i
     summoned: false,
     asleep: false,
     sleepTurns: 0,
+    guaranteedDrop: side === "enemy" && !!spawn.guaranteedDrop,
   };
 }
 
@@ -1204,10 +1205,27 @@ export class BattleEngine {
     u.alive = false;
     sfxPlay.death();
     this.pushLog(`${u.name} foi derrotado.`);
-    // 1% per kill, capped to what this mission's own enemies are geared for (see
-    // missionGearLevel), and never a weapon already owned — an early mission never hands
-    // out the campaign's best gear.
-    if (u.side === "enemy" && this.rng() < 0.01) {
+    if (u.side === "enemy" && u.guaranteedDrop) {
+      // Named unique bosses (Spawn.guaranteedDrop) skip the roll entirely and always drop
+      // something — from the same weapon-or-gear pool a chest rolls from, not the plain
+      // weapon-only kill-drop pool below.
+      const drop = weightedLootPick(this.rng, missionGearLevel(this.mission.index), this.ownedWeapons);
+      if (drop.kind === "weapon") {
+        if (this.ownedWeapons.has(drop.id)) {
+          this.lootEmber += 15;
+        } else {
+          this.ownedWeapons.add(drop.id);
+          this.lootWeapons.push(drop.id);
+          this.pushLog(`Loot: ${WEAPONS[drop.id]?.name ?? drop.id}`);
+        }
+      } else {
+        this.lootEquipment.push(drop.id);
+        this.pushLog(`Loot: ${EQUIPMENT[drop.id]?.name ?? drop.id}`);
+      }
+    } else if (u.side === "enemy" && this.rng() < 0.01) {
+      // 1% per kill, capped to what this mission's own enemies are geared for (see
+      // missionGearLevel), and never a weapon already owned — an early mission never hands
+      // out the campaign's best gear.
       const id = weightedWeaponPick(this.rng, Object.keys(WEAPONS), missionGearLevel(this.mission.index));
       if (this.ownedWeapons.has(id)) {
         this.lootEmber += 15;
@@ -2357,6 +2375,7 @@ export class BattleEngine {
       summoned: true,
       asleep: false,
       sleepTurns: 0,
+      guaranteedDrop: false,
     };
     this.units.push(familiar);
     this.spendTier(unit, "summonFamiliar");
@@ -2577,14 +2596,17 @@ export class BattleEngine {
     const found: string[] = [];
     if (wasChest) {
       // Every chest gives Ember, a guaranteed potion (weighted so the weak tier is the
-      // common case, rarer as potency climbs), and — a separate, independent roll — a 40%
+      // common case, rarer as potency climbs), and — a separate, independent roll — a
       // chance at a piece of gear, weighted so the strongest is the rarest and capped to
-      // what this mission's own enemies are geared for (see missionGearLevel).
-      const gain = 3 + Math.floor(this.rng() * 6);
+      // what this mission's own enemies are geared for (see missionGearLevel). A chest
+      // listed in Mission.betterChests (gated behind a locked area, say) tips both those
+      // numbers up — same pool and range, not a different one.
+      const better = this.mission.betterChests?.some((c) => c.x === target.x && c.y === target.y) ?? false;
+      const gain = (better ? 5 : 3) + Math.floor(this.rng() * (better ? 8 : 6));
       this.lootEmber += gain;
       const potionKind = weightedPotionPick(this.rng);
       if (this.givePotion(u, potionKind)) found.push(POTIONS[potionKind].name);
-      if (this.rng() < 0.4) {
+      if (this.rng() < (better ? 0.55 : 0.4)) {
         const drop = weightedLootPick(this.rng, missionGearLevel(this.mission.index), this.ownedWeapons);
         if (drop.kind === "weapon") {
           this.ownedWeapons.add(drop.id);

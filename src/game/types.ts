@@ -138,6 +138,10 @@ export interface Spawn {
   classId: ClassId;
   x: number;
   y: number;
+  /** Enemy-only: skips the normal 1%-per-kill loot roll and always drops something (from
+   * the same random weapon-or-gear pool a chest rolls from) when this unit dies — for named
+   * unique bosses the mission wants to reliably reward. */
+  guaranteedDrop?: boolean;
 }
 
 export type WinCondition = "rout" | "boss";
@@ -182,6 +186,12 @@ export interface Mission {
   /** Multi-hex terrain props (mountains, ruins, bridges, ...) placed on this map.
    * Omitted/empty on every existing mission — purely additive. */
   decorations?: DecorationPlacement[];
+  /** Coordinates of chests on this map that should roll noticeably better loot when opened
+   * — same pool and range as a normal chest (see useLockpick), just tipped toward the
+   * better end: more Ember, better gear odds. For a chest worth gating behind a locked
+   * door/sub-area rather than just leaving out in the open. Omitted on every existing
+   * mission — purely additive. */
+  betterChests?: { x: number; y: number }[];
 }
 
 /** A travel spot on the campaign world map. Most locations cover a single mission; a
@@ -268,6 +278,8 @@ export interface Unit {
    * which also applies that hit's `sleepBonusDamage` multiplier. */
   asleep: boolean;
   sleepTurns: number;
+  /** Mirrors Spawn.guaranteedDrop — read once in markDead, never touched afterward. */
+  guaranteedDrop: boolean;
 }
 
 export interface UnitPublic {

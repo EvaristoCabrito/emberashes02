@@ -2068,9 +2068,61 @@ const RAW_MISSIONS: Mission[] = [
     ],
   },
   {
-    id: "vertente",
+    id: "profundezas",
     index: 10,
-    title: "O Outro Lado",
+    title: "As Profundezas Famintas",
+    place: "Câmaras mais fundas da caverna",
+    briefing:
+      "A passagem continua abaixo, mais funda que qualquer mapa registrado. O ar cheira a cinza fria. Pilares talhados sustentam um teto que não deveria existir a essa profundidade. Algo aqui não come há muito tempo — e não é comida que procura.",
+    objective: "Derrote todos os inimigos",
+    win: "rout",
+    cols: 13,
+    rows: 12,
+    layout: [
+      "ccccccccccccc",
+      "cnnnnnnnnnnnc",
+      "cnncnnnnncnnc",
+      "cnnnnnnnnnnnc",
+      "cncnnncnnncnc",
+      "cnnnnnnnnnnnc",
+      "cnnncnnncnnnc",
+      "cnnnnnnnnnnnc",
+      "cnnnnnnnnnnnc",
+      "cccccoccccccc",
+      "ccccckccccccc",
+      "ccccccccccccc",
+    ],
+    // The chest sealed behind the locked door at (5,9) — see betterChests below — rolls
+    // noticeably better than the 1-3 chests sprinkled automatically on the open floor.
+    betterChests: [{ x: 5, y: 10 }],
+    playerSpawns: [
+      { name: "Kael", classId: "swordsman", x: 5, y: 7 },
+      { name: "Neera", classId: "archer", x: 4, y: 7 },
+      { name: "Voss", classId: "mage", x: 6, y: 7 },
+      { name: "Salazar", classId: "healer", x: 7, y: 7 },
+    ],
+    enemySpawns: [
+      { name: "Feiticeiro", classId: "cultist", x: 3, y: 1 },
+      { name: "Feiticeiro", classId: "cultist", x: 9, y: 1 },
+      { name: "Piqueiro", classId: "pikeman", x: 6, y: 2 },
+      { name: "Soldado", classId: "soldier", x: 2, y: 3 },
+      { name: "Soldado", classId: "soldier", x: 10, y: 3 },
+      { name: "Besteiro", classId: "brigand", x: 7, y: 4 },
+      { name: "Feiticeiro", classId: "cultist", x: 6, y: 5 },
+      { name: "Piqueiro", classId: "pikeman", x: 3, y: 5 },
+      { name: "Troll da caverna", classId: "troll", x: 2, y: 6 },
+      { name: "Troll da caverna", classId: "troll", x: 10, y: 6 },
+      { name: "Ember Starved", classId: "horror", x: 6, y: 6, guaranteedDrop: true },
+    ],
+  },
+  {
+    id: "vertente",
+    index: 11,
+    // Reserved/placeholder title — this mission and "portao" right after it (the Fortified
+    // Temple Complex arc) are locked out of the world map (see WORLD_LOCATIONS's "vertente"
+    // entry) until their content gets a real pass; "profundezas" now sits ahead of them as
+    // the new mission 11 a player actually reaches.
+    title: "R1",
     place: "Face norte da colina",
     briefing:
       "A passagem desemboca na outra face. Pouco muda no chão. Muda a vista: a elevação inteira acima, e no topo o Templo Fortificado, nítido pela primeira vez. Não parece abandonado. A encosta é pior deste lado.",
@@ -2107,8 +2159,8 @@ const RAW_MISSIONS: Mission[] = [
   },
   {
     id: "portao",
-    index: 11,
-    title: "A Entrada do Templo",
+    index: 12,
+    title: "R2",
     place: "Portões do cume",
     briefing:
       "O caminho acaba diante da entrada. Muralhas espessas, torres no corpo da igreja, portão monumental. Antigo e preservado. A escadaria sobe até as portas. O interior fica para depois.",
@@ -2691,18 +2743,23 @@ export function missionById(id: string): Mission | undefined {
  * above it, so it joins them as that location's 4th fight instead of Cemetery), the Inn
  * (mission 8), Dungeon (Colina Morta and Passagem Antiga, missions 9-10 — moved here from
  * Cemetery, which sits locked with no missions until more content backfills it), and the
- * Fortified Temple Complex (missions 11-12 — the approach and the temple gate itself,
- * "Entrada do Templo", both happening at the same landmark). Locations with no missionIds
- * yet (Village, Farm, the second Ruins, Cemetery, Frozen Swamp, Forest, Misty Cave — the
- * last reserved for a future troll encounter arc, City — reserved for the second Ferreiro)
- * render permanently locked until missions are written for them — "we'll open up more as
- * we make more missions." */
+ * Dungeon also picked up a third mission, "As Profundezas Famintas" (mission 11 —
+ * deeper still, a new unique boss). The Fortified Temple Complex's own two missions
+ * ("vertente"/"portao", titled R1/R2 as placeholders) are locked out of the map entirely
+ * for now — pushed later in the story than mission 12, not ready for a real pass yet — same
+ * "no missionIds" treatment as every other undeveloped location below. Those (Village,
+ * Farm, the second Ruins, Cemetery, Frozen Swamp, Forest, Misty Cave — the last reserved
+ * for a future troll encounter arc, City — reserved for the second Ferreiro) render
+ * permanently locked until missions are written for them — "we'll open up more as we make
+ * more missions." */
 export const WORLD_LOCATIONS: WorldLocation[] = [
   { id: "stonebridge", name: "Stone Bridge", x: 14, y: 71, missionIds: ["vau", "bosque", "aldeia"] },
   { id: "ruins", name: "Ruins", x: 8, y: 56, missionIds: ["muralha", "fortaleza", "templo", "cripta"] },
   { id: "estalagem", name: "Inn", x: 48, y: 39, missionIds: ["estalagem"] },
-  { id: "dungeon", name: "Dungeon", x: 60, y: 64, missionIds: ["colina", "passagem"] },
-  { id: "vertente", name: "Fortified Temple Complex", x: 78, y: 7, missionIds: ["vertente", "portao"] },
+  { id: "dungeon", name: "Dungeon", x: 60, y: 64, missionIds: ["colina", "passagem", "profundezas"] },
+  // Locked (empty missionIds) on purpose — R1/R2 aren't ready for a real pass yet, see the
+  // doc comment above.
+  { id: "vertente", name: "Fortified Temple Complex", x: 78, y: 7, missionIds: [] },
   // Named on the map, not yet assigned to any mission — visible on the map (permanently
   // locked) as a preview of the world until content is written for them.
   { id: "village", name: "Village", x: 17, y: 27, missionIds: [] },
