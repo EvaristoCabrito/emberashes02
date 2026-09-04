@@ -1,4 +1,4 @@
-import { isProjectile, rollDice, TERRAIN, weaponPreview, weaponRoll } from "./data";
+import { isProjectile, rollDice, TERRAIN, WEAPONS, weaponPreview, weaponRoll } from "./data";
 import { canHitFrom } from "./pathfinding";
 import type { Forecast, TerrainId, Unit } from "./types";
 
@@ -18,6 +18,15 @@ function terrainBonus(attacker: Unit, defender: Unit, attTile: TerrainId, defTil
   return { atk: attT.atk, def };
 }
 
+/** A weapon tuned for one specific class (a staff named after a school of magic, say) hits
+ * 10% harder in that class's own hands — everyone else in its usableBy pool can still wield
+ * it at no penalty, just without this. */
+const WEAPON_CLASS_BONUS_MUL = 1.1;
+function weaponClassBonusMul(attacker: Unit): number {
+  const weapon = attacker.weaponId ? WEAPONS[attacker.weaponId] : null;
+  return weapon?.bonusClass === attacker.classId ? WEAPON_CLASS_BONUS_MUL : 1;
+}
+
 export function rollDamage(
   attacker: Unit,
   defender: Unit,
@@ -28,7 +37,7 @@ export function rollDamage(
   const b = terrainBonus(attacker, defender, attTile, defTile);
   const weapon = weaponRoll(attacker.weaponId, attacker.weaponEnh, rng);
   const raw = powerOf(attacker) + weapon + b.atk - protOf(attacker, defender) - b.def;
-  let dmg = Math.max(1, raw);
+  let dmg = Math.max(1, Math.round(Math.max(1, raw) * weaponClassBonusMul(attacker)));
   const crit = rng() < 0.08;
   if (crit) dmg = Math.max(1, Math.floor(dmg * 1.5));
   return { dmg, crit };
@@ -65,7 +74,7 @@ export function previewDamage(
   const b = terrainBonus(attacker, defender, attTile, defTile);
   const weapon = weaponPreview(attacker.weaponId, attacker.weaponEnh);
   const raw = powerOf(attacker) + weapon + b.atk - protOf(attacker, defender) - b.def;
-  return Math.max(1, raw);
+  return Math.max(1, Math.round(Math.max(1, raw) * weaponClassBonusMul(attacker)));
 }
 
 export function canCounter(

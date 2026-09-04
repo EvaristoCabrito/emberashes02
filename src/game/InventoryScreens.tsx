@@ -76,6 +76,14 @@ export function PaperDollScreen({
                 <span className="block text-[11px] text-muted tabular-nums">
                   {weaponDiceLabel(weapon.id)} · {weaponRangeLabel(weapon.id)}
                 </span>
+                {weapon.bonusClass && (
+                  <span
+                    className={`block text-[11px] tabular-nums ${weapon.bonusClass === classId ? "text-accent" : "text-muted"}`}
+                    title={`+10% de dano para a classe ${CLASSES[weapon.bonusClass].name}`}
+                  >
+                    +10% dano · {CLASSES[weapon.bonusClass].name}
+                  </span>
+                )}
               </span>
             </>
           ) : (
@@ -138,6 +146,14 @@ export function PaperDollScreen({
                         <span className="block text-[11px] text-muted tabular-nums">
                           {weaponDiceLabel(w.id)} · {weaponRangeLabel(w.id)}
                         </span>
+                        {w.bonusClass && (
+                          <span
+                            className={`block text-[11px] tabular-nums ${w.bonusClass === classId ? "text-accent" : "text-muted"}`}
+                            title={`+10% de dano para a classe ${CLASSES[w.bonusClass].name}`}
+                          >
+                            +10% dano · {CLASSES[w.bonusClass].name}
+                          </span>
+                        )}
                       </span>
                       {w.id === weaponId && <span className="text-[11px] text-muted shrink-0">Equipada</span>}
                     </button>
@@ -213,6 +229,11 @@ export function BackpackScreen({
   onSwitchToDoll?: () => void;
 }) {
   const bag = save.bags[heroName] ?? EMPTY_BAG;
+  // Only counts potions toward pouch capacity — lockpicks are tracked separately (see the
+  // Bag.lockpick doc comment) and aren't a "found in the field" consumable in the same
+  // sense. Only the small pouch exists so far (see BAG_ICON's own note), hence the flat 30.
+  const bagCount = POTIONS.reduce((n, kind) => n + (bag[kind] ?? 0), 0);
+  const bagCapacity = 30;
   const weaponEntries = Object.entries(save.weapons).filter(([id]) => {
     const wielder = Object.entries(save.equipped).find(([, v]) => v === id)?.[0];
     return !wielder || heroRecruited(wielder, save.completed);
@@ -238,6 +259,11 @@ export function BackpackScreen({
           <div>
             <p className="font-display text-xl leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">Mochila</p>
             <p className="text-xs text-fg/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{heroName}</p>
+            <p
+              className={`text-[11px] tabular-nums mt-0.5 ${bagCount >= bagCapacity ? "text-danger" : "text-fg/70"} drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]`}
+            >
+              {bagCount} / {bagCapacity} itens
+            </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {onSwitchToDoll && (

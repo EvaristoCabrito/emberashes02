@@ -2660,9 +2660,16 @@ function BattleScreen({
             </Button>
           )}
           {hud.canLockpick && (
-            <Button size="sm" variant="quiet" disabled={!showAct || hud.busy} onClick={() => engine.useLockpick()}>
-              Arrombar
-            </Button>
+            <button
+              type="button"
+              disabled={!showAct || hud.busy}
+              onClick={() => engine.useLockpick()}
+              title="Custa 1 Gazua para abrir."
+              className="relative h-9 px-2 rounded-md border border-border bg-bg flex items-center gap-1 disabled:opacity-40"
+            >
+              <img src="/game/icons/lockpick.png" alt="" className="size-5 rounded-sm object-contain" />
+              <span className="text-sm tabular-nums">×{actor?.bag.lockpick ?? 0}</span>
+            </button>
           )}
           <Button size="sm" variant="quiet" disabled={!showAct || hud.busy} onClick={() => engine.wait()}>
             Esperar

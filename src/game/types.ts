@@ -326,6 +326,11 @@ export interface WeaponDef {
   ranged?: boolean;
   /** Occupies both hands — an offHand item can't be equipped alongside it. */
   twoHanded?: boolean;
+  /** The one class (of usableBy's pool, if it's a shared one) this weapon is thematically
+   * tuned for — a staff named after a school of magic, say — and deals 10% more damage to
+   * whoever wields it while actually being that class. Every other class in the pool can
+   * still equip and use it at no penalty, just without the bonus. */
+  bonusClass?: ClassId;
 }
 
 /**

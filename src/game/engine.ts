@@ -3389,16 +3389,19 @@ export class BattleEngine {
 
     // Every selectable area (walkable ground, spell range, an aimed AoE) gets the same
     // treatment: a soft colored glow plus a bright rim, on top of the flat fill — the flat
-    // fill alone reads as a dim tint on some terrain art and is easy to miss.
+    // fill alone reads as a dim tint on some terrain art and is easy to miss. The glow
+    // breathes (same sine pulse as the active-turn-unit ring above) rather than sitting
+    // static, the classic tactics-RPG "selectable tile" look.
+    const glowPulse = this.reducedMotion ? 1 : 0.72 + Math.sin(this.time * 3.2) * 0.28;
     const overlay = (cells: Iterable<Point>, fill: string) => {
       const rgb = /rgba?\(([^),]+),([^),]+),([^),]+)/.exec(fill);
       const [r, g, b] = rgb ? [rgb[1]!.trim(), rgb[2]!.trim(), rgb[3]!.trim()] : ["255", "255", "255"];
       ctx.save();
-      ctx.shadowColor = `rgba(${r},${g},${b},0.9)`;
-      ctx.shadowBlur = tile * 0.4;
+      ctx.shadowColor = `rgba(${r},${g},${b},${(0.9 * glowPulse).toFixed(3)})`;
+      ctx.shadowBlur = tile * (0.32 + 0.34 * glowPulse);
       ctx.fillStyle = fill;
-      ctx.strokeStyle = `rgba(${r},${g},${b},0.95)`;
-      ctx.lineWidth = Math.max(1.5, tile * 0.06);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${Math.min(1, 0.7 + 0.3 * glowPulse).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1.5, tile * (0.05 + 0.03 * glowPulse));
       for (const c of cells) {
         const { cx, cy } = this.hexCenter(c.x, c.y);
         this.hexPath(ctx, cx, cy, tile * 0.92);

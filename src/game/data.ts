@@ -819,9 +819,9 @@ const MELEE: RangeSpec = { minRange: 1, maxRange: 1 };
 const REACH: RangeSpec = { minRange: 1, maxRange: 2 };
 const RANGED: RangeSpec = { minRange: 2, maxRange: 3, ranged: true };
 
-function wpn(id: string, name: string, usableBy: ClassId[], rung: number, range: RangeSpec = MELEE): WeaponDef {
+function wpn(id: string, name: string, usableBy: ClassId[], rung: number, range: RangeSpec = MELEE, bonusClass?: ClassId): WeaponDef {
   const r = WEAPON_RUNGS[rung - 1]!;
-  return { id, name, usableBy, dice: r.dice, faces: r.faces, bonus: r.bonus, price: r.price, minRange: range.minRange, maxRange: range.maxRange, ranged: range.ranged };
+  return { id, name, usableBy, dice: r.dice, faces: r.faces, bonus: r.bonus, price: r.price, minRange: range.minRange, maxRange: range.maxRange, ranged: range.ranged, bonusClass };
 }
 
 const ARCANE_MAGE_TRIO: ClassId[] = ["mage", "elementalist", "warlock"];
@@ -834,29 +834,35 @@ const ARCHER_TRIO: ClassId[] = ["archer", "ranger", "assassin"];
 const LANCER_TRIO: ClassId[] = ["lancer", "sentinel", "templar"];
 
 export const WEAPONS: Record<string, WeaponDef> = {
-  // Mago Negro / Elementalista / Bruxo — cajados arcanos, pool compartilhado
-  "cajado-de-osso": wpn("cajado-de-osso", "Cajado de Osso", ARCANE_ALL, 1, REACH),
-  "cajado-abissal": wpn("cajado-abissal", "Cajado Abissal", ARCANE_ALL, 2, REACH),
-  "cajado-de-ebano": wpn("cajado-de-ebano", "Cajado de Ébano", ARCANE_ALL, 3, REACH),
-  "cajado-igneo": wpn("cajado-igneo", "Cajado Ígneo", ARCANE_ALL, 4, REACH),
-  "bastao-do-pacto": wpn("bastao-do-pacto", "Bastão do Pacto", ARCANE_ALL, 5, REACH),
-  "cajado-tempestuoso": wpn("cajado-tempestuoso", "Cajado Tempestuoso", ARCANE_ALL, 6, REACH),
-  "cetro-da-corrupcao": wpn("cetro-da-corrupcao", "Cetro da Corrupção", ARCANE_ALL, 7, REACH),
-  "cajado-terrano": wpn("cajado-terrano", "Cajado Terrano", ARCANE_ALL, 8, REACH),
-  "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9, REACH),
+  // Mago Negro / Elementalista / Bruxo — cajados arcanos, pool compartilhado (any of the
+  // three can equip any of these), but each one is thematically tuned to exactly one of
+  // them and hits 10% harder in that class's own hands (see combat.ts's
+  // weaponClassBonusMul) — the name is the tell: primal/pure-arcane pieces go to the base
+  // Mago, elemental ones to the Elementalista, pact/corruption ones to the Bruxo.
+  "cajado-de-osso": wpn("cajado-de-osso", "Cajado de Osso", ARCANE_ALL, 1, REACH, "mage"),
+  "cajado-abissal": wpn("cajado-abissal", "Cajado Abissal", ARCANE_ALL, 2, REACH, "warlock"),
+  "cajado-de-ebano": wpn("cajado-de-ebano", "Cajado de Ébano", ARCANE_ALL, 3, REACH, "mage"),
+  "cajado-igneo": wpn("cajado-igneo", "Cajado Ígneo", ARCANE_ALL, 4, REACH, "elementalist"),
+  "bastao-do-pacto": wpn("bastao-do-pacto", "Bastão do Pacto", ARCANE_ALL, 5, REACH, "warlock"),
+  "cajado-tempestuoso": wpn("cajado-tempestuoso", "Cajado Tempestuoso", ARCANE_ALL, 6, REACH, "elementalist"),
+  "cetro-da-corrupcao": wpn("cetro-da-corrupcao", "Cetro da Corrupção", ARCANE_ALL, 7, REACH, "warlock"),
+  "cajado-terrano": wpn("cajado-terrano", "Cajado Terrano", ARCANE_ALL, 8, REACH, "elementalist"),
+  "bastao-do-vacuo": wpn("bastao-do-vacuo", "Bastão do Vácuo", ARCANE_ALL, 9, REACH, "mage"),
 
   // Conjurador / Arcanista / Necromante — cajados arcanos, pool compartilhado com a trinca
   // acima. É uma linha paralela para outras três classes, não uma continuação da mesma
-  // escala — mesma faixa 1D4-2D12 do Mago, como toda outra trinca de classes no jogo.
-  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1, REACH),
-  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2, REACH),
-  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3, REACH),
-  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4, REACH),
-  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5, REACH),
-  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6, REACH),
-  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7, REACH),
-  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8, REACH),
-  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9, REACH),
+  // escala — mesma faixa 1D4-2D12 do Mago, como toda outra trinca de classes no jogo. Same
+  // per-class tuning as above: otherworldly/summoning pieces go to the Conjurador,
+  // pure-arcane ones to the Arcanista, death/decay ones to the Necromante.
+  "cajado-arcano": wpn("cajado-arcano", "Cajado Arcano", ARCANE_ALL, 1, REACH, "sorcerer"),
+  "cajado-etereo": wpn("cajado-etereo", "Cajado Etéreo", ARCANE_ALL, 2, REACH, "conjurer"),
+  "cajado-da-luz-sombria": wpn("cajado-da-luz-sombria", "Cajado da Luz Sombria", ARCANE_ALL, 3, REACH, "conjurer"),
+  "cajado-da-chama-purpura": wpn("cajado-da-chama-purpura", "Cajado da Chama Púrpura", ARCANE_ALL, 4, REACH, "sorcerer"),
+  "cajado-funebre": wpn("cajado-funebre", "Cajado Fúnebre", ARCANE_ALL, 5, REACH, "necromancer"),
+  "bastao-do-caos": wpn("bastao-do-caos", "Bastão do Caos", ARCANE_ALL, 6, REACH, "conjurer"),
+  "bastao-dos-restos": wpn("bastao-dos-restos", "Bastão dos Restos", ARCANE_ALL, 7, REACH, "necromancer"),
+  "cajado-do-arcano-puro": wpn("cajado-do-arcano-puro", "Cajado do Arcano Puro", ARCANE_ALL, 8, REACH, "sorcerer"),
+  "cajado-da-praga": wpn("cajado-da-praga", "Cajado da Praga", ARCANE_ALL, 9, REACH, "necromancer"),
 
   // Curandeiro / Bispo / Clérigo — cajados de cura, pool compartilhado.
   // Progressão contígua 1D4→2D12, sem pular tier — cada rung do 1 ao 9 tem um cajado.
@@ -2688,8 +2694,9 @@ export function missionById(id: string): Mission | undefined {
  * Fortified Temple Complex (missions 11-12 — the approach and the temple gate itself,
  * "Entrada do Templo", both happening at the same landmark). Locations with no missionIds
  * yet (Village, Farm, the second Ruins, Cemetery, Frozen Swamp, Forest, Misty Cave — the
- * last reserved for a future troll encounter arc) render permanently locked until missions
- * are written for them — "we'll open up more as we make more missions." */
+ * last reserved for a future troll encounter arc, City — reserved for the second Ferreiro)
+ * render permanently locked until missions are written for them — "we'll open up more as
+ * we make more missions." */
 export const WORLD_LOCATIONS: WorldLocation[] = [
   { id: "stonebridge", name: "Stone Bridge", x: 14, y: 71, missionIds: ["vau", "bosque", "aldeia"] },
   { id: "ruins", name: "Ruins", x: 8, y: 56, missionIds: ["muralha", "fortaleza", "templo", "cripta"] },
@@ -2705,6 +2712,10 @@ export const WORLD_LOCATIONS: WorldLocation[] = [
   { id: "frozen-swamp", name: "Frozen Swamp", x: 20, y: 86, missionIds: [] },
   { id: "forest", name: "Forest", x: 85, y: 79, missionIds: [] },
   { id: "misty-cave", name: "Misty Cave", x: 63, y: 19, missionIds: [] },
+  // Reserved for the second Ferreiro (higher-tier gear, once the current one's stock is
+  // split into a low/high tier pair) — locked like every other undeveloped location until
+  // missions and that second shop actually exist.
+  { id: "city", name: "City", x: 35, y: 50, missionIds: [] },
 ];
 
 export function locationForMission(missionId: string): WorldLocation | undefined {

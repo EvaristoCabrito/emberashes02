@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BAG_MAX, HERO_NAMES, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, heroRecruited, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
+import { BAG_MAX, CLASSES, HERO_NAMES, LOCKPICK_PRICE, POTION_CARRY_MAX, POTION_PRICE, WEAPON_MAX_ENH, WEAPONS, heroRecruited, weaponDiceLabel, weaponEnhCost, weaponIcon, weaponPower, weaponRangeLabel, weaponSellValue, weaponsForClass, potionLabel } from "./data";
 import { BackpackScreen, PaperDollScreen } from "./InventoryScreens";
 import type { Bag, ClassId, EquipSlot, PotionId, SaveData } from "./types";
 
@@ -480,6 +480,14 @@ function SmithPanel({
                       <span className="block text-[11px] text-muted tabular-nums">
                         {weaponDiceLabel(w.id)} · {weaponRangeLabel(w.id)}
                       </span>
+                      {w.bonusClass && (
+                        <span
+                          className={`block text-[11px] tabular-nums ${w.bonusClass === classId ? "text-accent" : "text-muted"}`}
+                          title={`+10% de dano para a classe ${CLASSES[w.bonusClass].name}`}
+                        >
+                          +10% dano · {CLASSES[w.bonusClass].name}
+                        </span>
+                      )}
                     </span>
                     <Button size="sm" variant="quiet" onClick={() => equip(w.id)}>
                       Equipar
@@ -505,6 +513,14 @@ function SmithPanel({
                       <span className="block text-[11px] text-muted tabular-nums">
                         {weaponDiceLabel(w.id)} · {weaponRangeLabel(w.id)} · {w.price} Ember
                       </span>
+                      {w.bonusClass && (
+                        <span
+                          className={`block text-[11px] tabular-nums ${w.bonusClass === classId ? "text-accent" : "text-muted"}`}
+                          title={`+10% de dano para a classe ${CLASSES[w.bonusClass].name}`}
+                        >
+                          +10% dano · {CLASSES[w.bonusClass].name}
+                        </span>
+                      )}
                     </span>
                     <Button size="sm" disabled={ember < w.price} onClick={() => buy(w.id)}>
                       Comprar
