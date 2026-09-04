@@ -23,7 +23,7 @@ export const TILE_VARIANT_COUNT: Record<TerrainId, number> = {
   void: 1,
 };
 const TILES = Object.keys(TILE_VARIANT_COUNT) as TerrainId[];
-const SPRITES: SpriteId[] = ["kael", "nira", "voss", "salazar", "soldier", "brigand", "captain", "sorcerer", "horror", "pikeman", "wardog", "troll"];
+const SPRITES: SpriteId[] = ["kael", "nira", "voss", "salazar", "malrec", "aldric", "soldier", "brigand", "captain", "sorcerer", "horror", "pikeman", "wardog", "troll"];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -68,7 +68,7 @@ export async function loadGameArt(): Promise<GameArt> {
     }),
   );
   await Promise.all(
-    (["kael", "nira", "voss", "salazar"] as SpriteId[]).map(async (id) => {
+    (["kael", "nira", "voss", "salazar", "malrec", "aldric"] as SpriteId[]).map(async (id) => {
       const n = id === "kael" ? 12 : 4;
       attacks[id] = await Promise.all(Array.from({ length: n }, (_, i) => loadImage(`/game/sprites/${id}/atk-${i + 1}.png${id === "kael" ? "?v=2" : ""}`)));
     }),

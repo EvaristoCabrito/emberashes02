@@ -112,10 +112,8 @@ const HERO_PORTRAIT: Partial<Record<string, string>> = {
   nira: "/game/portraits/nira.png",
   voss: "/game/portraits/voss.png",
   salazar: "/game/portraits/salazar.png",
-  // Keyed by class sprite (see CLASSES' own sprite field), same as the four starters above —
-  // Malrec (Conjurador) and Aldric (Lanceiro) are the only named units on these classes so far.
-  sorcerer: "/game/portraits/malrec.png",
-  pikeman: "/game/portraits/aldric.png",
+  malrec: "/game/portraits/malrec.png",
+  aldric: "/game/portraits/aldric.png",
 };
 
 // Only the small pouch exists as a carried-bag icon so far — swap this to read the party's
