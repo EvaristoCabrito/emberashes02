@@ -2102,6 +2102,9 @@ const RAW_MISSIONS: Mission[] = [
       { name: "Voss", classId: "mage", x: 6, y: 7 },
       { name: "Salazar", classId: "healer", x: 7, y: 7 },
     ],
+    // Ember Starved sits at the back (y:2, the row farthest from the y:7 entrance the
+    // cultist that used to be here moved down to y:5 to make room) — the party has to
+    // fight through the rest of the room to reach it, not run into it turn 1.
     enemySpawns: [
       { name: "Feiticeiro", classId: "cultist", x: 3, y: 1 },
       { name: "Feiticeiro", classId: "cultist", x: 9, y: 1 },
@@ -2113,7 +2116,7 @@ const RAW_MISSIONS: Mission[] = [
       { name: "Piqueiro", classId: "pikeman", x: 3, y: 5 },
       { name: "Troll da caverna", classId: "troll", x: 2, y: 6 },
       { name: "Troll da caverna", classId: "troll", x: 10, y: 6 },
-      { name: "Ember Starved", classId: "horror", x: 6, y: 6, guaranteedDrop: true },
+      { name: "Ember Starved", classId: "horror", x: 6, y: 1, guaranteedDrop: true },
     ],
   },
   {
